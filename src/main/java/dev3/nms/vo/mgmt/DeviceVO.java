@@ -10,6 +10,7 @@ import java.sql.Timestamp;
 public class DeviceVO {
     private Integer DEVICE_ID;
     private Integer GROUP_ID;  // DEVICE_GROUP_ID → GROUP_ID
+    private String GROUP_NAME; // 그룹명 (JOIN으로 가져옴)
     private String DEVICE_NAME;
     private String DEVICE_SYSTEM_NAME;
     private String DEVICE_IP;
