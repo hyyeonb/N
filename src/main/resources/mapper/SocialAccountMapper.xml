@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="dev3.nms.mapper.SocialAccountMapper">
+
+    <resultMap id="SocialAccountResultMap" type="dev3.nms.vo.auth.SocialAccountVO">
+        <id property="SOCIAL_ACCOUNT_ID" column="SOCIAL_ACCOUNT_ID"/>
+        <result property="USER_ID" column="USER_ID"/>
+        <result property="SOCIAL_TYPE" column="SOCIAL_TYPE"/>
+        <result property="SOCIAL_ID" column="SOCIAL_ID"/>
+        <result property="SOCIAL_EMAIL" column="SOCIAL_EMAIL"/>
+        <result property="SOCIAL_NAME" column="SOCIAL_NAME"/>
+        <result property="ACCESS_TOKEN" column="ACCESS_TOKEN"/>
+        <result property="REFRESH_TOKEN" column="REFRESH_TOKEN"/>
+        <result property="TOKEN_EXPIRES_AT" column="TOKEN_EXPIRES_AT"/>
+        <result property="CREATED_AT" column="CREATED_AT"/>
+        <result property="UPDATED_AT" column="UPDATED_AT"/>
+    </resultMap>
+
+    <!-- 사용자 ID와 소셜 타입으로 조회 -->
+    <select id="findByUserIdAndSocialType" resultMap="SocialAccountResultMap">
+        SELECT *
+        FROM SOCIAL_ACCOUNT
+        WHERE USER_ID = #{USER_ID}
+          AND SOCIAL_TYPE = #{SOCIAL_TYPE}
+    </select>
+
+    <!-- 소셜 타입과 소셜 ID로 조회 -->
+    <select id="findBySocialTypeAndSocialId" resultMap="SocialAccountResultMap">
+        SELECT *
+        FROM SOCIAL_ACCOUNT
+        WHERE SOCIAL_TYPE = #{SOCIAL_TYPE}
+          AND SOCIAL_ID = #{SOCIAL_ID}
+    </select>
+
+    <!-- 사용자의 모든 소셜 계정 조회 -->
+    <select id="findByUserId" resultMap="SocialAccountResultMap">
+        SELECT *
+        FROM SOCIAL_ACCOUNT
+        WHERE USER_ID = #{USER_ID}
+    </select>
+
+    <!-- 존재 여부 확인 -->
+    <select id="countByUserIdAndSocialType" resultType="int">
+        SELECT COUNT(*)
+        FROM SOCIAL_ACCOUNT
+        WHERE USER_ID = #{USER_ID}
+          AND SOCIAL_TYPE = #{SOCIAL_TYPE}
+    </select>
+
+    <!-- 소셜 계정 정보 저장 -->
+    <insert id="insert" parameterType="dev3.nms.vo.auth.SocialAccountVO"
+            useGeneratedKeys="true" keyProperty="SOCIAL_ACCOUNT_ID" keyColumn="SOCIAL_ACCOUNT_ID">
+        INSERT INTO SOCIAL_ACCOUNT (
+            USER_ID, SOCIAL_TYPE, SOCIAL_ID, SOCIAL_EMAIL, SOCIAL_NAME,
+            ACCESS_TOKEN, REFRESH_TOKEN, TOKEN_EXPIRES_AT
+        ) VALUES (
+            #{USER_ID}, #{SOCIAL_TYPE}, #{SOCIAL_ID}, #{SOCIAL_EMAIL}, #{SOCIAL_NAME},
+            #{ACCESS_TOKEN}, #{REFRESH_TOKEN}, #{TOKEN_EXPIRES_AT}
+        )
+    </insert>
+
+    <!-- 소셜 계정 정보 업데이트 -->
+    <update id="update" parameterType="dev3.nms.vo.auth.SocialAccountVO">
+        UPDATE SOCIAL_ACCOUNT
+        SET SOCIAL_ID = #{SOCIAL_ID},
+            SOCIAL_EMAIL = #{SOCIAL_EMAIL},
+            SOCIAL_NAME = #{SOCIAL_NAME},
+            ACCESS_TOKEN = #{ACCESS_TOKEN},
+            REFRESH_TOKEN = #{REFRESH_TOKEN},
+            TOKEN_EXPIRES_AT = #{TOKEN_EXPIRES_AT}
+        WHERE USER_ID = #{USER_ID}
+          AND SOCIAL_TYPE = #{SOCIAL_TYPE}
+    </update>
+
+</mapper>

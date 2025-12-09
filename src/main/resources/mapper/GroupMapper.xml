@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="dev3.nms.mapper.GroupMapper">
+
+    <resultMap id="GroupResultMap" type="dev3.nms.vo.mgmt.GroupVO">
+        <id property="GROUP_ID" column="GROUP_ID"/>
+        <result property="PARENT_GROUP_ID" column="PARENT_GROUP_ID"/>
+        <result property="GROUP_NAME" column="GROUP_NAME"/>
+        <result property="ADDRESS" column="ADDRESS"/>
+        <result property="PHONE" column="PHONE"/>
+        <result property="ICON_NAME" column="ICON_NAME"/>
+        <result property="DEPTH" column="DEPTH"/>
+        <result property="CREATE_USER_ID" column="CREATE_USER_ID"/>
+        <result property="CREATE_AT" column="CREATE_AT"/>
+        <result property="MODIFY_USER_ID" column="MODIFY_USER_ID"/>
+        <result property="MODIFY_AT" column="MODIFY_AT"/>
+        <result property="DELETE_USER_ID" column="DELETE_USER_ID"/>
+        <result property="DELETE_AT" column="DELETE_AT"/>
+    </resultMap>
+
+    <!-- 새 그룹 생성 -->
+    <insert id="insertGroup" parameterType="dev3.nms.vo.mgmt.GroupVO"
+            useGeneratedKeys="true" keyProperty="GROUP_ID" keyColumn="GROUP_ID">
+        INSERT INTO R_GROUP_T (PARENT_GROUP_ID, GROUP_NAME, ADDRESS, PHONE, DEPTH, CREATE_USER_ID, CREATE_AT)
+        VALUES (#{PARENT_GROUP_ID}, #{GROUP_NAME}, #{ADDRESS}, #{PHONE}, #{DEPTH}, #{CREATE_USER_ID}, CURRENT_TIMESTAMP)
+    </insert>
+
+    <!-- ID로 그룹 조회 -->
+    <select id="findGroupById" parameterType="int" resultMap="GroupResultMap">
+        SELECT GROUP_ID, PARENT_GROUP_ID, GROUP_NAME, ADDRESS, PHONE, ICON_NAME, DEPTH, CREATE_USER_ID, CREATE_AT, MODIFY_USER_ID, MODIFY_AT, DELETE_USER_ID, DELETE_AT
+        FROM R_GROUP_T
+        WHERE GROUP_ID = #{groupId} AND DELETE_AT IS NULL
+    </select>
+
+    <!-- 모든 그룹 조회 (계층 구조는 서비스에서 처리, 삭제되지 않은 그룹만) -->
+    <select id="findAllGroups" resultMap="GroupResultMap">
+        SELECT GROUP_ID, PARENT_GROUP_ID, GROUP_NAME, ADDRESS, PHONE, ICON_NAME, DEPTH, CREATE_USER_ID, CREATE_AT, MODIFY_USER_ID, MODIFY_AT, DELETE_USER_ID, DELETE_AT
+        FROM R_GROUP_T
+        WHERE DELETE_AT IS NULL
+        ORDER BY DEPTH, PARENT_GROUP_ID, GROUP_ID
+    </select>
+
+    <!-- 그룹 정보 업데이트 -->
+    <update id="updateGroup" parameterType="dev3.nms.vo.mgmt.GroupVO">
+        UPDATE R_GROUP_T
+        <set>
+            <if test="PARENT_GROUP_ID != null">PARENT_GROUP_ID = #{PARENT_GROUP_ID},</if>
+            <if test="GROUP_NAME != null and GROUP_NAME != ''">GROUP_NAME = #{GROUP_NAME},</if>
+            <if test="ADDRESS != null and ADDRESS != ''">ADDRESS = #{ADDRESS},</if>
+            <if test="PHONE != null and PHONE != ''">PHONE = #{PHONE},</if>
+            <if test="DEPTH != null">DEPTH = #{DEPTH},</if>
+            <if test="MODIFY_USER_ID != null">MODIFY_USER_ID = #{MODIFY_USER_ID},</if>
+            MODIFY_AT = CURRENT_TIMESTAMP
+        </set>
+        WHERE GROUP_ID = #{GROUP_ID} AND DELETE_AT IS NULL
+    </update>
+
+    <!-- 그룹 소프트 삭제 -->
+    <update id="deleteGroup" parameterType="dev3.nms.vo.mgmt.GroupVO">
+        UPDATE R_GROUP_T
+        SET
+            DELETE_USER_ID = #{DELETE_USER_ID},
+            DELETE_AT = CURRENT_TIMESTAMP
+        WHERE GROUP_ID = #{GROUP_ID} AND DELETE_AT IS NULL
+    </update>
+
+    <!-- 자식 그룹 개수 확인 (삭제되지 않은 그룹만) -->
+    <select id="countChildren" parameterType="int" resultType="int">
+        SELECT COUNT(*) FROM R_GROUP_T WHERE PARENT_GROUP_ID = #{groupId} AND DELETE_AT IS NULL
+    </select>
+
+    <!-- 그룹 아이콘 업데이트 -->
+    <update id="updateGroupIcon">
+        UPDATE R_GROUP_T
+        SET ICON_NAME = #{iconName},
+            MODIFY_AT = CURRENT_TIMESTAMP
+        WHERE GROUP_ID = #{groupId} AND DELETE_AT IS NULL
+    </update>
+
+    <!-- 직접 자식 그룹 목록 조회 (삭제되지 않은 그룹만) -->
+    <select id="findChildrenByParentId" parameterType="int" resultMap="GroupResultMap">
+        SELECT GROUP_ID, PARENT_GROUP_ID, GROUP_NAME, ADDRESS, PHONE, ICON_NAME, DEPTH, CREATE_USER_ID, CREATE_AT, MODIFY_USER_ID, MODIFY_AT, DELETE_USER_ID, DELETE_AT
+        FROM R_GROUP_T
+        WHERE PARENT_GROUP_ID = #{parentId} AND DELETE_AT IS NULL
+        ORDER BY GROUP_NAME
+    </select>
+
+    <!-- 그룹 및 모든 하위 그룹 일괄 소프트 삭제 (재귀적으로 처리) -->
+    <update id="deleteGroupWithChildren">
+        UPDATE R_GROUP_T
+        SET DELETE_USER_ID = #{DELETE_USER_ID},
+            DELETE_AT = CURRENT_TIMESTAMP
+        WHERE DELETE_AT IS NULL
+          AND (GROUP_ID = #{GROUP_ID}
+               OR GROUP_ID IN (
+                   WITH RECURSIVE child_groups AS (
+                       SELECT GROUP_ID FROM R_GROUP_T WHERE PARENT_GROUP_ID = #{GROUP_ID} AND DELETE_AT IS NULL
+                       UNION ALL
+                       SELECT g.GROUP_ID FROM R_GROUP_T g
+                       INNER JOIN child_groups cg ON g.PARENT_GROUP_ID = cg.GROUP_ID
+                       WHERE g.DELETE_AT IS NULL
+                   )
+                   SELECT GROUP_ID FROM child_groups
+               ))
+    </update>
+
+    <!-- 특정 그룹 및 모든 하위 그룹 ID 목록 조회 (재귀) -->
+    <select id="findGroupIdWithDescendants" parameterType="int" resultType="int">
+        WITH RECURSIVE group_tree AS (
+            SELECT GROUP_ID FROM R_GROUP_T
+            WHERE GROUP_ID = #{groupId} AND DELETE_AT IS NULL
+            UNION ALL
+            SELECT g.GROUP_ID FROM R_GROUP_T g
+            INNER JOIN group_tree gt ON g.PARENT_GROUP_ID = gt.GROUP_ID
+            WHERE g.DELETE_AT IS NULL
+        )
+        SELECT GROUP_ID FROM group_tree
+    </select>
+
+    <!-- 특정 그룹의 모든 하위 그룹 DEPTH 업데이트 -->
+    <update id="updateChildrenDepth">
+        UPDATE R_GROUP_T g
+        INNER JOIN (
+            WITH RECURSIVE child_groups AS (
+                SELECT GROUP_ID, 1 AS level FROM R_GROUP_T
+                WHERE PARENT_GROUP_ID = #{groupId} AND DELETE_AT IS NULL
+                UNION ALL
+                SELECT g.GROUP_ID, cg.level + 1 FROM R_GROUP_T g
+                INNER JOIN child_groups cg ON g.PARENT_GROUP_ID = cg.GROUP_ID
+                WHERE g.DELETE_AT IS NULL
+            )
+            SELECT GROUP_ID, level FROM child_groups
+        ) AS children ON g.GROUP_ID = children.GROUP_ID
+        SET g.DEPTH = #{baseDepth} + children.level,
+            g.MODIFY_AT = CURRENT_TIMESTAMP
+        WHERE g.DELETE_AT IS NULL
+    </update>
+
+</mapper>

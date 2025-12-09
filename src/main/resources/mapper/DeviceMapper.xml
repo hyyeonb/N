@@ -1,0 +1,316 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="dev3.nms.mapper.DeviceMapper">
+
+    <!-- 모든 장비 조회 (SNMP, Model 정보 포함) -->
+    <select id="findAllDevices" resultType="dev3.nms.vo.mgmt.DeviceVO">
+        SELECT
+            d.DEVICE_ID,
+            d.GROUP_ID,
+            d.DEVICE_NAME,
+            d.DEVICE_SYSTEM_NAME,
+            d.DEVICE_IP,
+            d.DEVICE_DESC,
+            d.MODEL_ID,
+            d.PORT_COUNT,
+            m.MODEL_NAME,
+            m.MODEL_OID,
+            v.VENDOR_NAME,
+            s.SNMP_VERSION,
+            s.SNMP_PORT,
+            s.SNMP_COMMUNITY,
+            s.SNMP_USER,
+            s.SNMP_AUTH_PROTOCOL,
+            s.SNMP_AUTH_PASSWORD,
+            s.SNMP_PRIV_PROTOCOL,
+            s.SNMP_PRIV_PASSWORD,
+            d.CREATE_USER_ID,
+            d.CREATE_AT,
+            d.MODIFY_USER_ID,
+            d.MODIFY_AT,
+            d.DELETE_USER_ID,
+            d.DELETE_AT
+        FROM r_device_t d
+        LEFT JOIN r_device_snmp_t s ON d.DEVICE_ID = s.DEVICE_ID
+        LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
+        LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
+        WHERE d.DELETE_AT IS NULL
+    </select>
+
+    <!-- ID로 장비 조회 -->
+    <select id="findDeviceById" resultType="dev3.nms.vo.mgmt.DeviceVO">
+        SELECT
+            d.DEVICE_ID,
+            d.GROUP_ID,
+            d.DEVICE_NAME,
+            d.DEVICE_SYSTEM_NAME,
+            d.DEVICE_IP,
+            d.DEVICE_DESC,
+            d.MODEL_ID,
+            d.PORT_COUNT,
+            m.MODEL_NAME,
+            m.MODEL_OID,
+            v.VENDOR_NAME,
+            s.SNMP_VERSION,
+            s.SNMP_PORT,
+            s.SNMP_COMMUNITY,
+            s.SNMP_USER,
+            s.SNMP_AUTH_PROTOCOL,
+            s.SNMP_AUTH_PASSWORD,
+            s.SNMP_PRIV_PROTOCOL,
+            s.SNMP_PRIV_PASSWORD,
+            d.CREATE_USER_ID,
+            d.CREATE_AT,
+            d.MODIFY_USER_ID,
+            d.MODIFY_AT,
+            d.DELETE_USER_ID,
+            d.DELETE_AT
+        FROM r_device_t d
+        LEFT JOIN r_device_snmp_t s ON d.DEVICE_ID = s.DEVICE_ID
+        LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
+        LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
+        WHERE d.DEVICE_ID = #{deviceId}
+          AND d.DELETE_AT IS NULL
+    </select>
+
+    <!-- 그룹 ID 목록으로 장비 조회 -->
+    <select id="findDevicesByGroupIds" resultType="dev3.nms.vo.mgmt.DeviceVO">
+        SELECT
+            d.DEVICE_ID,
+            d.GROUP_ID,
+            d.DEVICE_NAME,
+            d.DEVICE_SYSTEM_NAME,
+            d.DEVICE_IP,
+            d.DEVICE_DESC,
+            d.MODEL_ID,
+            d.PORT_COUNT,
+            m.MODEL_NAME,
+            m.MODEL_OID,
+            v.VENDOR_NAME,
+            s.SNMP_VERSION,
+            s.SNMP_PORT,
+            s.SNMP_COMMUNITY,
+            s.SNMP_USER,
+            s.SNMP_AUTH_PROTOCOL,
+            s.SNMP_AUTH_PASSWORD,
+            s.SNMP_PRIV_PROTOCOL,
+            s.SNMP_PRIV_PASSWORD,
+            d.CREATE_USER_ID,
+            d.CREATE_AT,
+            d.MODIFY_USER_ID,
+            d.MODIFY_AT,
+            d.DELETE_USER_ID,
+            d.DELETE_AT
+        FROM r_device_t d
+        LEFT JOIN r_device_snmp_t s ON d.DEVICE_ID = s.DEVICE_ID
+        LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
+        LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
+        WHERE d.GROUP_ID IN
+        <foreach collection="list" item="item" open="(" separator="," close=")">
+            #{item}
+        </foreach>
+        AND d.DELETE_AT IS NULL
+    </select>
+
+    <!-- 그룹 ID 목록으로 장비 조회 (페이지네이션 LIMIT OFFSET + 정렬) -->
+    <select id="findDevicesByGroupIdsPaged" resultType="dev3.nms.vo.mgmt.DeviceVO">
+        SELECT
+            d.DEVICE_ID,
+            d.GROUP_ID,
+            d.DEVICE_NAME,
+            d.DEVICE_SYSTEM_NAME,
+            d.DEVICE_IP,
+            d.DEVICE_DESC,
+            d.MODEL_ID,
+            d.PORT_COUNT,
+            m.MODEL_NAME,
+            m.MODEL_OID,
+            v.VENDOR_NAME,
+            s.SNMP_VERSION,
+            s.SNMP_PORT,
+            s.SNMP_COMMUNITY,
+            s.SNMP_USER,
+            s.SNMP_AUTH_PROTOCOL,
+            s.SNMP_AUTH_PASSWORD,
+            s.SNMP_PRIV_PROTOCOL,
+            s.SNMP_PRIV_PASSWORD,
+            d.CREATE_USER_ID,
+            d.CREATE_AT,
+            d.MODIFY_USER_ID,
+            d.MODIFY_AT,
+            d.DELETE_USER_ID,
+            d.DELETE_AT
+        FROM r_device_t d
+        LEFT JOIN r_device_snmp_t s ON d.DEVICE_ID = s.DEVICE_ID
+        LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
+        LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
+        WHERE d.GROUP_ID IN
+        <foreach collection="groupIds" item="item" open="(" separator="," close=")">
+            #{item}
+        </foreach>
+        AND d.DELETE_AT IS NULL
+        <choose>
+            <when test="sort == 'DEVICE_ID'">
+                ORDER BY d.DEVICE_ID
+            </when>
+            <when test="sort == 'DEVICE_NAME'">
+                ORDER BY d.DEVICE_NAME
+            </when>
+            <when test="sort == 'DEVICE_SYSTEM_NAME'">
+                ORDER BY d.DEVICE_SYSTEM_NAME
+            </when>
+            <when test="sort == 'DEVICE_IP'">
+                ORDER BY d.DEVICE_IP
+            </when>
+            <when test="sort == 'VENDOR_NAME'">
+                ORDER BY v.VENDOR_NAME
+            </when>
+            <when test="sort == 'PORT_COUNT'">
+                ORDER BY d.PORT_COUNT
+            </when>
+            <when test="sort == 'CREATE_AT'">
+                ORDER BY d.CREATE_AT
+            </when>
+            <otherwise>
+                ORDER BY d.DEVICE_ID
+            </otherwise>
+        </choose>
+        <if test="order == 'desc'">
+            DESC
+        </if>
+        <if test="order != 'desc'">
+            ASC
+        </if>
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 그룹 ID 목록으로 장비 총 개수 조회 -->
+    <select id="countDevicesByGroupIds" resultType="int">
+        SELECT COUNT(*)
+        FROM r_device_t d
+        WHERE d.GROUP_ID IN
+        <foreach collection="groupIds" item="item" open="(" separator="," close=")">
+            #{item}
+        </foreach>
+        AND d.DELETE_AT IS NULL
+    </select>
+
+    <!-- 장비 등록 (SNMP 정보 제외) -->
+    <insert id="insertDevice" parameterType="dev3.nms.vo.mgmt.DeviceVO" useGeneratedKeys="true" keyProperty="DEVICE_ID">
+        INSERT INTO r_device_t (
+            GROUP_ID, DEVICE_NAME, DEVICE_SYSTEM_NAME, DEVICE_IP, DEVICE_DESC, MODEL_ID, PORT_COUNT,
+            CREATE_USER_ID, CREATE_AT
+        ) VALUES (
+            #{GROUP_ID}, #{DEVICE_NAME}, #{DEVICE_SYSTEM_NAME}, #{DEVICE_IP}, #{DEVICE_DESC}, #{MODEL_ID}, #{PORT_COUNT},
+            #{CREATE_USER_ID}, NOW()
+        )
+    </insert>
+
+    <!-- 장비 SNMP 정보 등록 -->
+    <insert id="insertDeviceSnmp" parameterType="dev3.nms.vo.mgmt.DeviceSnmpVO">
+        INSERT INTO r_device_snmp_t (
+            DEVICE_ID, SNMP_VERSION, SNMP_PORT, SNMP_COMMUNITY, SNMP_USER,
+            SNMP_AUTH_PROTOCOL, SNMP_AUTH_PASSWORD, SNMP_PRIV_PROTOCOL, SNMP_PRIV_PASSWORD
+        ) VALUES (
+            #{DEVICE_ID}, #{SNMP_VERSION}, #{SNMP_PORT}, #{SNMP_COMMUNITY}, #{SNMP_USER},
+            #{SNMP_AUTH_PROTOCOL}, #{SNMP_AUTH_PASSWORD}, #{SNMP_PRIV_PROTOCOL}, #{SNMP_PRIV_PASSWORD}
+        )
+    </insert>
+
+    <!-- 장비 정보 수정 (SNMP 정보 제외) -->
+    <update id="updateDevice" parameterType="dev3.nms.vo.mgmt.DeviceVO">
+        UPDATE r_device_t
+        <set>
+            <if test="GROUP_ID != null">GROUP_ID = #{GROUP_ID},</if>
+            <if test="DEVICE_NAME != null">DEVICE_NAME = #{DEVICE_NAME},</if>
+            <if test="DEVICE_SYSTEM_NAME != null">DEVICE_SYSTEM_NAME = #{DEVICE_SYSTEM_NAME},</if>
+            <if test="DEVICE_IP != null">DEVICE_IP = #{DEVICE_IP},</if>
+            <if test="DEVICE_DESC != null">DEVICE_DESC = #{DEVICE_DESC},</if>
+            <if test="MODEL_ID != null">MODEL_ID = #{MODEL_ID},</if>
+            <if test="PORT_COUNT != null">PORT_COUNT = #{PORT_COUNT},</if>
+            <if test="MODIFY_USER_ID != null">MODIFY_USER_ID = #{MODIFY_USER_ID},</if>
+            MODIFY_AT = NOW()
+        </set>
+        WHERE DEVICE_ID = #{DEVICE_ID}
+    </update>
+
+    <!-- 장비 SNMP 정보 수정 -->
+    <update id="updateDeviceSnmp" parameterType="dev3.nms.vo.mgmt.DeviceSnmpVO">
+        UPDATE r_device_snmp_t
+        <set>
+            <if test="SNMP_VERSION != null">SNMP_VERSION = #{SNMP_VERSION},</if>
+            <if test="SNMP_PORT != null">SNMP_PORT = #{SNMP_PORT},</if>
+            <if test="SNMP_COMMUNITY != null">SNMP_COMMUNITY = #{SNMP_COMMUNITY},</if>
+            <if test="SNMP_USER != null">SNMP_USER = #{SNMP_USER},</if>
+            <if test="SNMP_AUTH_PROTOCOL != null">SNMP_AUTH_PROTOCOL = #{SNMP_AUTH_PROTOCOL},</if>
+            <if test="SNMP_AUTH_PASSWORD != null">SNMP_AUTH_PASSWORD = #{SNMP_AUTH_PASSWORD},</if>
+            <if test="SNMP_PRIV_PROTOCOL != null">SNMP_PRIV_PROTOCOL = #{SNMP_PRIV_PROTOCOL},</if>
+            <if test="SNMP_PRIV_PASSWORD != null">SNMP_PRIV_PASSWORD = #{SNMP_PRIV_PASSWORD},</if>
+        </set>
+        WHERE DEVICE_ID = #{DEVICE_ID}
+    </update>
+
+    <!-- 장비 삭제 (소프트 삭제) -->
+    <update id="deleteDevice" parameterType="int">
+        UPDATE r_device_t
+        SET DELETE_AT = NOW()
+        WHERE DEVICE_ID = #{deviceId}
+    </update>
+
+    <!-- 장비 일괄 삭제 (소프트 삭제) -->
+    <update id="deleteDevices">
+        UPDATE r_device_t
+        SET DELETE_AT = NOW()
+        WHERE DEVICE_ID IN
+        <foreach collection="deviceIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
+
+    <!-- 중복 IP 확인 -->
+    <select id="findDuplicateIps" resultType="java.lang.String">
+        SELECT DEVICE_IP
+        FROM r_device_t
+        WHERE DEVICE_IP IN
+        <foreach collection="list" item="item" open="(" separator="," close=")">
+            #{item}
+        </foreach>
+        AND DELETE_AT IS NULL
+    </select>
+
+    <!-- SNMP 정보 존재 확인 -->
+    <select id="existsDeviceSnmp" parameterType="int" resultType="boolean">
+        SELECT COUNT(*) > 0 FROM r_device_snmp_t WHERE DEVICE_ID = #{deviceId}
+    </select>
+
+    <!-- 장비 관제 설정 등록 -->
+    <insert id="insertDeviceScope" parameterType="dev3.nms.vo.mgmt.DeviceScopeVO">
+        INSERT INTO r_device_scope_t (
+            DEVICE_ID, COLLECT_PING, COLLECT_SNMP, COLLECT_AGENT
+        ) VALUES (
+            #{DEVICE_ID}, #{COLLECT_PING}, #{COLLECT_SNMP}, #{COLLECT_AGENT}
+        )
+    </insert>
+
+    <!-- 장비 관제 설정 수정 -->
+    <update id="updateDeviceScope" parameterType="dev3.nms.vo.mgmt.DeviceScopeVO">
+        UPDATE r_device_scope_t
+        SET COLLECT_PING = #{COLLECT_PING},
+            COLLECT_SNMP = #{COLLECT_SNMP},
+            COLLECT_AGENT = #{COLLECT_AGENT}
+        WHERE DEVICE_ID = #{DEVICE_ID}
+    </update>
+
+    <!-- 장비 관제 설정 조회 -->
+    <select id="findDeviceScopeById" parameterType="int" resultType="dev3.nms.vo.mgmt.DeviceScopeVO">
+        SELECT DEVICE_ID, COLLECT_PING, COLLECT_SNMP, COLLECT_AGENT
+        FROM r_device_scope_t
+        WHERE DEVICE_ID = #{deviceId}
+    </select>
+
+    <!-- 장비 관제 설정 존재 확인 -->
+    <select id="existsDeviceScope" parameterType="int" resultType="boolean">
+        SELECT COUNT(*) > 0 FROM r_device_scope_t WHERE DEVICE_ID = #{deviceId}
+    </select>
+
+</mapper>

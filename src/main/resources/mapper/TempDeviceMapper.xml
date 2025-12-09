@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="dev3.nms.mapper.TempDeviceMapper">
+
+    <select id="findTempDevicesByGroupIds" resultType="dev3.nms.vo.mgmt.TempDeviceVO">
+        SELECT
+            TEMP_DEVICE_ID,
+            DEVICE_NAME,
+            GROUP_ID,
+            DEVICE_IP,
+            SNMP_VERSION,
+            SNMP_PORT,
+            SNMP_COMMUNITY,
+            SNMP_USER,
+            SNMP_AUTH_PROTOCOL,
+            SNMP_AUTH_PASSWORD,
+            SNMP_PRIV_PROTOCOL,
+            SNMP_PRIV_PASSWORD,
+            CREATE_USER_ID,
+            CREATE_AT,
+            MODIFY_USER_ID,
+            MODIFY_AT,
+            DELETE_USER_ID,
+            DELETE_AT
+        FROM
+            r_temp_device_t
+        WHERE
+            GROUP_ID IN
+            <foreach collection="list" item="item" open="(" separator="," close=")">
+                #{item}
+            </foreach>
+            AND DELETE_AT IS NULL
+    </select>
+
+    <insert id="insertTempDevice" parameterType="dev3.nms.vo.mgmt.TempDeviceVO" useGeneratedKeys="true" keyProperty="TEMP_DEVICE_ID">
+        INSERT INTO r_temp_device_t (
+            DEVICE_NAME, GROUP_ID, DEVICE_IP, SNMP_VERSION, SNMP_PORT, SNMP_COMMUNITY,
+            SNMP_USER, SNMP_AUTH_PROTOCOL, SNMP_AUTH_PASSWORD, SNMP_PRIV_PROTOCOL, SNMP_PRIV_PASSWORD,
+            CREATE_USER_ID, CREATE_AT, DELETE_USER_ID, DELETE_AT
+        ) VALUES (
+            #{DEVICE_NAME}, #{GROUP_ID}, #{DEVICE_IP}, #{SNMP_VERSION}, #{SNMP_PORT}, #{SNMP_COMMUNITY},
+            #{SNMP_USER}, #{SNMP_AUTH_PROTOCOL}, #{SNMP_AUTH_PASSWORD}, #{SNMP_PRIV_PROTOCOL}, #{SNMP_PRIV_PASSWORD},
+            #{CREATE_USER_ID}, NOW(), #{DELETE_USER_ID}, #{DELETE_AT}
+        )
+    </insert>
+
+    <update id="updateTempDevice" parameterType="dev3.nms.vo.mgmt.TempDeviceVO">
+        UPDATE r_temp_device_t
+        <set>
+            <if test="DEVICE_NAME != null">DEVICE_NAME = #{DEVICE_NAME},</if>
+            <if test="GROUP_ID != null">GROUP_ID = #{GROUP_ID},</if>
+            <if test="DEVICE_IP != null">DEVICE_IP = #{DEVICE_IP},</if>
+            <if test="SNMP_VERSION != null">SNMP_VERSION = #{SNMP_VERSION},</if>
+            <if test="SNMP_PORT != null">SNMP_PORT = #{SNMP_PORT},</if>
+            <if test="SNMP_COMMUNITY != null">SNMP_COMMUNITY = #{SNMP_COMMUNITY},</if>
+            <if test="SNMP_USER != null">SNMP_USER = #{SNMP_USER},</if>
+            <if test="SNMP_AUTH_PROTOCOL != null">SNMP_AUTH_PROTOCOL = #{SNMP_AUTH_PROTOCOL},</if>
+            <if test="SNMP_AUTH_PASSWORD != null">SNMP_AUTH_PASSWORD = #{SNMP_AUTH_PASSWORD},</if>
+            <if test="SNMP_PRIV_PROTOCOL != null">SNMP_PRIV_PROTOCOL = #{SNMP_PRIV_PROTOCOL},</if>
+            <if test="SNMP_PRIV_PASSWORD != null">SNMP_PRIV_PASSWORD = #{SNMP_PRIV_PASSWORD},</if>
+            <if test="MODIFY_USER_ID != null">MODIFY_USER_ID = #{MODIFY_USER_ID},</if>
+            MODIFY_AT = NOW()
+        </set>
+        WHERE TEMP_DEVICE_ID = #{TEMP_DEVICE_ID}
+    </update>
+
+    <update id="deleteTempDevice" parameterType="int">
+        UPDATE r_temp_device_t
+        SET DELETE_AT = NOW()
+        WHERE TEMP_DEVICE_ID = #{tempDeviceId}
+    </update>
+
+    <update id="deleteTempDevices" parameterType="java.util.List">
+        UPDATE r_temp_device_t
+        SET DELETE_AT = NOW()
+        WHERE TEMP_DEVICE_ID IN
+        <foreach collection="list" item="item" open="(" separator="," close=")">
+            #{item}
+        </foreach>
+    </update>
+
+    <insert id="insertTempDevices" parameterType="java.util.List" useGeneratedKeys="true" keyProperty="TEMP_DEVICE_ID">
+        INSERT INTO r_temp_device_t (
+            DEVICE_NAME, GROUP_ID, DEVICE_IP, SNMP_VERSION, SNMP_PORT, SNMP_COMMUNITY,
+            SNMP_USER, SNMP_AUTH_PROTOCOL, SNMP_AUTH_PASSWORD, SNMP_PRIV_PROTOCOL, SNMP_PRIV_PASSWORD,
+            CREATE_USER_ID, CREATE_AT
+        ) VALUES
+        <foreach collection="list" item="device" separator=",">
+            (
+            #{device.DEVICE_NAME}, #{device.GROUP_ID}, #{device.DEVICE_IP}, #{device.SNMP_VERSION},
+            #{device.SNMP_PORT}, #{device.SNMP_COMMUNITY}, #{device.SNMP_USER}, #{device.SNMP_AUTH_PROTOCOL},
+            #{device.SNMP_AUTH_PASSWORD}, #{device.SNMP_PRIV_PROTOCOL}, #{device.SNMP_PRIV_PASSWORD},
+            #{device.CREATE_USER_ID}, NOW()
+            )
+        </foreach>
+    </insert>
+
+    <select id="findAllTempDevices" resultType="dev3.nms.vo.mgmt.TempDeviceVO">
+        SELECT
+            TEMP_DEVICE_ID,
+            DEVICE_NAME,
+            GROUP_ID,
+            DEVICE_IP,
+            SNMP_VERSION,
+            SNMP_PORT,
+            SNMP_COMMUNITY,
+            SNMP_USER,
+            SNMP_AUTH_PROTOCOL,
+            SNMP_AUTH_PASSWORD,
+            SNMP_PRIV_PROTOCOL,
+            SNMP_PRIV_PASSWORD,
+            CREATE_USER_ID,
+            CREATE_AT,
+            MODIFY_USER_ID,
+            MODIFY_AT,
+            DELETE_USER_ID,
+            DELETE_AT
+        FROM
+            r_temp_device_t
+        WHERE
+            DELETE_AT IS NULL
+    </select>
+
+    <select id="findDuplicateIps" resultType="java.lang.String">
+        SELECT DEVICE_IP
+        FROM r_temp_device_t
+        WHERE DEVICE_IP IN
+        <foreach collection="list" item="item" open="(" separator="," close=")">
+            #{item}
+        </foreach>
+        AND DELETE_AT IS NULL
+    </select>
+
+    <select id="findByIp" resultType="dev3.nms.vo.mgmt.TempDeviceVO">
+        SELECT
+            TEMP_DEVICE_ID,
+            DEVICE_NAME,
+            GROUP_ID,
+            DEVICE_IP,
+            SNMP_VERSION,
+            SNMP_PORT,
+            SNMP_COMMUNITY,
+            SNMP_USER,
+            SNMP_AUTH_PROTOCOL,
+            SNMP_AUTH_PASSWORD,
+            SNMP_PRIV_PROTOCOL,
+            SNMP_PRIV_PASSWORD,
+            CREATE_USER_ID,
+            CREATE_AT,
+            MODIFY_USER_ID,
+            MODIFY_AT,
+            DELETE_USER_ID,
+            DELETE_AT
+        FROM
+            r_temp_device_t
+        WHERE
+            DEVICE_IP = #{deviceIp}
+            AND DELETE_AT IS NULL
+        LIMIT 1
+    </select>
+
+    <select id="findById" resultType="dev3.nms.vo.mgmt.TempDeviceVO">
+        SELECT
+            TEMP_DEVICE_ID,
+            DEVICE_NAME,
+            GROUP_ID,
+            DEVICE_IP,
+            SNMP_VERSION,
+            SNMP_PORT,
+            SNMP_COMMUNITY,
+            SNMP_USER,
+            SNMP_AUTH_PROTOCOL,
+            SNMP_AUTH_PASSWORD,
+            SNMP_PRIV_PROTOCOL,
+            SNMP_PRIV_PASSWORD,
+            CREATE_USER_ID,
+            CREATE_AT,
+            MODIFY_USER_ID,
+            MODIFY_AT,
+            DELETE_USER_ID,
+            DELETE_AT
+        FROM
+            r_temp_device_t
+        WHERE
+            TEMP_DEVICE_ID = #{tempDeviceId}
+            AND DELETE_AT IS NULL
+    </select>
+
+</mapper>

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="dev3.nms.mapper.UserMapper">
+
+    <resultMap id="UserResultMap" type="dev3.nms.vo.auth.UserVO">
+        <id property="USER_ID" column="USER_ID"/>
+        <result property="EMAIL" column="EMAIL"/>
+        <result property="NAME" column="NAME"/>
+        <result property="PROFILE_IMAGE" column="PROFILE_IMAGE"/>
+        <result property="SOCIAL_TYPE" column="SOCIAL_TYPE"/>
+        <result property="SOCIAL_ID" column="SOCIAL_ID"/>
+        <result property="CREATED_AT" column="CREATED_AT"/>
+        <result property="UPDATED_AT" column="UPDATED_AT"/>
+    </resultMap>
+
+    <!-- 소셜 타입과 소셜 ID로 사용자 조회 -->
+    <select id="findBySocialTypeAndSocialId" resultMap="UserResultMap">
+        SELECT *
+        FROM USER
+        WHERE SOCIAL_TYPE = #{SOCIAL_TYPE}
+          AND SOCIAL_ID = #{SOCIAL_ID}
+    </select>
+
+    <!-- 이메일로 사용자 조회 -->
+    <select id="findByEmail" resultMap="UserResultMap">
+        SELECT *
+        FROM USER
+        WHERE EMAIL = #{EMAIL}
+    </select>
+
+    <!-- 사용자 ID로 조회 -->
+    <select id="findById" resultMap="UserResultMap">
+        SELECT *
+        FROM USER
+        WHERE USER_ID = #{USER_ID}
+    </select>
+
+    <!-- 새 사용자 생성 -->
+    <insert id="insert" parameterType="dev3.nms.vo.auth.UserVO"
+            useGeneratedKeys="true" keyProperty="USER_ID" keyColumn="USER_ID">
+        INSERT INTO USER (EMAIL, NAME, PROFILE_IMAGE, SOCIAL_TYPE, SOCIAL_ID)
+        VALUES (#{EMAIL}, #{NAME}, #{PROFILE_IMAGE}, #{SOCIAL_TYPE}, #{SOCIAL_ID})
+    </insert>
+
+    <!-- 사용자 정보 업데이트 -->
+    <update id="update" parameterType="dev3.nms.vo.auth.UserVO">
+        UPDATE USER
+        SET EMAIL = #{EMAIL},
+            NAME = #{NAME},
+            PROFILE_IMAGE = #{PROFILE_IMAGE}
+        WHERE USER_ID = #{USER_ID}
+    </update>
+
+</mapper>

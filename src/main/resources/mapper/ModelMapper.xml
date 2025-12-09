@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="dev3.nms.mapper.ModelMapper">
+
+    <resultMap id="ModelResultMap" type="dev3.nms.vo.mgmt.ModelVO">
+        <id property="MODEL_ID" column="MODEL_ID"/>
+        <result property="VENDOR_ID" column="VENDOR_ID"/>
+        <result property="MODEL_OID" column="MODEL_OID"/>
+        <result property="MODEL_NAME" column="MODEL_NAME"/>
+        <result property="VENDOR_NAME" column="VENDOR_NAME"/>
+        <result property="CREATE_USER_ID" column="CREATE_USER_ID"/>
+        <result property="CREATE_AT" column="CREATE_AT"/>
+        <result property="MODIFY_USER_ID" column="MODIFY_USER_ID"/>
+        <result property="MODIFY_AT" column="MODIFY_AT"/>
+        <result property="DELETE_USER_ID" column="DELETE_USER_ID"/>
+        <result property="DELETE_AT" column="DELETE_AT"/>
+    </resultMap>
+
+    <!-- MODEL_OID와 VENDOR_ID로 모델 조회 -->
+    <select id="findByOidAndVendorId" resultMap="ModelResultMap">
+        SELECT
+            m.MODEL_ID,
+            m.VENDOR_ID,
+            m.MODEL_OID,
+            m.MODEL_NAME,
+            v.VENDOR_NAME,
+            m.CREATE_USER_ID,
+            m.CREATE_AT,
+            m.MODIFY_USER_ID,
+            m.MODIFY_AT,
+            m.DELETE_USER_ID,
+            m.DELETE_AT
+        FROM r_model_t m
+        LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
+        WHERE m.MODEL_OID = #{modelOid}
+          AND m.VENDOR_ID = #{vendorId}
+          AND m.DELETE_AT IS NULL
+    </select>
+
+    <!-- MODEL_ID로 모델 조회 -->
+    <select id="findById" resultMap="ModelResultMap">
+        SELECT
+            m.MODEL_ID,
+            m.VENDOR_ID,
+            m.MODEL_OID,
+            m.MODEL_NAME,
+            v.VENDOR_NAME,
+            m.CREATE_USER_ID,
+            m.CREATE_AT,
+            m.MODIFY_USER_ID,
+            m.MODIFY_AT,
+            m.DELETE_USER_ID,
+            m.DELETE_AT
+        FROM r_model_t m
+        LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
+        WHERE m.MODEL_ID = #{modelId}
+          AND m.DELETE_AT IS NULL
+    </select>
+
+    <!-- 모델 등록 -->
+    <insert id="insertModel" parameterType="dev3.nms.vo.mgmt.ModelVO" useGeneratedKeys="true" keyProperty="MODEL_ID">
+        INSERT INTO r_model_t (
+            VENDOR_ID, MODEL_OID, MODEL_NAME, CREATE_USER_ID, CREATE_AT
+        ) VALUES (
+            #{VENDOR_ID}, #{MODEL_OID}, #{MODEL_NAME}, #{CREATE_USER_ID}, NOW()
+        )
+    </insert>
+
+    <!-- 모델 수정 -->
+    <update id="updateModel" parameterType="dev3.nms.vo.mgmt.ModelVO">
+        UPDATE r_model_t
+        <set>
+            <if test="VENDOR_ID != null">VENDOR_ID = #{VENDOR_ID},</if>
+            <if test="MODEL_OID != null">MODEL_OID = #{MODEL_OID},</if>
+            <if test="MODEL_NAME != null">MODEL_NAME = #{MODEL_NAME},</if>
+            <if test="MODIFY_USER_ID != null">MODIFY_USER_ID = #{MODIFY_USER_ID},</if>
+            MODIFY_AT = NOW()
+        </set>
+        WHERE MODEL_ID = #{MODEL_ID}
+    </update>
+
+    <!-- 모든 모델 조회 -->
+    <select id="findAll" resultMap="ModelResultMap">
+        SELECT
+            m.MODEL_ID,
+            m.VENDOR_ID,
+            m.MODEL_OID,
+            m.MODEL_NAME,
+            v.VENDOR_NAME,
+            m.CREATE_USER_ID,
+            m.CREATE_AT,
+            m.MODIFY_USER_ID,
+            m.MODIFY_AT,
+            m.DELETE_USER_ID,
+            m.DELETE_AT
+        FROM r_model_t m
+        LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
+        WHERE m.DELETE_AT IS NULL
+        ORDER BY v.VENDOR_NAME, m.MODEL_NAME
+    </select>
+
+    <!-- VENDOR_ID로 모델 조회 -->
+    <select id="findByVendorId" resultMap="ModelResultMap">
+        SELECT
+            m.MODEL_ID,
+            m.VENDOR_ID,
+            m.MODEL_OID,
+            m.MODEL_NAME,
+            v.VENDOR_NAME,
+            m.CREATE_USER_ID,
+            m.CREATE_AT,
+            m.MODIFY_USER_ID,
+            m.MODIFY_AT,
+            m.DELETE_USER_ID,
+            m.DELETE_AT
+        FROM r_model_t m
+        LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
+        WHERE m.VENDOR_ID = #{vendorId}
+          AND m.DELETE_AT IS NULL
+        ORDER BY m.MODEL_NAME
+    </select>
+
+    <!-- 모델 삭제 (소프트 삭제) -->
+    <update id="deleteModel">
+        UPDATE r_model_t
+        SET DELETE_AT = NOW()
+        WHERE MODEL_ID = #{modelId}
+    </update>
+
+</mapper>

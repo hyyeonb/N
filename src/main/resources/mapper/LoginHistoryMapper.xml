@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="dev3.nms.mapper.LoginHistoryMapper">
+
+    <resultMap id="LoginHistoryResultMap" type="dev3.nms.vo.auth.LoginHistoryVO">
+        <id property="HISTORY_ID" column="HISTORY_ID"/>
+        <result property="USER_ID" column="USER_ID"/>
+        <result property="LOGIN_TYPE" column="LOGIN_TYPE"/>
+        <result property="IP_ADDRESS" column="IP_ADDRESS"/>
+        <result property="USER_AGENT" column="USER_AGENT"/>
+        <result property="LOGIN_AT" column="LOGIN_AT"/>
+    </resultMap>
+
+    <!-- 로그인 히스토리 저장 -->
+    <insert id="insert" parameterType="dev3.nms.vo.auth.LoginHistoryVO"
+            useGeneratedKeys="true" keyProperty="HISTORY_ID" keyColumn="HISTORY_ID">
+        INSERT INTO LOGIN_HISTORY (USER_ID, LOGIN_TYPE, IP_ADDRESS, USER_AGENT)
+        VALUES (#{USER_ID}, #{LOGIN_TYPE}, #{IP_ADDRESS}, #{USER_AGENT})
+    </insert>
+
+    <!-- 사용자의 로그인 히스토리 조회 -->
+    <select id="findByUserId" resultMap="LoginHistoryResultMap">
+        SELECT *
+        FROM LOGIN_HISTORY
+        WHERE USER_ID = #{USER_ID}
+        ORDER BY LOGIN_AT DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>
