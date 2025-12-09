@@ -693,6 +693,44 @@ public class MgmtController {
         }
     }
 
+    /**
+     * SNMP 수집 시도 후 장비 정보 업데이트 API
+     * SNMP 정보를 입력받아 수집 시도 후 성공하면 장비 정보 업데이트, 실패하면 오류 반환
+     */
+    @PostMapping("/devices/{deviceId}/snmp-collect")
+    public ResponseEntity<ResVO<DeviceVO>> collectSnmpAndUpdate(
+            @PathVariable int deviceId,
+            @RequestBody Map<String, Object> snmpConfig) {
+        try {
+            // SNMP 설정 추출
+            Integer snmpVersion = (Integer) snmpConfig.get("SNMP_VERSION");
+            Integer snmpPort = (Integer) snmpConfig.get("SNMP_PORT");
+            String snmpCommunity = (String) snmpConfig.get("SNMP_COMMUNITY");
+            String snmpUser = (String) snmpConfig.get("SNMP_USER");
+            String snmpAuthProtocol = (String) snmpConfig.get("SNMP_AUTH_PROTOCOL");
+            String snmpAuthPassword = (String) snmpConfig.get("SNMP_AUTH_PASSWORD");
+            String snmpPrivProtocol = (String) snmpConfig.get("SNMP_PRIV_PROTOCOL");
+            String snmpPrivPassword = (String) snmpConfig.get("SNMP_PRIV_PASSWORD");
+
+            if (snmpVersion == null || snmpPort == null) {
+                return new ResponseEntity<>(new ResVO<>(400, "SNMP 버전과 포트는 필수입니다", null), HttpStatus.BAD_REQUEST);
+            }
+
+            DeviceVO updatedDevice = deviceService.collectSnmpAndUpdateDevice(
+                    deviceId, snmpVersion, snmpPort, snmpCommunity,
+                    snmpUser, snmpAuthProtocol, snmpAuthPassword, snmpPrivProtocol, snmpPrivPassword);
+
+            ResVO<DeviceVO> response = new ResVO<>(200, "SNMP 수집 및 장비 정보 업데이트 성공", updatedDevice);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (RuntimeException e) {
+            log.error("SNMP 수집 실패 - deviceId: {}, error: {}", deviceId, e.getMessage());
+            return new ResponseEntity<>(new ResVO<>(500, "SNMP 수집 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+        } catch (Exception e) {
+            log.error("SNMP 수집 중 오류 - deviceId: {}", deviceId, e);
+            return new ResponseEntity<>(new ResVO<>(500, "SNMP 수집 중 오류: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
     // ==================== Vendor 관련 API ====================
 
     /**
