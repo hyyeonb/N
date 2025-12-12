@@ -7,16 +7,18 @@
         <id property="IF_INDEX" column="IF_INDEX"/>
         <result property="IF_DESCR" column="IF_DESCR"/>
         <result property="IF_NAME" column="IF_NAME"/>
-        <result property="IF_ALIAS" column="IF_ALIAS"/>
+        <result property="IF_DESCRIPTION" column="IF_DESCRIPTION"/>
         <result property="IF_TYPE" column="IF_TYPE"/>
         <result property="IF_TYPE_NAME" column="IF_TYPE_NAME"/>
         <result property="IF_MTU" column="IF_MTU"/>
         <result property="IF_SPEED" column="IF_SPEED"/>
         <result property="IF_HIGH_SPEED" column="IF_HIGH_SPEED"/>
-        <result property="IF_PHYS_ADDRESS" column="IF_PHYS_ADDRESS"/>
+        <result property="IF_MAC_ADDRESS" column="IF_MAC_ADDRESS"/>
         <result property="IF_ADMIN_STATUS" column="IF_ADMIN_STATUS"/>
         <result property="IF_OPER_STATUS" column="IF_OPER_STATUS"/>
         <result property="IF_LAST_CHANGE" column="IF_LAST_CHANGE"/>
+        <result property="IF_IP_ADDRESS" column="IF_IP_ADDRESS"/>
+        <result property="IF_IP_NETMASK" column="IF_IP_NETMASK"/>
         <result property="IF_PERF_FLAG" column="IF_PERF_FLAG"/>
         <result property="IF_OPER_FLAG" column="IF_OPER_FLAG"/>
         <result property="DEVICE_NAME" column="DEVICE_NAME"/>
@@ -90,28 +92,32 @@
         ORDER BY p.DEVICE_ID, p.IF_INDEX
     </select>
 
-    <!-- 포트 등록 (MONITOR/STATUS 필드는 테이블 DEFAULT 값 사용) -->
+    <!-- 포트 등록 (ADMIN/OPER STATUS는 기본값 1) -->
     <insert id="insertPort" parameterType="dev3.nms.vo.mgmt.PortVO">
         INSERT INTO r_port_t (
-            DEVICE_ID, IF_INDEX, IF_DESCR, IF_NAME, IF_ALIAS, IF_TYPE, IF_MTU,
-            IF_SPEED, IF_HIGH_SPEED, IF_PHYS_ADDRESS, IF_LAST_CHANGE, CREATE_USER_ID, CREATE_AT
+            DEVICE_ID, IF_INDEX, IF_DESCR, IF_NAME, IF_DESCRIPTION, IF_TYPE, IF_MTU,
+            IF_SPEED, IF_HIGH_SPEED, IF_MAC_ADDRESS, IF_ADMIN_STATUS, IF_OPER_STATUS,
+            IF_LAST_CHANGE, IF_IP_ADDRESS, IF_IP_NETMASK, CREATE_USER_ID, CREATE_AT
         ) VALUES (
-            #{DEVICE_ID}, #{IF_INDEX}, #{IF_DESCR}, #{IF_NAME}, #{IF_ALIAS}, #{IF_TYPE}, #{IF_MTU},
-            #{IF_SPEED}, #{IF_HIGH_SPEED}, #{IF_PHYS_ADDRESS}, #{IF_LAST_CHANGE}, #{CREATE_USER_ID}, NOW()
+            #{DEVICE_ID}, #{IF_INDEX}, #{IF_DESCR}, #{IF_NAME}, #{IF_DESCRIPTION}, #{IF_TYPE}, #{IF_MTU},
+            #{IF_SPEED}, #{IF_HIGH_SPEED}, #{IF_MAC_ADDRESS}, 1, 1,
+            #{IF_LAST_CHANGE}, #{IF_IP_ADDRESS}, #{IF_IP_NETMASK}, #{CREATE_USER_ID}, NOW()
         )
     </insert>
 
-    <!-- 포트 일괄 등록 (MONITOR/STATUS 필드는 테이블 DEFAULT 값 사용) -->
+    <!-- 포트 일괄 등록 (ADMIN/OPER STATUS는 기본값 1) -->
     <insert id="insertPorts" parameterType="java.util.List">
         INSERT INTO r_port_t (
-            DEVICE_ID, IF_INDEX, IF_DESCR, IF_NAME, IF_ALIAS, IF_TYPE, IF_MTU,
-            IF_SPEED, IF_HIGH_SPEED, IF_PHYS_ADDRESS, IF_LAST_CHANGE, CREATE_USER_ID, CREATE_AT
+            DEVICE_ID, IF_INDEX, IF_DESCR, IF_NAME, IF_DESCRIPTION, IF_TYPE, IF_MTU,
+            IF_SPEED, IF_HIGH_SPEED, IF_MAC_ADDRESS, IF_ADMIN_STATUS, IF_OPER_STATUS,
+            IF_LAST_CHANGE, IF_IP_ADDRESS, IF_IP_NETMASK, CREATE_USER_ID, CREATE_AT
         ) VALUES
         <foreach collection="list" item="port" separator=",">
             (
-            #{port.DEVICE_ID}, #{port.IF_INDEX}, #{port.IF_DESCR}, #{port.IF_NAME}, #{port.IF_ALIAS},
-            #{port.IF_TYPE}, #{port.IF_MTU}, #{port.IF_SPEED}, #{port.IF_HIGH_SPEED}, #{port.IF_PHYS_ADDRESS},
-            #{port.IF_LAST_CHANGE}, #{port.CREATE_USER_ID}, NOW()
+            #{port.DEVICE_ID}, #{port.IF_INDEX}, #{port.IF_DESCR}, #{port.IF_NAME}, #{port.IF_DESCRIPTION},
+            #{port.IF_TYPE}, #{port.IF_MTU}, #{port.IF_SPEED}, #{port.IF_HIGH_SPEED}, #{port.IF_MAC_ADDRESS},
+            1, 1, #{port.IF_LAST_CHANGE},
+            #{port.IF_IP_ADDRESS}, #{port.IF_IP_NETMASK}, #{port.CREATE_USER_ID}, NOW()
             )
         </foreach>
     </insert>
@@ -122,15 +128,17 @@
         <set>
             <if test="IF_DESCR != null">IF_DESCR = #{IF_DESCR},</if>
             <if test="IF_NAME != null">IF_NAME = #{IF_NAME},</if>
-            <if test="IF_ALIAS != null">IF_ALIAS = #{IF_ALIAS},</if>
+            <if test="IF_DESCRIPTION != null">IF_DESCRIPTION = #{IF_DESCRIPTION},</if>
             <if test="IF_TYPE != null">IF_TYPE = #{IF_TYPE},</if>
             <if test="IF_MTU != null">IF_MTU = #{IF_MTU},</if>
             <if test="IF_SPEED != null">IF_SPEED = #{IF_SPEED},</if>
             <if test="IF_HIGH_SPEED != null">IF_HIGH_SPEED = #{IF_HIGH_SPEED},</if>
-            <if test="IF_PHYS_ADDRESS != null">IF_PHYS_ADDRESS = #{IF_PHYS_ADDRESS},</if>
+            <if test="IF_MAC_ADDRESS != null">IF_MAC_ADDRESS = #{IF_MAC_ADDRESS},</if>
             <if test="IF_ADMIN_STATUS != null">IF_ADMIN_STATUS = #{IF_ADMIN_STATUS},</if>
             <if test="IF_OPER_STATUS != null">IF_OPER_STATUS = #{IF_OPER_STATUS},</if>
             <if test="IF_LAST_CHANGE != null">IF_LAST_CHANGE = #{IF_LAST_CHANGE},</if>
+            <if test="IF_IP_ADDRESS != null">IF_IP_ADDRESS = #{IF_IP_ADDRESS},</if>
+            <if test="IF_IP_NETMASK != null">IF_IP_NETMASK = #{IF_IP_NETMASK},</if>
             <if test="IF_PERF_FLAG != null">IF_PERF_FLAG = #{IF_PERF_FLAG},</if>
             <if test="IF_OPER_FLAG != null">IF_OPER_FLAG = #{IF_OPER_FLAG},</if>
             <if test="MODIFY_USER_ID != null">MODIFY_USER_ID = #{MODIFY_USER_ID},</if>
