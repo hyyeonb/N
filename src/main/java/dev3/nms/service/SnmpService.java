@@ -1,7 +1,11 @@
 package dev3.nms.service;
 
+import dev3.nms.mapper.CommonOidMapper;
 import dev3.nms.util.CommonUtil;
+import dev3.nms.vo.mgmt.CommonOidVO;
 import dev3.nms.vo.mgmt.PortVO;
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.snmp4j.*;
 import org.snmp4j.event.ResponseEvent;
@@ -14,29 +18,92 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class SnmpService {
 
-    // SNMP OID - 시스템 정보
-    private static final String OID_SYS_DESCR = "1.3.6.1.2.1.1.1.0";
-    private static final String OID_SYS_OBJECT_ID = "1.3.6.1.2.1.1.2.0";
-    private static final String OID_SYS_NAME = "1.3.6.1.2.1.1.5.0";
+    private final CommonOidMapper commonOidMapper;
 
-    // SNMP OID - 인터페이스 정보 (IF-MIB)
-    private static final String OID_IF_INDEX = "1.3.6.1.2.1.2.2.1.1";
-    private static final String OID_IF_DESCR = "1.3.6.1.2.1.2.2.1.2";
-    private static final String OID_IF_TYPE = "1.3.6.1.2.1.2.2.1.3";
-    private static final String OID_IF_MTU = "1.3.6.1.2.1.2.2.1.4";
-    private static final String OID_IF_SPEED = "1.3.6.1.2.1.2.2.1.5";
-    private static final String OID_IF_PHYS_ADDRESS = "1.3.6.1.2.1.2.2.1.6";
-    private static final String OID_IF_LAST_CHANGE = "1.3.6.1.2.1.2.2.1.9";
+    // OID Map (DB에서 로드)
+    private Map<String, String> oidMap = new HashMap<>();
 
-    // IF-MIB
-    private static final String OID_IF_NAME = "1.3.6.1.2.1.31.1.1.1.1";
-    private static final String OID_IF_HIGH_SPEED = "1.3.6.1.2.1.31.1.1.1.15";
-    private static final String OID_IF_ALIAS = "1.3.6.1.2.1.31.1.1.1.18";
+    // SNMP OID - 시스템 정보 (기본값)
+    private static final String DEFAULT_OID_SYS_DESCR = "1.3.6.1.2.1.1.1.0";
+    private static final String DEFAULT_OID_SYS_OBJECT_ID = "1.3.6.1.2.1.1.2.0";
+    private static final String DEFAULT_OID_SYS_NAME = "1.3.6.1.2.1.1.5.0";
+
+    // OID 이름 상수
+    private static final String OID_NAME_IF_INDEX = "IF_INDEX";
+    private static final String OID_NAME_IF_DESCR = "IF_DESCR";
+    private static final String OID_NAME_IF_TYPE = "IF_TYPE";
+    private static final String OID_NAME_IF_MTU = "IF_MTU";
+    private static final String OID_NAME_IF_SPEED = "IF_SPEED";
+    private static final String OID_NAME_IF_HIGH_SPEED = "IF_HIGH_SPEED";
+    private static final String OID_NAME_IF_MAC_ADDRESS = "IF_MAC_ADDRESS";
+    private static final String OID_NAME_IF_ADMIN_STATUS = "IF_ADMIN_STATUS";
+    private static final String OID_NAME_IF_OPER_STATUS = "IF_OPER_STATUS";
+    private static final String OID_NAME_IF_DESCRIPTION = "IF_DESCRIPTION";
+    private static final String OID_NAME_IP_ADDRESS_ENTRY = "IP_ADDRESS_ENTRY";
+    private static final String OID_NAME_IP_ADDRESS_ENTRY_INDEX = "IP_ADDRESS_ENTRY_INDEX";
+    private static final String OID_NAME_IF_ADDRESS_ENTRY_NETMASK = "IF_ADDRESS_ENTRY_NETMASK";
+
+    /**
+     * 애플리케이션 시작 시 OID 로드
+     */
+    @PostConstruct
+    public void loadOids() {
+        refreshOidMap();
+    }
+
+    /**
+     * OID Map 갱신 (DB에서 다시 로드)
+     */
+    public void refreshOidMap() {
+        try {
+            List<CommonOidVO> oidList = commonOidMapper.findAll();
+            oidMap = oidList.stream()
+                    .collect(Collectors.toMap(
+                            CommonOidVO::getOID_NAME,
+                            oid -> oid.getOID().startsWith(".") ? oid.getOID().substring(1) : oid.getOID(),
+                            (existing, replacement) -> existing
+                    ));
+            log.info("OID Map 로드 완료 - {} 개", oidMap.size());
+        } catch (Exception e) {
+            log.error("OID Map 로드 실패: {}", e.getMessage());
+            // 기본 OID로 폴백
+            initDefaultOidMap();
+        }
+    }
+
+    /**
+     * 기본 OID Map 초기화 (DB 로드 실패 시 폴백)
+     */
+    private void initDefaultOidMap() {
+        oidMap.put(OID_NAME_IF_INDEX, "1.3.6.1.2.1.2.2.1.1");
+        oidMap.put(OID_NAME_IF_DESCR, "1.3.6.1.2.1.2.2.1.2");
+        oidMap.put(OID_NAME_IF_TYPE, "1.3.6.1.2.1.2.2.1.3");
+        oidMap.put(OID_NAME_IF_MTU, "1.3.6.1.2.1.2.2.1.4");
+        oidMap.put(OID_NAME_IF_SPEED, "1.3.6.1.2.1.2.2.1.5");
+        oidMap.put(OID_NAME_IF_MAC_ADDRESS, "1.3.6.1.2.1.2.2.1.6");
+        oidMap.put(OID_NAME_IF_ADMIN_STATUS, "1.3.6.1.2.1.2.2.1.7");
+        oidMap.put(OID_NAME_IF_OPER_STATUS, "1.3.6.1.2.1.2.2.1.8");
+        oidMap.put(OID_NAME_IF_HIGH_SPEED, "1.3.6.1.2.1.31.1.1.1.15");
+        oidMap.put(OID_NAME_IF_DESCRIPTION, "1.3.6.1.2.1.31.1.1.1.18");
+        oidMap.put(OID_NAME_IP_ADDRESS_ENTRY, "1.3.6.1.2.1.4.20.1.1");
+        oidMap.put(OID_NAME_IP_ADDRESS_ENTRY_INDEX, "1.3.6.1.2.1.4.20.1.2");
+        oidMap.put(OID_NAME_IF_ADDRESS_ENTRY_NETMASK, "1.3.6.1.2.1.4.20.1.3");
+        log.warn("기본 OID Map으로 초기화됨");
+    }
+
+    /**
+     * OID 가져오기 (없으면 null)
+     */
+    private String getOid(String oidName) {
+        return oidMap.get(oidName);
+    }
 
     /**
      * SNMP로 장비 시스템 정보 조회
@@ -64,9 +131,9 @@ public class SnmpService {
             }
 
             // OID 추가
-            pdu.add(new VariableBinding(new OID(OID_SYS_DESCR)));
-            pdu.add(new VariableBinding(new OID(OID_SYS_OBJECT_ID)));
-            pdu.add(new VariableBinding(new OID(OID_SYS_NAME)));
+            pdu.add(new VariableBinding(new OID(DEFAULT_OID_SYS_DESCR)));
+            pdu.add(new VariableBinding(new OID(DEFAULT_OID_SYS_OBJECT_ID)));
+            pdu.add(new VariableBinding(new OID(DEFAULT_OID_SYS_NAME)));
             pdu.setType(PDU.GET);
 
             // SNMP GET 요청
@@ -138,7 +205,14 @@ public class SnmpService {
 
             // 인터페이스 인덱스 목록 먼저 수집
             Map<Integer, PortVO> portMap = new LinkedHashMap<>();
-            walkTable(snmp, target, snmpVersion, OID_IF_INDEX, (index, value) -> {
+            String oidIfIndex = getOid(OID_NAME_IF_INDEX);
+            if (oidIfIndex == null) {
+                log.error("IF_INDEX OID가 DB에 없습니다.");
+                snmp.close();
+                return ports;
+            }
+
+            walkTable(snmp, target, snmpVersion, oidIfIndex, (index, value) -> {
                 int ifIndex = Integer.parseInt(value);
                 PortVO port = new PortVO();
                 port.setIF_INDEX(ifIndex);
@@ -151,52 +225,85 @@ public class SnmpService {
                 return ports;
             }
 
-            // 각 OID 테이블 WALK
-            walkTable(snmp, target, snmpVersion, OID_IF_DESCR, (index, value) -> {
-                PortVO p = portMap.get(index);
-                if (p != null) p.setIF_DESCR(CommonUtil.parseOctetString(value));
-            });
+            // 각 OID 테이블 WALK (DB에서 가져온 OID 사용)
+            String oidIfDescr = getOid(OID_NAME_IF_DESCR);
+            if (oidIfDescr != null) {
+                walkTable(snmp, target, snmpVersion, oidIfDescr, (index, value) -> {
+                    PortVO p = portMap.get(index);
+                    if (p != null) p.setIF_DESCR(CommonUtil.parseOctetString(value));
+                });
+            }
 
-            walkTable(snmp, target, snmpVersion, OID_IF_TYPE, (index, value) -> {
-                PortVO p = portMap.get(index);
-                if (p != null) p.setIF_TYPE(parseInteger(value));
-            });
+            String oidIfType = getOid(OID_NAME_IF_TYPE);
+            if (oidIfType != null) {
+                walkTable(snmp, target, snmpVersion, oidIfType, (index, value) -> {
+                    PortVO p = portMap.get(index);
+                    if (p != null) p.setIF_TYPE(parseInteger(value));
+                });
+            }
 
-            walkTable(snmp, target, snmpVersion, OID_IF_MTU, (index, value) -> {
-                PortVO p = portMap.get(index);
-                if (p != null) p.setIF_MTU(parseInteger(value));
-            });
+            String oidIfMtu = getOid(OID_NAME_IF_MTU);
+            if (oidIfMtu != null) {
+                walkTable(snmp, target, snmpVersion, oidIfMtu, (index, value) -> {
+                    PortVO p = portMap.get(index);
+                    if (p != null) p.setIF_MTU(parseInteger(value));
+                });
+            }
 
-            walkTable(snmp, target, snmpVersion, OID_IF_SPEED, (index, value) -> {
-                PortVO p = portMap.get(index);
-                if (p != null) p.setIF_SPEED(parseLong(value));
-            });
+            String oidIfSpeed = getOid(OID_NAME_IF_SPEED);
+            if (oidIfSpeed != null) {
+                walkTable(snmp, target, snmpVersion, oidIfSpeed, (index, value) -> {
+                    PortVO p = portMap.get(index);
+                    if (p != null) p.setIF_SPEED(parseLong(value));
+                });
+            }
 
-            walkTable(snmp, target, snmpVersion, OID_IF_PHYS_ADDRESS, (index, value) -> {
-                PortVO p = portMap.get(index);
-                if (p != null) p.setIF_PHYS_ADDRESS(parseMacAddress(value));
-            });
+            String oidIfMacAddress = getOid(OID_NAME_IF_MAC_ADDRESS);
+            if (oidIfMacAddress != null) {
+                walkTable(snmp, target, snmpVersion, oidIfMacAddress, (index, value) -> {
+                    PortVO p = portMap.get(index);
+                    if (p != null) p.setIF_MAC_ADDRESS(parseMacAddress(value));
+                });
+            }
 
-            walkTable(snmp, target, snmpVersion, OID_IF_LAST_CHANGE, (index, value) -> {
-                PortVO p = portMap.get(index);
-                if (p != null) p.setIF_LAST_CHANGE(parseLong(value));
-            });
+            // IF_ADMIN_STATUS 수집
+            String oidIfAdminStatus = getOid(OID_NAME_IF_ADMIN_STATUS);
+            if (oidIfAdminStatus != null) {
+                walkTable(snmp, target, snmpVersion, oidIfAdminStatus, (index, value) -> {
+                    PortVO p = portMap.get(index);
+                    if (p != null) p.setIF_ADMIN_STATUS(parseInteger(value));
+                });
+            }
+
+            // IF_OPER_STATUS 수집
+            String oidIfOperStatus = getOid(OID_NAME_IF_OPER_STATUS);
+            if (oidIfOperStatus != null) {
+                walkTable(snmp, target, snmpVersion, oidIfOperStatus, (index, value) -> {
+                    PortVO p = portMap.get(index);
+                    if (p != null) p.setIF_OPER_STATUS(parseInteger(value));
+                });
+            }
 
             // IF-MIB 확장 테이블
-            walkTable(snmp, target, snmpVersion, OID_IF_NAME, (index, value) -> {
-                PortVO p = portMap.get(index);
-                if (p != null) p.setIF_NAME(CommonUtil.parseOctetString(value));
-            });
+            String oidIfHighSpeed = getOid(OID_NAME_IF_HIGH_SPEED);
+            if (oidIfHighSpeed != null) {
+                walkTable(snmp, target, snmpVersion, oidIfHighSpeed, (index, value) -> {
+                    PortVO p = portMap.get(index);
+                    if (p != null) p.setIF_HIGH_SPEED(parseInteger(value));
+                });
+            }
 
-            walkTable(snmp, target, snmpVersion, OID_IF_HIGH_SPEED, (index, value) -> {
-                PortVO p = portMap.get(index);
-                if (p != null) p.setIF_HIGH_SPEED(parseInteger(value));
-            });
+            // IF_DESCRIPTION
+            String oidIfDescription = getOid(OID_NAME_IF_DESCRIPTION);
+            if (oidIfDescription != null) {
+                walkTable(snmp, target, snmpVersion, oidIfDescription, (index, value) -> {
+                    PortVO p = portMap.get(index);
+                    if (p != null) p.setIF_DESCRIPTION(CommonUtil.parseOctetString(value));
+                });
+            }
 
-            walkTable(snmp, target, snmpVersion, OID_IF_ALIAS, (index, value) -> {
-                PortVO p = portMap.get(index);
-                if (p != null) p.setIF_ALIAS(CommonUtil.parseOctetString(value));
-            });
+            // IP 주소 정보 수집
+            collectIpAddressInfo(snmp, target, snmpVersion, portMap);
 
             snmp.close();
             ports.addAll(portMap.values());
@@ -208,6 +315,116 @@ public class SnmpService {
         }
 
         return ports;
+    }
+
+    /**
+     * IP 주소 정보 수집 (ipAddrTable)
+     * IP 주소와 해당 인터페이스 인덱스, 서브넷 마스크를 매핑
+     */
+    private void collectIpAddressInfo(Snmp snmp, Target target, int snmpVersion, Map<Integer, PortVO> portMap) {
+        String oidIpAddrEntry = getOid(OID_NAME_IP_ADDRESS_ENTRY);
+        String oidIpAddrIndex = getOid(OID_NAME_IP_ADDRESS_ENTRY_INDEX);
+        String oidIpAddrNetmask = getOid(OID_NAME_IF_ADDRESS_ENTRY_NETMASK);
+
+        if (oidIpAddrEntry == null || oidIpAddrIndex == null) {
+            log.debug("IP 주소 관련 OID가 DB에 없습니다.");
+            return;
+        }
+
+        // IP 주소 -> 인터페이스 인덱스 매핑
+        Map<String, Integer> ipToIfIndex = new HashMap<>();
+        // IP 주소 -> 서브넷 마스크 매핑
+        Map<String, String> ipToNetmask = new HashMap<>();
+
+        // IP 주소 목록 수집 (OID 마지막 부분이 IP 주소)
+        walkIpTable(snmp, target, snmpVersion, oidIpAddrEntry, (ipAddr, value) -> {
+            // value는 IP 주소 자체
+        });
+
+        // IP 주소 -> ifIndex 매핑 수집
+        walkIpTable(snmp, target, snmpVersion, oidIpAddrIndex, (ipAddr, value) -> {
+            Integer ifIndex = parseInteger(value);
+            if (ifIndex != null) {
+                ipToIfIndex.put(ipAddr, ifIndex);
+            }
+        });
+
+        // IP 주소 -> 서브넷 마스크 매핑 수집
+        if (oidIpAddrNetmask != null) {
+            walkIpTable(snmp, target, snmpVersion, oidIpAddrNetmask, (ipAddr, value) -> {
+                ipToNetmask.put(ipAddr, value);
+            });
+        }
+
+        // 포트에 IP 주소 정보 설정 (첫 번째 IP 주소만)
+        for (Map.Entry<String, Integer> entry : ipToIfIndex.entrySet()) {
+            String ipAddr = entry.getKey();
+            Integer ifIndex = entry.getValue();
+            PortVO port = portMap.get(ifIndex);
+
+            if (port != null && port.getIF_IP_ADDRESS() == null) {
+                port.setIF_IP_ADDRESS(ipAddr);
+                String netmask = ipToNetmask.get(ipAddr);
+                if (netmask != null) {
+                    port.setIF_IP_NETMASK(netmask);
+                }
+            }
+        }
+    }
+
+    /**
+     * IP 테이블 Walk (OID 마지막 부분이 IP 주소인 경우)
+     */
+    private void walkIpTable(Snmp snmp, Target target, int snmpVersion, String baseOid, IpTableWalkCallback callback) {
+        try {
+            OID rootOid = new OID(baseOid);
+            OID currentOid = rootOid;
+
+            while (true) {
+                PDU pdu = (snmpVersion == 3) ? new ScopedPDU() : new PDU();
+                pdu.add(new VariableBinding(currentOid));
+                pdu.setType(PDU.GETNEXT);
+
+                ResponseEvent response = snmp.getNext(pdu, target);
+
+                if (response == null || response.getResponse() == null) {
+                    break;
+                }
+
+                PDU responsePDU = response.getResponse();
+                if (responsePDU.getErrorStatus() != PDU.noError) {
+                    break;
+                }
+
+                VariableBinding vb = responsePDU.get(0);
+                OID responseOid = vb.getOid();
+
+                // 다른 OID 트리로 넘어가면 종료
+                if (!responseOid.startsWith(rootOid)) {
+                    break;
+                }
+
+                // IP 주소 추출 (OID의 마지막 4옥텟)
+                int oidSize = responseOid.size();
+                if (oidSize >= 4) {
+                    String ipAddr = responseOid.get(oidSize - 4) + "." +
+                                   responseOid.get(oidSize - 3) + "." +
+                                   responseOid.get(oidSize - 2) + "." +
+                                   responseOid.get(oidSize - 1);
+                    String value = vb.getVariable().toString();
+                    callback.onValue(ipAddr, value);
+                }
+
+                currentOid = responseOid;
+            }
+        } catch (IOException e) {
+            log.error("SNMP IP Table Walk 오류: {}", e.getMessage());
+        }
+    }
+
+    @FunctionalInterface
+    private interface IpTableWalkCallback {
+        void onValue(String ipAddress, String value);
     }
 
     /**

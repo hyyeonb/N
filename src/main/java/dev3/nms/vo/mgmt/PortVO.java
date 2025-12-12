@@ -22,15 +22,17 @@ public class PortVO {
     private Integer IF_INDEX;
     private String IF_DESCR;
     private String IF_NAME;
-    private String IF_ALIAS;
+    private String IF_DESCRIPTION;    // 인터페이스 설명 (관리자 설정) - OID: IF_DESCRIPTION
     private Integer IF_TYPE;
     private Integer IF_MTU;
     private Long IF_SPEED;
     private Integer IF_HIGH_SPEED;
-    private String IF_PHYS_ADDRESS;
+    private String IF_MAC_ADDRESS;    // MAC 주소 - OID: IF_MAC_ADDRESS
     private Integer IF_ADMIN_STATUS;
     private Integer IF_OPER_STATUS;
     private Long IF_LAST_CHANGE;
+    private String IF_IP_ADDRESS;     // 인터페이스 IP 주소 - OID: IP_ADDRESS_ENTRY
+    private String IF_IP_NETMASK;     // 서브넷 마스크 - OID: IF_ADDRESS_ENTRY_NETMASK
     private Boolean IF_OPER_FLAG;    // Oper 감시 여부
     private Boolean IF_PERF_FLAG;    // 성능 감시 여부
 
