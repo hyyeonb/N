@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="dev3.nms.mapper.SnmpModelOidMapper">
+
+    <resultMap id="SnmpModelOidResultMap" type="dev3.nms.vo.mgmt.SnmpModelOidVO">
+        <id property="OID_ID" column="OID_ID"/>
+        <result property="METRIC_ID" column="METRIC_ID"/>
+        <result property="MODEL_ID" column="MODEL_ID"/>
+        <result property="OID" column="OID"/>
+        <result property="OID_NAME" column="OID_NAME"/>
+        <result property="OID_DESC" column="OID_DESC"/>
+        <result property="TYPE" column="TYPE"/>
+    </resultMap>
+
+    <!-- 모델 ID로 OID 목록 조회 (메트릭 정보 포함) -->
+    <select id="findByModelId" resultMap="SnmpModelOidResultMap">
+        SELECT
+            o.OID_ID,
+            o.METRIC_ID,
+            o.MODEL_ID,
+            o.OID,
+            m.OID_NAME,
+            m.OID_DESC,
+            m.TYPE
+        FROM b_snmp_model_oid o
+        LEFT JOIN b_snmp_metric_t m ON o.METRIC_ID = m.METRIC_ID
+        WHERE o.MODEL_ID = #{modelId}
+        ORDER BY m.TYPE, m.METRIC_ID
+    </select>
+
+    <!-- OID 저장 (INSERT or UPDATE) -->
+    <insert id="upsert" parameterType="dev3.nms.vo.mgmt.SnmpModelOidVO">
+        INSERT INTO b_snmp_model_oid (METRIC_ID, MODEL_ID, OID)
+        VALUES (#{METRIC_ID}, #{MODEL_ID}, #{OID})
+        ON DUPLICATE KEY UPDATE OID = #{OID}
+    </insert>
+
+    <!-- OID 삭제 -->
+    <delete id="delete">
+        DELETE FROM b_snmp_model_oid
+        WHERE OID_ID = #{oidId}
+    </delete>
+
+    <!-- 모델의 특정 메트릭 OID 삭제 -->
+    <delete id="deleteByModelAndMetric">
+        DELETE FROM b_snmp_model_oid
+        WHERE MODEL_ID = #{modelId} AND METRIC_ID = #{metricId}
+    </delete>
+
+    <!-- 모델의 모든 OID 삭제 -->
+    <delete id="deleteByModelId">
+        DELETE FROM b_snmp_model_oid
+        WHERE MODEL_ID = #{modelId}
+    </delete>
+
+</mapper>

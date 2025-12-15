@@ -258,7 +258,6 @@ public class DeviceService {
                 if (!ports.isEmpty()) {
                     ports.forEach(port -> {
                         port.setDEVICE_ID(device.getDEVICE_ID());
-                        port.setCREATE_USER_ID(userId);
                     });
                     portService.createPorts(ports);
 
@@ -519,7 +518,6 @@ public class DeviceService {
             if (!ports.isEmpty()) {
                 ports.forEach(port -> {
                     port.setDEVICE_ID(device.getDEVICE_ID());
-                    port.setCREATE_USER_ID(userId);
                 });
                 portService.createPorts(ports);
 

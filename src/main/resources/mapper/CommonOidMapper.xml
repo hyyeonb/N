@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="dev3.nms.mapper.CommonOidMapper">
+
+    <resultMap id="CommonOidResultMap" type="dev3.nms.vo.mgmt.CommonOidVO">
+        <result property="OID_NAME" column="OID_NAME"/>
+        <result property="OID" column="OID"/>
+    </resultMap>
+
+    <!-- 모든 OID 조회 -->
+    <select id="findAll" resultMap="CommonOidResultMap">
+        SELECT OID_NAME, OID
+        FROM b_common_oid
+    </select>
+
+    <!-- OID 이름으로 OID 조회 -->
+    <select id="findByOidName" resultMap="CommonOidResultMap">
+        SELECT OID_NAME, OID
+        FROM b_common_oid
+        WHERE OID_NAME = #{oidName}
+    </select>
+
+    <!-- OID 이름 목록으로 OID 조회 -->
+    <select id="findByOidNames" resultMap="CommonOidResultMap">
+        SELECT OID_NAME, OID
+        FROM b_common_oid
+        WHERE OID_NAME IN
+        <foreach collection="oidNames" item="name" open="(" separator="," close=")">
+            #{name}
+        </foreach>
+    </select>
+
+</mapper>

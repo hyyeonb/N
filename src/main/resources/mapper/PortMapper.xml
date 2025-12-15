@@ -23,11 +23,6 @@
         <result property="IF_OPER_FLAG" column="IF_OPER_FLAG"/>
         <result property="DEVICE_NAME" column="DEVICE_NAME"/>
         <result property="DEVICE_IP" column="DEVICE_IP"/>
-        <result property="CREATE_USER_ID" column="CREATE_USER_ID"/>
-        <result property="CREATE_AT" column="CREATE_AT"/>
-        <result property="MODIFY_USER_ID" column="MODIFY_USER_ID"/>
-        <result property="MODIFY_AT" column="MODIFY_AT"/>
-        <result property="DELETE_USER_ID" column="DELETE_USER_ID"/>
         <result property="DELETE_AT" column="DELETE_AT"/>
     </resultMap>
 
@@ -97,11 +92,11 @@
         INSERT INTO r_port_t (
             DEVICE_ID, IF_INDEX, IF_DESCR, IF_NAME, IF_DESCRIPTION, IF_TYPE, IF_MTU,
             IF_SPEED, IF_HIGH_SPEED, IF_MAC_ADDRESS, IF_ADMIN_STATUS, IF_OPER_STATUS,
-            IF_LAST_CHANGE, IF_IP_ADDRESS, IF_IP_NETMASK, CREATE_USER_ID, CREATE_AT
+            IF_LAST_CHANGE, IF_IP_ADDRESS, IF_IP_NETMASK
         ) VALUES (
             #{DEVICE_ID}, #{IF_INDEX}, #{IF_DESCR}, #{IF_NAME}, #{IF_DESCRIPTION}, #{IF_TYPE}, #{IF_MTU},
             #{IF_SPEED}, #{IF_HIGH_SPEED}, #{IF_MAC_ADDRESS}, 1, 1,
-            #{IF_LAST_CHANGE}, #{IF_IP_ADDRESS}, #{IF_IP_NETMASK}, #{CREATE_USER_ID}, NOW()
+            #{IF_LAST_CHANGE}, #{IF_IP_ADDRESS}, #{IF_IP_NETMASK}
         )
     </insert>
 
@@ -110,14 +105,14 @@
         INSERT INTO r_port_t (
             DEVICE_ID, IF_INDEX, IF_DESCR, IF_NAME, IF_DESCRIPTION, IF_TYPE, IF_MTU,
             IF_SPEED, IF_HIGH_SPEED, IF_MAC_ADDRESS, IF_ADMIN_STATUS, IF_OPER_STATUS,
-            IF_LAST_CHANGE, IF_IP_ADDRESS, IF_IP_NETMASK, CREATE_USER_ID, CREATE_AT
+            IF_LAST_CHANGE, IF_IP_ADDRESS, IF_IP_NETMASK
         ) VALUES
         <foreach collection="list" item="port" separator=",">
             (
             #{port.DEVICE_ID}, #{port.IF_INDEX}, #{port.IF_DESCR}, #{port.IF_NAME}, #{port.IF_DESCRIPTION},
             #{port.IF_TYPE}, #{port.IF_MTU}, #{port.IF_SPEED}, #{port.IF_HIGH_SPEED}, #{port.IF_MAC_ADDRESS},
             1, 1, #{port.IF_LAST_CHANGE},
-            #{port.IF_IP_ADDRESS}, #{port.IF_IP_NETMASK}, #{port.CREATE_USER_ID}, NOW()
+            #{port.IF_IP_ADDRESS}, #{port.IF_IP_NETMASK}
             )
         </foreach>
     </insert>
@@ -141,8 +136,6 @@
             <if test="IF_IP_NETMASK != null">IF_IP_NETMASK = #{IF_IP_NETMASK},</if>
             <if test="IF_PERF_FLAG != null">IF_PERF_FLAG = #{IF_PERF_FLAG},</if>
             <if test="IF_OPER_FLAG != null">IF_OPER_FLAG = #{IF_OPER_FLAG},</if>
-            <if test="MODIFY_USER_ID != null">MODIFY_USER_ID = #{MODIFY_USER_ID},</if>
-            MODIFY_AT = NOW()
         </set>
         WHERE DEVICE_ID = #{DEVICE_ID} AND IF_INDEX = #{IF_INDEX}
     </update>
@@ -151,8 +144,7 @@
     <update id="updateMonitorSettings">
         UPDATE r_port_t
         SET IF_OPER_FLAG = #{ifOperFlag},
-            IF_PERF_FLAG = #{ifPerfFlag},
-            MODIFY_AT = NOW()
+            IF_PERF_FLAG = #{ifPerfFlag}
         WHERE DEVICE_ID = #{deviceId} AND IF_INDEX = #{ifIndex}
     </update>
 
