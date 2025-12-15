@@ -42,11 +42,6 @@ public class PortVO {
     private String IF_TYPE_NAME;  // R_IF_TYPE_T 테이블 조인
 
     // 공통 필드
-    private Integer CREATE_USER_ID;
-    private Timestamp CREATE_AT;
-    private Integer MODIFY_USER_ID;
-    private Timestamp MODIFY_AT;
-    private Integer DELETE_USER_ID;
     private Timestamp DELETE_AT;
 
     /**
