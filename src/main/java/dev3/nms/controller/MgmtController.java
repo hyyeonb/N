@@ -772,7 +772,7 @@ public class MgmtController {
         Map<String, Object> result = new java.util.HashMap<>();
         result.put("inputOid", oid);
 
-        String vendorBaseOid = extractVendorBaseOid(oid);
+        String vendorBaseOid = dev3.nms.util.CommonUtil.extractVendorBaseOid(oid);
         result.put("extractedBaseOid", vendorBaseOid);
 
         // 모든 벤더 목록 (필터 없이)
@@ -839,7 +839,7 @@ public class MgmtController {
 
             // OID가 있으면 벤더 자동 매핑
             if (model.getMODEL_OID() != null && !model.getMODEL_OID().isEmpty()) {
-                String vendorBaseOid = extractVendorBaseOid(model.getMODEL_OID());
+                String vendorBaseOid = dev3.nms.util.CommonUtil.extractVendorBaseOid(model.getMODEL_OID());
                 log.info("[벤더매핑] 입력 OID: {}, 추출된 BASE_OID: {}", model.getMODEL_OID(), vendorBaseOid);
 
                 if (vendorBaseOid != null) {
@@ -871,30 +871,6 @@ public class MgmtController {
         } catch (Exception e) {
             return new ResponseEntity<>(new ResVO<>(500, "모델 생성 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
-    }
-
-    /**
-     * Enterprise OID에서 벤더 BASE_OID 추출
-     * 입력: .1.3.6.1.4.1.9.9.13.1.4.1.3.1004
-     * 출력: 1.3.6.1.4.1.9
-     */
-    private String extractVendorBaseOid(String modelOid) {
-        // Enterprise OID prefix: .1.3.6.1.4.1. 또는 1.3.6.1.4.1.
-        String enterprisePrefix = "1.3.6.1.4.1.";
-
-        // 앞의 . 제거
-        String oid = modelOid.startsWith(".") ? modelOid.substring(1) : modelOid;
-
-        if (!oid.startsWith(enterprisePrefix)) {
-            return null;
-        }
-
-        // 1.3.6.1.4.1. 이후의 문자열에서 첫 번째 숫자(벤더 번호) 추출
-        String afterPrefix = oid.substring(enterprisePrefix.length());
-        int dotIndex = afterPrefix.indexOf('.');
-        String vendorNumber = dotIndex > 0 ? afterPrefix.substring(0, dotIndex) : afterPrefix;
-
-        return enterprisePrefix + vendorNumber;
     }
 
     /**

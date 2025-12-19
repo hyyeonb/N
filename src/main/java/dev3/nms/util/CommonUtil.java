@@ -179,4 +179,44 @@ public class CommonUtil {
 
         return value;
     }
+
+    /**
+     * OID 정규화 - 앞의 . 제거
+     * 입력: .1.3.6.1.4.1.9.9.13.1.4.1.3.1004
+     * 출력: 1.3.6.1.4.1.9.9.13.1.4.1.3.1004
+     */
+    public static String normalizeOid(String oid) {
+        if (oid == null || oid.isEmpty()) {
+            return oid;
+        }
+        return oid.startsWith(".") ? oid.substring(1) : oid;
+    }
+
+    /**
+     * Enterprise OID에서 벤더 BASE_OID 추출
+     * 입력: .1.3.6.1.4.1.9.9.13.1.4.1.3.1004
+     * 출력: 1.3.6.1.4.1.9
+     */
+    public static String extractVendorBaseOid(String modelOid) {
+        if (modelOid == null || modelOid.isEmpty()) {
+            return null;
+        }
+
+        // Enterprise OID prefix
+        String enterprisePrefix = "1.3.6.1.4.1.";
+
+        // 앞의 . 제거
+        String oid = normalizeOid(modelOid);
+
+        if (!oid.startsWith(enterprisePrefix)) {
+            return null;
+        }
+
+        // 1.3.6.1.4.1. 이후의 문자열에서 첫 번째 숫자(벤더 번호) 추출
+        String afterPrefix = oid.substring(enterprisePrefix.length());
+        int dotIndex = afterPrefix.indexOf('.');
+        String vendorNumber = dotIndex > 0 ? afterPrefix.substring(0, dotIndex) : afterPrefix;
+
+        return enterprisePrefix + vendorNumber;
+    }
 }

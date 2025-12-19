@@ -26,7 +26,7 @@ public class DeviceService {
     private final TempDeviceMapper tempDeviceMapper;
     private final VendorMapper vendorMapper;
     private final ModelMapper modelMapper;
-    private final SnmpService snmpService;
+    private final MiddlewareClient middlewareClient;
     private final PortService portService;
 
     /**
@@ -182,8 +182,8 @@ public class DeviceService {
         boolean pingSuccess = pingTest(deviceInput.getDEVICE_IP(), 3000);
 
         try {
-            // SNMP로 장비 시스템 정보 조회
-            Map<String, String> sysInfo = snmpService.getDeviceSystemInfo(
+            // SNMP로 장비 시스템 정보 조회 (Middleware API 호출)
+            Map<String, String> sysInfo = middlewareClient.getDeviceSystemInfo(
                     deviceInput.getDEVICE_IP(),
                     deviceInput.getSNMP_VERSION(),
                     deviceInput.getSNMP_PORT(),
@@ -206,14 +206,15 @@ public class DeviceService {
             Integer modelId = getOrCreateModel(sysObjectId, vendor, userId);
 
             // Device 객체 생성
-            DeviceVO device = new DeviceVO();
-            device.setGROUP_ID(deviceInput.getGROUP_ID());
-            device.setDEVICE_NAME(deviceInput.getDEVICE_NAME());
-            device.setDEVICE_SYSTEM_NAME(sysName);
-            device.setDEVICE_IP(deviceInput.getDEVICE_IP());
-            device.setDEVICE_DESC(sysDescr);
-            device.setMODEL_ID(modelId);
-            device.setCREATE_USER_ID(userId);
+            DeviceVO device = DeviceVO.builder()
+                    .GROUP_ID(deviceInput.getGROUP_ID())
+                    .DEVICE_NAME(deviceInput.getDEVICE_NAME())
+                    .DEVICE_SYSTEM_NAME(sysName)
+                    .DEVICE_IP(deviceInput.getDEVICE_IP())
+                    .DEVICE_DESC(sysDescr)
+                    .MODEL_ID(modelId)
+                    .CREATE_USER_ID(userId)
+                    .build();
 
             // r_device_t에 저장
             deviceMapper.insertDevice(device);
@@ -241,9 +242,9 @@ public class DeviceService {
                     .build();
             deviceMapper.insertDeviceScope(scope);
 
-            // 포트 정보 수집 및 저장
+            // 포트 정보 수집 및 저장 (Middleware API 호출)
             try {
-                List<PortVO> ports = snmpService.getDevicePortInfo(
+                List<PortVO> ports = middlewareClient.getDevicePortInfo(
                         deviceInput.getDEVICE_IP(),
                         deviceInput.getSNMP_VERSION(),
                         deviceInput.getSNMP_PORT(),
@@ -337,12 +338,12 @@ public class DeviceService {
             }
 
             // Device 객체 생성 (SNMP 정보 없이)
-            DeviceVO device = new DeviceVO();
-            device.setGROUP_ID(deviceInput.getGROUP_ID());
-            device.setDEVICE_NAME(deviceInput.getDEVICE_NAME());
-            device.setDEVICE_IP(deviceInput.getDEVICE_IP());
-            device.setDEVICE_DESC(null);
-            device.setCREATE_USER_ID(userId);
+            DeviceVO device = DeviceVO.builder()
+                    .GROUP_ID(deviceInput.getGROUP_ID())
+                    .DEVICE_NAME(deviceInput.getDEVICE_NAME())
+                    .DEVICE_IP(deviceInput.getDEVICE_IP())
+                    .CREATE_USER_ID(userId)
+                    .build();
 
             // r_device_t에 저장
             deviceMapper.insertDevice(device);
@@ -434,10 +435,10 @@ public class DeviceService {
             throw new IllegalArgumentException("임시 장비를 찾을 수 없습니다: " + tempDeviceId);
         }
 
-        // 2. SNMP로 장비 시스템 정보 조회
+        // 2. SNMP로 장비 시스템 정보 조회 (Middleware API 호출)
         Map<String, String> sysInfo;
         try {
-            sysInfo = snmpService.getDeviceSystemInfo(
+            sysInfo = middlewareClient.getDeviceSystemInfo(
                     tempDevice.getDEVICE_IP(),
                     tempDevice.getSNMP_VERSION(),
                     tempDevice.getSNMP_PORT(),
@@ -460,20 +461,22 @@ public class DeviceService {
         log.info("장비 시스템 정보 - sysDescr: {}, sysObjectId: {}, sysName: {}", sysDescr, sysObjectId, sysName);
 
         // 3. sysObjectId로 벤더 매칭
+        log.info(sysObjectId);
         VendorVO vendor = vendorMapper.findVendorByOid(sysObjectId);
 
         // 4. 모델 조회 또는 생성
         Integer modelId = getOrCreateModel(sysObjectId, vendor, userId);
 
         // 5. Device 객체 생성 (SNMP 정보 제외)
-        DeviceVO device = new DeviceVO();
-        device.setGROUP_ID(tempDevice.getGROUP_ID());
-        device.setDEVICE_NAME(tempDevice.getDEVICE_NAME());
-        device.setDEVICE_SYSTEM_NAME(sysName);
-        device.setDEVICE_IP(tempDevice.getDEVICE_IP());
-        device.setDEVICE_DESC(sysDescr);
-        device.setMODEL_ID(modelId);
-        device.setCREATE_USER_ID(userId);
+        DeviceVO device = DeviceVO.builder()
+                .GROUP_ID(tempDevice.getGROUP_ID())
+                .DEVICE_NAME(tempDevice.getDEVICE_NAME())
+                .DEVICE_SYSTEM_NAME(sysName)
+                .DEVICE_IP(tempDevice.getDEVICE_IP())
+                .DEVICE_DESC(sysDescr)
+                .MODEL_ID(modelId)
+                .CREATE_USER_ID(userId)
+                .build();
 
         // 6. r_device_t에 저장
         deviceMapper.insertDevice(device);
@@ -501,9 +504,9 @@ public class DeviceService {
                 .build();
         deviceMapper.insertDeviceScope(scope);
 
-        // 8. 포트 정보 수집 및 저장
+        // 8. 포트 정보 수집 및 저장 (Middleware API 호출)
         try {
-            List<PortVO> ports = snmpService.getDevicePortInfo(
+            List<PortVO> ports = middlewareClient.getDevicePortInfo(
                     tempDevice.getDEVICE_IP(),
                     tempDevice.getSNMP_VERSION(),
                     tempDevice.getSNMP_PORT(),
@@ -716,8 +719,8 @@ public class DeviceService {
             throw new IllegalArgumentException("장비를 찾을 수 없습니다: " + deviceId);
         }
 
-        // 2. SNMP로 장비 시스템 정보 조회 (실패 시 RuntimeException 발생)
-        Map<String, String> sysInfo = snmpService.getDeviceSystemInfo(
+        // 2. SNMP로 장비 시스템 정보 조회 (Middleware API 호출, 실패 시 RuntimeException 발생)
+        Map<String, String> sysInfo = middlewareClient.getDeviceSystemInfo(
                 device.getDEVICE_IP(),
                 snmpVersion,
                 snmpPort,
@@ -772,9 +775,9 @@ public class DeviceService {
         scopeUpdate.setCOLLECT_SNMP(true);
         updateDeviceScope(scopeUpdate);
 
-        // 7. 포트 정보 수집 및 저장
+        // 7. 포트 정보 수집 및 저장 (Middleware API 호출)
         try {
-            List<PortVO> ports = snmpService.getDevicePortInfo(
+            List<PortVO> ports = middlewareClient.getDevicePortInfo(
                     device.getDEVICE_IP(),
                     snmpVersion,
                     snmpPort,

@@ -21,6 +21,7 @@ public class WebConfig implements WebMvcConfigurer {
                 .addPathPatterns("/api/**")      // API 경로만 인터셉터 적용
                 .excludePathPatterns(
                         "/api/auth/**",          // 인증 관련 API 제외
+                        "/api/oauth/**",         // OAuth 소셜 로그인 API 제외
                         "/api/mgmt/vendors/test-oid",  // 벤더 OID 테스트 API (디버그용)
                         "/error"
                 );
