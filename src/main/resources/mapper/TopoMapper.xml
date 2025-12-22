@@ -1,0 +1,313 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="dev3.nms.mapper.TopoMapper">
+    <!-- 그룹 존재확인 -->
+    <select id="isTopoGroupId" resultType="Long">
+        SELECT GROUP_ID
+        FROM r_group_t
+        WHERE GROUP_ID = #{id}
+        AND DELETE_AT IS NULL
+    </select>
+
+    <!-- groupId로 viewId 조회 -->
+    <select id="findViewIdByGroupId" resultType="Long">
+        SELECT VIEW_ID
+        FROM R_TPO_VIEW_T
+        WHERE SCOPE_TYPE = 'GROUP'
+        AND GROUP_ID   = #{id}
+        ORDER BY IS_DEFAULT DESC, UPDATED_AT DESC
+        LIMIT 1
+    </select>
+
+    <!-- 장비 존재확인 -->
+    <select id="isTopoDeviceId" resultType="Long">
+        SELECT DEVICE_ID, GROUP_ID
+        FROM r_device_t
+        WHERE DEVICE_ID = #{id}
+        AND DELETE_AT IS NULL
+    </select>
+
+    <!-- groupId로 viewId 조회 -->
+    <select id="findViewIdByDeviceId" resultType="Long">
+        SELECT VIEW_ID
+        FROM R_TPO_VIEW_T
+        WHERE SCOPE_TYPE = 'DEVICE'
+        AND DEVICE_ID  = #{id}
+        ORDER BY IS_DEFAULT DESC, UPDATED_AT DESC
+        LIMIT 1
+    </select>
+
+    <!-- 모든 장비 조회 (SNMP, Model 정보 포함) -->
+    <select id="getViewTopologyNodes"
+            parameterType="Long"
+            resultType="dev3.nms.vo.topo.TopoDto$TopoViewNode">
+        SELECT
+            n.NODE_KEY AS id,                     -- "D15", "G3"
+            LOWER(n.NODE_TYPE) AS nodeType,       -- "device" | "group"
+            CASE WHEN UPPER(n.NODE_TYPE) = 'GROUP'
+                 THEN n.GROUP_ID ELSE NULL END AS groupId,
+            CASE WHEN UPPER(n.NODE_TYPE) = 'DEVICE'
+                 THEN n.DEVICE_ID ELSE NULL END AS deviceId,
+            -- iconData (DTO 순서에 맞춤)
+            CASE
+                WHEN UPPER(n.NODE_TYPE) = 'DEVICE' THEN m.ICON_DATA
+                ELSE g.ICON_DATA
+            END AS iconData,
+            -- name
+            CASE
+                WHEN UPPER(n.NODE_TYPE) = 'DEVICE' THEN
+                    COALESCE(d.DEVICE_NAME, d.DEVICE_SYSTEM_NAME, n.NODE_KEY)
+                WHEN UPPER(n.NODE_TYPE) = 'GROUP' THEN
+                    COALESCE(g.GROUP_NAME, n.NODE_KEY)
+                ELSE
+                    n.NODE_KEY
+            END AS name,
+            -- type (아이콘 매칭용)
+            CASE
+                WHEN UPPER(n.NODE_TYPE) = 'DEVICE' THEN
+                    COALESCE(m.MODEL_NAME, 'Unknown')
+                WHEN UPPER(n.NODE_TYPE) = 'GROUP' THEN
+                    'group'
+                ELSE
+                    'unknown'
+            END AS type,
+            -- ip
+            CASE
+                WHEN UPPER(n.NODE_TYPE) = 'DEVICE' THEN d.DEVICE_IP
+                ELSE ''
+            END AS ip,
+            -- location: 그룹 노드면 그룹 주소, 장비 노드면 그 장비 그룹 주소
+            CASE
+                WHEN UPPER(n.NODE_TYPE) = 'GROUP'  THEN g.ADDRESS
+                WHEN UPPER(n.NODE_TYPE) = 'DEVICE' THEN gd.ADDRESS
+                ELSE ''
+            END AS location,
+            -- note
+            CASE
+                WHEN UPPER(n.NODE_TYPE) = 'DEVICE' THEN d.DEVICE_DESC
+                ELSE ''
+            END AS note,
+            n.X  AS x,
+            n.Y  AS y,
+            COALESCE(n.FX, n.X) AS fx,
+            COALESCE(n.FY, n.Y) AS fy
+        FROM
+            R_TPO_NODE_T n
+            LEFT JOIN r_device_t d ON n.DEVICE_ID = d.DEVICE_ID
+            LEFT JOIN r_group_t  g ON n.GROUP_ID  = g.GROUP_ID       -- 그룹 노드
+            LEFT JOIN r_group_t gd ON d.GROUP_ID  = gd.GROUP_ID      -- 장비 노드의 상위 그룹
+            LEFT JOIN r_model_t m ON d.MODEL_ID   = m.MODEL_ID       -- 모델명 테이블 있으면
+        WHERE
+            n.VIEW_ID = #{id}
+        ORDER BY
+            n.NODE_KEY
+    </select>
+
+    <!-- 링크 조회 -->
+    <select id="getViewTopologyLinks"
+            parameterType="Long"
+            resultType="dev3.nms.vo.topo.TopoDto$TopoViewLink">
+        SELECT
+            l.SRC_NODE_KEY as source,
+            l.DST_NODE_KEY as target,
+            l.SRC_IF_KEY as srcIfIndex,
+            l.DST_IF_KEY as dstIfIndex,
+            l.SRC_TYPE AS srcType,
+            l.DST_TYPE AS dstType,
+            sp.IF_NAME  as srcIfName,
+            dp.IF_NAME  as dstIfName,
+            l.STATUS as status
+        FROM R_TPO_LINK_T l
+            LEFT JOIN r_port_t sp ON l.SRC_NODE_KEY = sp.DEVICE_ID AND l.SRC_IF_KEY = sp.IF_INDEX
+            LEFT JOIN r_port_t dp ON l.DST_NODE_KEY = dp.DEVICE_ID AND l.DST_IF_KEY = dp.IF_INDEX
+        WHERE l.VIEW_ID = #{id}
+    </select>
+
+    <select id="isTopoViewId"
+            resultType="boolean">
+        SELECT
+        CASE WHEN COUNT(*) > 0 THEN TRUE ELSE FALSE END AS exists_flag
+        FROM r_tpo_view_t
+        WHERE 1 = 1
+        <choose>
+            <!-- type = 'group' 인 경우 -->
+            <when test="'group'.equals(type)">
+                AND SCOPE_TYPE = 'group'
+                AND GROUP_ID   = #{id}
+            </when>
+
+            <!-- type = 'device' 인 경우 -->
+            <when test="'device'.equals(type)">
+                AND SCOPE_TYPE = 'device'
+                AND DEVICE_ID  = #{id}
+            </when>
+
+            <!-- 혹시 이상한 타입 들어오면 무조건 false -->
+            <otherwise>
+                AND 1 = 0
+            </otherwise>
+        </choose>
+    </select>
+    
+    <insert id="insertTopoView"
+            parameterType="dev3.nms.vo.topo.TopoDto$TopoSaveDtoReq"
+            useGeneratedKeys="true"
+            keyProperty="viewId">
+        INSERT INTO r_tpo_view_t (
+        GROUP_ID,
+        DEVICE_ID,
+        SCOPE_TYPE,
+        IS_DEFAULT,
+        ZOOM,
+        CENTER_X,
+        CENTER_Y,
+        DESCRIPTION,
+        CREATED_BY,
+        CREATED_AT,
+        UPDATED_AT
+        )
+        VALUES (
+        <!-- 그룹이면 GROUP_ID에, 디바이스면 DEVICE_ID에 -->
+        <choose>
+            <when test="type != null and (type == 'group' or type == 'GROUP')">
+                #{id}, NULL,
+            </when>
+            <when test="type != null and (type == 'device' or type == 'DEVICE')">
+                NULL, #{id},
+            </when>
+            <otherwise>
+                NULL, NULL,
+            </otherwise>
+        </choose>
+        #{type},
+        'N',          -- IS_DEFAULT (일단 기본 N)
+        NULL,         -- ZOOM (추후 확장시 DTO에 추가해서 #{zoom} 등으로)
+        NULL,         -- CENTER_X
+        NULL,         -- CENTER_Y
+        NULL,         -- DESCRIPTION
+        NULL,         -- CREATED_BY (필요하면 DTO에 추가)
+        NOW(),
+        NOW()
+        )
+    </insert>
+
+    <insert id="insertTopoNodes"
+            parameterType="map">
+        INSERT INTO r_tpo_node_t (
+            VIEW_ID,
+            NODE_KEY,
+            NODE_TYPE,
+            DEVICE_ID,
+            GROUP_ID,
+            X,
+            Y,
+            FX,
+            FY
+        )
+        VALUES
+        <foreach collection="nodes" item="n" separator=",">
+            (
+            #{viewId},
+            #{n.id},
+            #{n.nodeType},
+            #{n.deviceId,jdbcType=BIGINT},
+            #{n.groupId,jdbcType=BIGINT},
+            #{n.x},
+            #{n.y},
+            #{n.fx},
+            #{n.fy}
+            )
+        </foreach>
+    </insert>
+
+    <insert id="insertTopoLinks"
+            parameterType="map">
+        INSERT INTO r_tpo_link_t (
+        VIEW_ID,
+        SRC_NODE_KEY,
+        SRC_IF_KEY,
+        SRC_TYPE,
+        DST_NODE_KEY,
+        DST_IF_KEY,
+        DST_TYPE,
+        STATUS
+        )
+        VALUES
+        <foreach collection="links" item="l" separator=",">
+            (
+            #{viewId},
+            #{l.source},
+            #{l.srcIfIndex},
+            #{l.srcType},
+            #{l.target},
+            #{l.dstIfIndex},
+            #{l.dstType},
+            #{l.status}
+            )
+        </foreach>
+    </insert>
+
+    <select id="selectViewIdByScope"
+            parameterType="map"
+            resultType="long">
+        SELECT VIEW_ID
+        FROM r_tpo_view_t
+        WHERE SCOPE_TYPE = UPPER(#{type})
+        AND (
+        (UPPER(#{type}) = 'GROUP'  AND GROUP_ID  = #{id})
+        OR
+        (UPPER(#{type}) = 'DEVICE' AND DEVICE_ID = #{id})
+        )
+        ORDER BY CREATED_AT ASC
+        LIMIT 1
+    </select>
+
+    <delete id="deleteTopoNodesByViewId" parameterType="long">
+        DELETE FROM r_tpo_node_t
+        WHERE VIEW_ID = #{viewId}
+    </delete>
+
+    <delete id="deleteTopoLinksByViewId" parameterType="long">
+        DELETE FROM r_tpo_link_t
+        WHERE VIEW_ID = #{viewId}
+    </delete>
+
+    <select id="getViewTopologyBackIconData" parameterType="long"
+            resultType="String">
+        SELECT
+        BACK_ICON_DATA
+        FROM r_tpo_view_t A, r_group_t B
+        WHERE 1 = 1
+        AND A.GROUP_ID = B.GROUP_ID
+        AND A.VIEW_ID = #{viewId}
+    </select>
+
+    <update id="saveTopologyBackImg"
+            parameterType="dev3.nms.vo.topo.TopoDto$TopoSaveBackImgDtoReq">
+        UPDATE r_group_t
+        SET BACK_ICON_DATA = #{imgSrc}
+        WHERE GROUP_ID = #{groupId}
+    </update>
+
+    <update id="saveTopologyGroupImg"
+            parameterType="dev3.nms.vo.topo.TopoDto$TopoSaveImgDtoReq">
+        UPDATE r_group_t
+        SET ICON_DATA = #{imgSrc}
+        WHERE GROUP_ID = #{id}
+    </update>
+
+    <update id="saveTopologyModelImg"
+            parameterType="dev3.nms.vo.topo.TopoDto$TopoSaveImgDtoReq">
+        UPDATE r_model_t
+        SET ICON_DATA = #{imgSrc}
+        WHERE MODEL_ID = #{modelId}
+    </update>
+
+    <select id="findModelIdByDeviceId"
+            parameterType="dev3.nms.vo.topo.TopoDto$TopoSaveImgDtoReq"
+            resultType="long">
+        SELECT MODEL_ID FROM r_device_t
+        WHERE DEVICE_ID = #{id}
+    </select>
+
+</mapper>

@@ -110,12 +110,16 @@
         LEFT JOIN r_device_snmp_t s ON d.DEVICE_ID = s.DEVICE_ID
         LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
         LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
-        LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
-        WHERE d.GROUP_ID IN
-        <foreach collection="list" item="item" open="(" separator="," close=")">
-            #{item}
-        </foreach>
-        AND d.DELETE_AT IS NULL
+        WHERE d.DELETE_AT IS NULL
+        <if test="list != null and list.size() > 0">
+            AND d.GROUP_ID IN
+            <foreach collection="list" item="item" open="(" separator="," close=")">
+                #{item}
+            </foreach>
+        </if>
+        <if test="list == null or list.size() == 0">
+            AND 1 = 0
+        </if>
     </select>
 
     <!-- 그룹 ID 목록으로 장비 조회 (페이지네이션 LIMIT OFFSET + 정렬) -->
@@ -199,11 +203,16 @@
     <select id="countDevicesByGroupIds" resultType="int">
         SELECT COUNT(*)
         FROM r_device_t d
-        WHERE d.GROUP_ID IN
-        <foreach collection="groupIds" item="item" open="(" separator="," close=")">
-            #{item}
-        </foreach>
-        AND d.DELETE_AT IS NULL
+        WHERE d.DELETE_AT IS NULL
+        <if test="groupIds != null and groupIds.size() > 0">
+            AND d.GROUP_ID IN
+            <foreach collection="groupIds" item="item" open="(" separator="," close=")">
+                #{item}
+            </foreach>
+        </if>
+        <if test="groupIds == null or groupIds.size() == 0">
+            AND 1 = 0
+        </if>
     </select>
 
     <!-- 장비 등록 (SNMP 정보 제외) -->
