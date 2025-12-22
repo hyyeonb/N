@@ -16,6 +16,9 @@
             SNMP_AUTH_PASSWORD,
             SNMP_PRIV_PROTOCOL,
             SNMP_PRIV_PASSWORD,
+            COLLECT_PING,
+            COLLECT_SNMP,
+            COLLECT_AGENT,
             CREATE_USER_ID,
             CREATE_AT,
             MODIFY_USER_ID,
@@ -36,10 +39,12 @@
         INSERT INTO r_temp_device_t (
             DEVICE_NAME, GROUP_ID, DEVICE_IP, SNMP_VERSION, SNMP_PORT, SNMP_COMMUNITY,
             SNMP_USER, SNMP_AUTH_PROTOCOL, SNMP_AUTH_PASSWORD, SNMP_PRIV_PROTOCOL, SNMP_PRIV_PASSWORD,
+            COLLECT_PING, COLLECT_SNMP, COLLECT_AGENT,
             CREATE_USER_ID, CREATE_AT, DELETE_USER_ID, DELETE_AT
         ) VALUES (
             #{DEVICE_NAME}, #{GROUP_ID}, #{DEVICE_IP}, #{SNMP_VERSION}, #{SNMP_PORT}, #{SNMP_COMMUNITY},
             #{SNMP_USER}, #{SNMP_AUTH_PROTOCOL}, #{SNMP_AUTH_PASSWORD}, #{SNMP_PRIV_PROTOCOL}, #{SNMP_PRIV_PASSWORD},
+            #{COLLECT_PING}, #{COLLECT_SNMP}, #{COLLECT_AGENT},
             #{CREATE_USER_ID}, NOW(), #{DELETE_USER_ID}, #{DELETE_AT}
         )
     </insert>
@@ -83,6 +88,7 @@
         INSERT INTO r_temp_device_t (
             DEVICE_NAME, GROUP_ID, DEVICE_IP, SNMP_VERSION, SNMP_PORT, SNMP_COMMUNITY,
             SNMP_USER, SNMP_AUTH_PROTOCOL, SNMP_AUTH_PASSWORD, SNMP_PRIV_PROTOCOL, SNMP_PRIV_PASSWORD,
+            COLLECT_PING, COLLECT_SNMP, COLLECT_AGENT,
             CREATE_USER_ID, CREATE_AT
         ) VALUES
         <foreach collection="list" item="device" separator=",">
@@ -90,6 +96,7 @@
             #{device.DEVICE_NAME}, #{device.GROUP_ID}, #{device.DEVICE_IP}, #{device.SNMP_VERSION},
             #{device.SNMP_PORT}, #{device.SNMP_COMMUNITY}, #{device.SNMP_USER}, #{device.SNMP_AUTH_PROTOCOL},
             #{device.SNMP_AUTH_PASSWORD}, #{device.SNMP_PRIV_PROTOCOL}, #{device.SNMP_PRIV_PASSWORD},
+            #{device.COLLECT_PING}, #{device.COLLECT_SNMP}, #{device.COLLECT_AGENT},
             #{device.CREATE_USER_ID}, NOW()
             )
         </foreach>
@@ -109,6 +116,9 @@
             SNMP_AUTH_PASSWORD,
             SNMP_PRIV_PROTOCOL,
             SNMP_PRIV_PASSWORD,
+            COLLECT_PING,
+            COLLECT_SNMP,
+            COLLECT_AGENT,
             CREATE_USER_ID,
             CREATE_AT,
             MODIFY_USER_ID,
@@ -145,6 +155,9 @@
             SNMP_AUTH_PASSWORD,
             SNMP_PRIV_PROTOCOL,
             SNMP_PRIV_PASSWORD,
+            COLLECT_PING,
+            COLLECT_SNMP,
+            COLLECT_AGENT,
             CREATE_USER_ID,
             CREATE_AT,
             MODIFY_USER_ID,
@@ -173,6 +186,9 @@
             SNMP_AUTH_PASSWORD,
             SNMP_PRIV_PROTOCOL,
             SNMP_PRIV_PASSWORD,
+            COLLECT_PING,
+            COLLECT_SNMP,
+            COLLECT_AGENT,
             CREATE_USER_ID,
             CREATE_AT,
             MODIFY_USER_ID,

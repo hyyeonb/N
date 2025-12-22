@@ -258,7 +258,6 @@ public class DeviceService {
                 if (!ports.isEmpty()) {
                     ports.forEach(port -> {
                         port.setDEVICE_ID(device.getDEVICE_ID());
-                        port.setCREATE_USER_ID(userId);
                     });
                     portService.createPorts(ports);
 
@@ -519,7 +518,6 @@ public class DeviceService {
             if (!ports.isEmpty()) {
                 ports.forEach(port -> {
                     port.setDEVICE_ID(device.getDEVICE_ID());
-                    port.setCREATE_USER_ID(userId);
                 });
                 portService.createPorts(ports);
 
@@ -701,5 +699,106 @@ public class DeviceService {
             deviceMapper.insertDeviceScope(scope);
         }
         return deviceMapper.findDeviceScopeById(scope.getDEVICE_ID());
+    }
+
+    /**
+     * SNMP 수집 시도 후 장비 정보 업데이트
+     * 성공 시: 장비 정보 + SNMP 설정 + 포트 정보 업데이트, COLLECT_SNMP 활성화
+     * 실패 시: RuntimeException 발생
+     */
+    @Transactional
+    public DeviceVO collectSnmpAndUpdateDevice(int deviceId, int snmpVersion, int snmpPort, String community,
+                                                String user, String authProtocol, String authPassword,
+                                                String privProtocol, String privPassword) {
+        // 1. 기존 장비 조회
+        DeviceVO device = deviceMapper.findDeviceById(deviceId);
+        if (device == null) {
+            throw new IllegalArgumentException("장비를 찾을 수 없습니다: " + deviceId);
+        }
+
+        // 2. SNMP로 장비 시스템 정보 조회 (실패 시 RuntimeException 발생)
+        Map<String, String> sysInfo = snmpService.getDeviceSystemInfo(
+                device.getDEVICE_IP(),
+                snmpVersion,
+                snmpPort,
+                community,
+                user,
+                authProtocol,
+                authPassword,
+                privProtocol,
+                privPassword
+        );
+
+        String sysDescr = sysInfo.get("sysDescr");
+        String sysObjectId = sysInfo.get("sysObjectId");
+        String sysName = sysInfo.get("sysName");
+
+        log.info("SNMP 수집 성공 - deviceId: {}, sysName: {}, sysObjectId: {}", deviceId, sysName, sysObjectId);
+
+        // 3. sysObjectId로 벤더/모델 매칭
+        VendorVO vendor = vendorMapper.findVendorByOid(sysObjectId);
+        Integer modelId = getOrCreateModel(sysObjectId, vendor, null);
+
+        // 4. 장비 기본 정보 업데이트
+        DeviceVO deviceUpdate = new DeviceVO();
+        deviceUpdate.setDEVICE_ID(deviceId);
+        deviceUpdate.setDEVICE_SYSTEM_NAME(sysName);
+        deviceUpdate.setDEVICE_DESC(sysDescr);
+        deviceUpdate.setMODEL_ID(modelId);
+        deviceMapper.updateDevice(deviceUpdate);
+
+        // 5. SNMP 정보 저장/업데이트
+        DeviceSnmpVO snmpVO = DeviceSnmpVO.builder()
+                .DEVICE_ID(deviceId)
+                .SNMP_VERSION(snmpVersion)
+                .SNMP_PORT(snmpPort)
+                .SNMP_COMMUNITY(community)
+                .SNMP_USER(user)
+                .SNMP_AUTH_PROTOCOL(authProtocol)
+                .SNMP_AUTH_PASSWORD(authPassword)
+                .SNMP_PRIV_PROTOCOL(privProtocol)
+                .SNMP_PRIV_PASSWORD(privPassword)
+                .build();
+
+        if (deviceMapper.existsDeviceSnmp(deviceId)) {
+            deviceMapper.updateDeviceSnmp(snmpVO);
+        } else {
+            deviceMapper.insertDeviceSnmp(snmpVO);
+        }
+
+        // 6. COLLECT_SNMP 활성화
+        DeviceScopeVO scopeUpdate = new DeviceScopeVO();
+        scopeUpdate.setDEVICE_ID(deviceId);
+        scopeUpdate.setCOLLECT_SNMP(true);
+        updateDeviceScope(scopeUpdate);
+
+        // 7. 포트 정보 수집 및 저장
+        try {
+            List<PortVO> ports = snmpService.getDevicePortInfo(
+                    device.getDEVICE_IP(),
+                    snmpVersion,
+                    snmpPort,
+                    community,
+                    user,
+                    authProtocol,
+                    authPassword,
+                    privProtocol,
+                    privPassword
+            );
+
+            if (!ports.isEmpty()) {
+                portService.saveOrUpdatePorts(deviceId, ports);
+                // 포트 수 업데이트
+                DeviceVO portCountUpdate = new DeviceVO();
+                portCountUpdate.setDEVICE_ID(deviceId);
+                portCountUpdate.setPORT_COUNT(ports.size());
+                deviceMapper.updateDevice(portCountUpdate);
+                log.info("포트 정보 저장 완료 - deviceId: {}, 포트 수: {}", deviceId, ports.size());
+            }
+        } catch (Exception e) {
+            log.warn("포트 정보 수집 실패 (장비 등록은 성공): {}", e.getMessage());
+        }
+
+        return deviceMapper.findDeviceById(deviceId);
     }
 }
