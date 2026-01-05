@@ -1,0 +1,363 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="dev3.nms.mapper.DashboardMapper">
+    <!-- 위젯 목록 조회 -->
+    <select id="getWidgets" resultType="dev3.nms.vo.dashboard.DashboardDto$WidgetsRes">
+        SELECT
+            WIDGET_ID,
+            WIDGET_CODE,
+            NAME,
+            ICON,
+            CATEGORY,
+            DEFAULT_W,
+            DEFAULT_H,
+            MIN_W,
+            MIN_H
+        FROM
+            r_widget_t
+        WHERE 1=1
+            AND IS_ACTIVE = 1
+    </select>
+
+    <!-- 대시보드 기본 위젯 화면 조회 -->
+    <resultMap id="defaultWidgetResultMap" type="dev3.nms.vo.dashboard.DashboardDto$DefaultWidgetRes">
+        <result column="DEFAULT_DASHBOARD_WIDGET_ID" property="defaultDashboardWidgetId"/>
+        <result column="WIDGET_ID" property="widgetId"/>
+        <result column="WIDGET_CODE" property="widgetCode"/>
+        <result column="NAME" property="name"/>
+        <result column="ICON" property="icon"/>
+        <result column="CATEGORY" property="category"/>
+        <result column="TITLE" property="title"/>
+        <result column="X" property="x"/>
+        <result column="Y" property="y"/>
+        <result column="WIDTH" property="width"/>
+        <result column="HEIGHT" property="height"/>
+    </resultMap>
+
+    <select id="getDefaultWidget" resultMap="defaultWidgetResultMap">
+        SELECT
+            DEFAULT_DASHBOARD_WIDGET_ID,
+            A.WIDGET_ID,
+            B.WIDGET_CODE,
+            B.NAME,
+            B.ICON,
+            B.CATEGORY,
+            TITLE,
+            POS_X AS X,
+            POS_Y AS Y,
+            WIDTH,
+            HEIGHT
+        FROM
+            r_default_dashboard_widget_t A, r_widget_t B
+        WHERE 1=1
+            AND A.WIDGET_ID = B.WIDGET_ID
+            AND B.IS_ACTIVE = 1
+    </select>
+
+    <!-- 대시보드 사용자 위젯 화면 조회 -->
+    <resultMap id="userWidgetResultMap" type="dev3.nms.vo.dashboard.DashboardDto$UserWidgetRes">
+        <result column="USER_DASHBOARD_WIDGET_ID" property="userDashboardWidgetId"/>
+        <result column="WIDGET_ID" property="widgetId"/>
+        <result column="WIDGET_CODE" property="widgetCode"/>
+        <result column="NAME" property="name"/>
+        <result column="ICON" property="icon"/>
+        <result column="CATEGORY" property="category"/>
+        <result column="CONFIG" property="config"/>
+        <result column="TITLE" property="title"/>
+        <result column="X" property="x"/>
+        <result column="Y" property="y"/>
+        <result column="WIDTH" property="width"/>
+        <result column="HEIGHT" property="height"/>
+    </resultMap>
+
+    <select id="getUserWidget"
+            parameterType="long"
+            resultMap="userWidgetResultMap">
+        SELECT
+            USER_DASHBOARD_WIDGET_ID,
+            A.WIDGET_ID,
+            B.WIDGET_CODE,
+            B.NAME,
+            B.ICON,
+            B.CATEGORY,
+            CONFIG,
+            TITLE,
+            POS_X AS X,
+            POS_Y AS Y,
+            WIDTH,
+            HEIGHT
+        FROM
+            r_user_dashboard_widget_t A, r_widget_t B
+        WHERE 1=1
+            AND A.WIDGET_ID = B.WIDGET_ID
+            AND B.IS_ACTIVE = 1
+            AND USER_ID = #{userId}
+    </select>
+
+    <update id="updateUserWidget">
+        UPDATE r_user_dashboard_widget_t
+        SET
+            WIDGET_ID = #{widget.widgetId},
+            TITLE = #{widget.title},
+            CONFIG = #{widget.config},
+            POS_X = #{widget.posX},
+            POS_Y = #{widget.posY},
+            WIDTH = #{widget.width},
+            HEIGHT = #{widget.height},
+            SORT_ORDER = #{widget.sortOrder}
+        WHERE USER_DASHBOARD_WIDGET_ID = #{widget.userDashboardWidgetId}
+    </update>
+
+    <insert id="insertUserWidget">
+        INSERT INTO r_user_dashboard_widget_t
+        (
+            USER_ID,
+            WIDGET_ID,
+            TITLE,
+            CONFIG,
+            POS_X,
+            POS_Y,
+            WIDTH,
+            HEIGHT,
+            SORT_ORDER
+        )
+        VALUES
+        (
+            #{userId},
+            #{widget.widgetId},
+            #{widget.title},
+            #{widget.config},
+            #{widget.posX},
+            #{widget.posY},
+            #{widget.width},
+            #{widget.height},
+            #{widget.sortOrder}
+        )
+    </insert>
+    <delete id="deleteUserWidget" parameterType="map">
+        DELETE FROM r_user_dashboard_widget_t
+        WHERE USER_ID = #{userId}
+
+        <if test="keepIds != null and keepIds.size() > 0">
+            AND USER_DASHBOARD_WIDGET_ID NOT IN
+            <foreach collection="keepIds" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+
+        <if test="keepIds == null or keepIds.size() == 0">
+            AND 1 = 0
+        </if>
+    </delete>
+
+    <select id="getWidgetCpuPieChartData"
+            resultType="dev3.nms.vo.dashboard.DashboardDto$WidgetPieChartData">
+        <![CDATA[
+        WITH t AS (
+        SELECT A.device_id, B.DEVICE_NAME, AVG(cpu_usage) AS avg_cpu
+            FROM p_cpu_mem_t A, R_DEVICE_T B
+        WHERE collected_at >= NOW() - INTERVAL 1 DAY
+            AND collected_at <  NOW()
+            AND A.DEVICE_ID = B.DEVICE_ID
+        GROUP BY device_id
+        )
+        SELECT
+        device_id AS deviceId,
+        DEVICE_NAME AS deviceName,
+        ROUND(avg_cpu / NULLIF(SUM(avg_cpu) OVER (), 0) * 100, 2) AS piePct
+        FROM t
+        WHERE avg_cpu > 0
+        ORDER BY piePct DESC
+        LIMIT 10
+         ]]>
+    </select>
+
+    <select id="getWidgetCpuLineChartData"
+            resultType="dev3.nms.vo.dashboard.DashboardDto$WidgetLineChartData">
+        <![CDATA[
+          WITH top10 AS (
+          SELECT A.device_id, B.DEVICE_NAME
+          FROM p_cpu_mem_t A, R_DEVICE_T B
+          WHERE collected_at >= NOW() - INTERVAL 1 DAY
+            AND collected_at <  NOW()
+            AND A.DEVICE_ID = B.DEVICE_ID
+          GROUP BY device_id
+          ORDER BY AVG(cpu_usage) DESC
+          LIMIT 10
+        )
+        SELECT
+          t.device_id AS deviceId,
+          DEVICE_NAME AS deviceName,
+          FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(t.collected_at) / 300) * 300) AS timestamp,
+          AVG(t.cpu_usage) AS linePct
+        FROM p_cpu_mem_t t
+        JOIN top10 x ON x.device_id = t.device_id
+        WHERE t.collected_at >= NOW() - INTERVAL 1 DAY
+          AND t.collected_at <  NOW()
+        GROUP BY t.device_id, timestamp
+        ORDER BY timestamp, t.device_id
+         ]]>
+    </select>
+
+    <select id="getWidgetMemPieChartData"
+            resultType="dev3.nms.vo.dashboard.DashboardDto$WidgetPieChartData">
+        <![CDATA[
+        WITH t AS (
+        SELECT A.device_id, B.DEVICE_NAME, AVG(mem_usage) AS avg_mem
+            FROM p_cpu_mem_t A, R_DEVICE_T B
+        WHERE collected_at >= NOW() - INTERVAL 1 DAY
+            AND collected_at <  NOW()
+            AND A.DEVICE_ID = B.DEVICE_ID
+        GROUP BY device_id
+        )
+        SELECT
+        device_id AS deviceId,
+        DEVICE_NAME AS deviceName,
+        ROUND(avg_mem / NULLIF(SUM(avg_mem) OVER (), 0) * 100, 2) AS piePct
+        FROM t
+        WHERE avg_mem > 0
+        ORDER BY piePct DESC
+        LIMIT 10
+         ]]>
+    </select>
+
+    <select id="getWidgetMemLineChartData"
+            resultType="dev3.nms.vo.dashboard.DashboardDto$WidgetLineChartData">
+        <![CDATA[
+          WITH top10 AS (
+          SELECT A.device_id, B.DEVICE_NAME
+          FROM p_cpu_mem_t A, R_DEVICE_T B
+          WHERE collected_at >= NOW() - INTERVAL 1 DAY
+            AND collected_at <  NOW()
+            AND A.DEVICE_ID = B.DEVICE_ID
+          GROUP BY device_id
+          ORDER BY AVG(mem_usage) DESC
+          LIMIT 10
+        )
+        SELECT
+          t.device_id AS deviceId,
+          DEVICE_NAME AS deviceName,
+          FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(t.collected_at) / 300) * 300) AS timestamp,
+          AVG(t.mem_usage) AS linePct
+        FROM p_cpu_mem_t t
+        JOIN top10 x ON x.device_id = t.device_id
+        WHERE t.collected_at >= NOW() - INTERVAL 1 DAY
+          AND t.collected_at <  NOW()
+        GROUP BY t.device_id, timestamp
+        ORDER BY timestamp, t.device_id
+         ]]>
+    </select>
+
+    <select id="getWidgetCpuBarChartData"
+            resultType="dev3.nms.vo.dashboard.DashboardDto$WidgetBarChartData">
+        <![CDATA[
+            SELECT
+              A.device_id AS deviceId,
+              B.DEVICE_NAME AS deviceName,
+              AVG(cpu_usage) AS barPct
+            FROM p_cpu_mem_t A, R_DEVICE_T B
+            WHERE collected_at >= NOW() - INTERVAL 1 DAY
+              AND collected_at <  NOW()
+              AND A.DEVICE_ID = B.DEVICE_ID
+            GROUP BY A.device_id
+            ORDER BY barPct DESC
+            LIMIT 10
+         ]]>
+    </select>
+
+    <select id="getWidgetMemBarChartData"
+            resultType="dev3.nms.vo.dashboard.DashboardDto$WidgetBarChartData">
+        <![CDATA[
+            SELECT
+              A.device_id AS deviceId,
+              B.DEVICE_NAME AS deviceName,
+              AVG(mem_usage) AS barPct
+            FROM p_cpu_mem_t A, R_DEVICE_T B
+            WHERE collected_at >= NOW() - INTERVAL 1 DAY
+              AND collected_at <  NOW()
+              AND A.DEVICE_ID = B.DEVICE_ID
+            GROUP BY A.device_id
+            ORDER BY barPct DESC
+            LIMIT 10
+         ]]>
+    </select>
+    <select id="getWidgetIcmpBarChartData" parameterType="map"
+            resultType="dev3.nms.vo.dashboard.DashboardDto$WidgetBarChartData">
+        <foreach collection="metrics" item="m" open="(" separator=") UNION ALL (" close=")">
+            <![CDATA[
+            SELECT
+                #{m.key} AS metric,
+                t.DEVICE_ID AS deviceId,
+                d.DEVICE_NAME AS deviceName,
+                t.v AS barPct
+            FROM (
+                SELECT DEVICE_ID, AVG(${m.col}) AS v
+                FROM p_icmp_t
+                WHERE COLLECT_TIME >= NOW() - INTERVAL 5 DAY
+                    AND COLLECT_TIME <  NOW()
+                GROUP BY DEVICE_ID
+                ORDER BY v DESC
+                LIMIT #{topN}
+            ) t
+            LEFT JOIN r_device_t d ON d.device_id = t.device_id
+            ]]>
+        </foreach>
+    </select>
+    <select id="getWidgetIcmpPieChartData" parameterType="map"
+            resultType="dev3.nms.vo.dashboard.DashboardDto$WidgetPieChartData">
+        <foreach collection="metrics" item="m" open="(" separator=") UNION ALL (" close=")">
+            <![CDATA[
+            SELECT
+                #{m.key} AS metric,
+                t.DEVICE_ID AS deviceId,
+                d.DEVICE_NAME AS deviceName,
+                ROUND(t.v / NULLIF(SUM(t.v) OVER (), 0) * 100, 2) AS piePct
+            FROM (
+                SELECT
+                    DEVICE_ID,
+                    AVG(${m.col}) AS v
+                FROM p_icmp_t
+                WHERE COLLECT_TIME >= NOW() - INTERVAL 5 DAY
+                    AND COLLECT_TIME <  NOW()
+                GROUP BY DEVICE_ID
+                ORDER BY v DESC
+                LIMIT #{topN}
+            ) t
+            LEFT JOIN r_device_t d ON d.device_id = t.device_id
+            ]]>
+        </foreach>
+        ORDER BY metric, piePct DESC
+    </select>
+
+    <select id="getWidgetIcmpLineChartData" parameterType="map"
+            resultType="dev3.nms.vo.dashboard.DashboardDto$WidgetLineChartData">
+        <foreach collection="metrics" item="m" open="(" separator=") UNION ALL (" close=")">
+            <![CDATA[
+            SELECT
+                #{m.key} AS metric,
+                t.DEVICE_ID AS deviceId,
+                d.DEVICE_NAME AS deviceName,
+                DATE_FORMAT(
+                    FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(t.COLLECT_TIME) / #{intervalSec}) * #{intervalSec}),
+                    '%Y-%m-%d %H:%i:%s'
+                ) AS timestamp,
+                AVG(${m.col}) AS linePct
+            FROM p_icmp_t t
+            JOIN (
+                SELECT DEVICE_ID
+                FROM p_icmp_t
+                WHERE COLLECT_TIME >= NOW() - INTERVAL 5 DAY
+                    AND COLLECT_TIME <  NOW()
+                GROUP BY DEVICE_ID
+                ORDER BY AVG(${m.col}) DESC
+                LIMIT #{topN}
+            ) x ON x.device_id = t.device_id
+            LEFT JOIN r_device_t d ON d.device_id = t.device_id
+            WHERE t.COLLECT_TIME >= NOW() - INTERVAL 5 DAY
+                AND t.COLLECT_TIME <  NOW()
+            GROUP BY t.DEVICE_ID, timestamp
+            ]]>
+        </foreach>
+        ORDER BY metric, timestamp, deviceId
+    </select>
+</mapper>
