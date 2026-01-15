@@ -15,14 +15,4 @@ public interface CommonOidMapper {
      */
     List<CommonOidVO> findAll();
 
-    /**
-     * OID 이름으로 OID 조회
-     */
-    CommonOidVO findByOidName(@Param("oidName") String oidName);
-
-    /**
-     * OID 이름 목록으로 OID Map 조회
-     * Key: OID_NAME, Value: OID
-     */
-    List<CommonOidVO> findByOidNames(@Param("oidNames") List<String> oidNames);
 }

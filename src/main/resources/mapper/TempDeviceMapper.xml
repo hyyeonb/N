@@ -69,20 +69,18 @@
         WHERE TEMP_DEVICE_ID = #{TEMP_DEVICE_ID}
     </update>
 
-    <update id="deleteTempDevice" parameterType="int">
-        UPDATE r_temp_device_t
-        SET DELETE_AT = NOW()
+    <delete id="deleteTempDevice" parameterType="int">
+        DELETE FROM r_temp_device_t
         WHERE TEMP_DEVICE_ID = #{tempDeviceId}
-    </update>
+    </delete>
 
-    <update id="deleteTempDevices" parameterType="java.util.List">
-        UPDATE r_temp_device_t
-        SET DELETE_AT = NOW()
+    <delete id="deleteTempDevices" parameterType="java.util.List">
+        DELETE FROM r_temp_device_t
         WHERE TEMP_DEVICE_ID IN
         <foreach collection="list" item="item" open="(" separator="," close=")">
             #{item}
         </foreach>
-    </update>
+    </delete>
 
     <insert id="insertTempDevices" parameterType="java.util.List" useGeneratedKeys="true" keyProperty="TEMP_DEVICE_ID">
         INSERT INTO r_temp_device_t (

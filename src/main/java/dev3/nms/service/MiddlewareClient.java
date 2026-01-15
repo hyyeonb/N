@@ -136,8 +136,9 @@ public class MiddlewareClient {
         vo.setIF_SPEED(info.getIfSpeed());
         vo.setIF_HIGH_SPEED(info.getIfHighSpeed());
         vo.setIF_MAC_ADDRESS(info.getIfMacAddress());
-        vo.setIF_ADMIN_STATUS(info.getIfAdminStatus());
-        vo.setIF_OPER_STATUS(info.getIfOperStatus());
+        // 신규 등록 시 AdminStatus/OperStatus는 무조건 ON(1)으로 설정
+        vo.setIF_ADMIN_STATUS(1);
+        vo.setIF_OPER_STATUS(1);
         vo.setIF_DESCRIPTION(info.getIfAlias());
         vo.setIF_IP_ADDRESS(info.getIfIpAddress());
         vo.setIF_IP_NETMASK(info.getIfIpNetmask());

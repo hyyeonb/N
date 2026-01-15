@@ -9,7 +9,11 @@ import dev3.nms.vo.common.ResVO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -160,6 +164,84 @@ public class AuthController {
         boolean isValid = user != null;
 
         return new ResVO<>(200, "검증 완료", isValid);
+    }
+
+    // ==================== 로컬 회원가입/로그인 ====================
+
+    /**
+     * 로컬 회원가입 API
+     * DuplicateKeyException → GlobalExceptionHandler에서 HTTP 409 반환
+     */
+    @PostMapping("/signup")
+    public ResponseEntity<ResVO<UserVO>> signup(
+            @RequestBody UserVO user,
+            HttpServletRequest httpRequest) {
+
+        log.info("========== 로컬 회원가입 요청 ==========");
+        log.info("LOGIN_ID: {}, EMAIL: {}, NAME: {}",
+                user.getLOGIN_ID(), user.getEMAIL(), user.getNAME());
+
+        String ipAddress = getClientIp(httpRequest);
+        String userAgent = httpRequest.getHeader("User-Agent");
+
+        UserVO savedUser = authService.signup(user, ipAddress, userAgent);
+        savedUser.setPASSWORD(null); // 응답에서 비밀번호 제외
+
+        log.info("========== 로컬 회원가입 완료 ==========");
+        return ResponseEntity.ok(new ResVO<>(200, "회원가입 성공", savedUser));
+    }
+
+    /**
+     * 로컬 로그인 API
+     */
+    @PostMapping("/login")
+    public ResponseEntity<ResVO<LoginResponseVO>> login(
+            @RequestBody Map<String, String> request,
+            HttpServletRequest httpRequest,
+            HttpSession session) {
+
+        log.info("========== 로컬 로그인 요청 ==========");
+        String loginId = request.get("loginId");
+        String password = request.get("password");
+        log.info("LOGIN_ID: {}", loginId);
+
+        String ipAddress = getClientIp(httpRequest);
+        String userAgent = httpRequest.getHeader("User-Agent");
+
+        try {
+            LoginResponseVO loginResponse = authService.localLogin(loginId, password, ipAddress, userAgent);
+
+            // 세션에 사용자 정보 저장
+            session.setAttribute("USER_ID", loginResponse.getUSER_ID());
+            session.setAttribute("SESSION_ID", loginResponse.getSESSION_ID());
+
+            log.info("========== 로컬 로그인 완료 ==========");
+            return ResponseEntity.ok(new ResVO<>(200, "로그인 성공", loginResponse));
+        } catch (IllegalArgumentException e) {
+            log.warn("로그인 실패: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ResVO<>(401, e.getMessage(), null));
+        }
+    }
+
+    /**
+     * 아이디 중복 체크 API
+     */
+    @GetMapping("/check-id")
+    public ResVO<Boolean> checkLoginId(@RequestParam("loginId") String loginId) {
+        boolean available = authService.isLoginIdAvailable(loginId);
+        String message = available ? "사용 가능한 아이디입니다." : "이미 사용 중인 아이디입니다.";
+        return new ResVO<>(200, message, available);
+    }
+
+    /**
+     * 이메일 중복 체크 API
+     */
+    @GetMapping("/check-email")
+    public ResVO<Boolean> checkEmail(@RequestParam("email") String email) {
+        boolean available = authService.isEmailAvailable(email);
+        String message = available ? "사용 가능한 이메일입니다." : "이미 사용 중인 이메일입니다.";
+        return new ResVO<>(200, message, available);
     }
 
     /**

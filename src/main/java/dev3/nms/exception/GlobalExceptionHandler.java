@@ -2,11 +2,14 @@ package dev3.nms.exception;
 
 import dev3.nms.vo.common.ResVO;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+
+import java.util.Map;
 
 /**
  * 전역 예외 처리 핸들러
@@ -26,15 +29,38 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 중복 이메일 예외 처리 (신규)
+     * 중복 이메일 예외 처리 (신규 - 소셜 로그인용)
      */
     @ExceptionHandler(DuplicateEmailException.class)
     public ResponseEntity<ResVO<Object>> handleDuplicateEmailException(DuplicateEmailException ex) {
-        log.error("중복 이메일 오류: {}", ex.getMessage());
-        log.error("이메일: {}, 기존 소셜 타입: {}, 시도한 소셜 타입: {}",
+        log.warn("중복 이메일: {} (기존: {}, 시도: {})",
                 ex.getEmail(), ex.getExistingSocialType(), ex.getAttemptedSocialType());
 
-        ResVO<Object> response = new ResVO<>(HttpStatus.CONFLICT.value(), ex.getMessage(), null);
+        ResVO<Object> response = new ResVO<>(HttpStatus.CONFLICT.value(), ex.getMessage(),
+                Map.of("socialType", ex.getExistingSocialType()));
+        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+    }
+
+    /**
+     * DB 중복 키 예외 처리 (DuplicateKeyException - MyBatis/JDBC)
+     * EMAIL, LOGIN_ID 등 UNIQUE 제약 조건 위반 시 발생
+     */
+    @ExceptionHandler(DuplicateKeyException.class)
+    public ResponseEntity<ResVO<Object>> handleDuplicateKeyException(DuplicateKeyException ex) {
+        String message = ex.getMessage();
+        String userMessage = "중복된 데이터가 존재합니다.";
+
+        // 에러 메시지에서 어떤 필드가 중복인지 파악
+        if (message != null) {
+            if (message.contains("EMAIL")) {
+                userMessage = "이미 사용 중인 이메일입니다.";
+            } else if (message.contains("LOGIN_ID")) {
+                userMessage = "이미 사용 중인 아이디입니다.";
+            }
+        }
+
+        log.warn("DB 중복 키 오류: {}", userMessage);
+        ResVO<Object> response = new ResVO<>(HttpStatus.CONFLICT.value(), userMessage, null);
         return new ResponseEntity<>(response, HttpStatus.CONFLICT);
     }
 

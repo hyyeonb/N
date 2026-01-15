@@ -8,6 +8,8 @@ import dev3.nms.service.DeviceService;
 import dev3.nms.service.GroupService;
 import dev3.nms.service.PortService;
 import dev3.nms.service.TempDeviceService;
+import dev3.nms.service.TrafficService;
+import dev3.nms.vo.mgmt.TrafficVO;
 import dev3.nms.vo.auth.UserVO;
 import dev3.nms.vo.common.PageVO;
 import dev3.nms.vo.common.ResVO;
@@ -40,6 +42,7 @@ public class MgmtController {
     private final DeviceService deviceService;
     private final PortService portService;
     private final AuthService authService;
+    private final TrafficService trafficService;
     private final GroupMapper groupMapper;
     private final VendorMapper vendorMapper;
     private final ModelMapper modelMapper;
@@ -649,6 +652,51 @@ public class MgmtController {
     }
 
     /**
+     * 포트 차트 플래그 토글 API
+     */
+    @PatchMapping("/devices/{deviceId}/ports/{ifIndex}/chart-flag")
+    public ResponseEntity<ResVO<Void>> togglePortChartFlag(
+            @PathVariable Integer deviceId,
+            @PathVariable Integer ifIndex) {
+        try {
+            portService.toggleChartFlag(deviceId, ifIndex);
+            ResVO<Void> response = new ResVO<>(200, "차트 플래그 토글 성공", null);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (Exception e) {
+            return new ResponseEntity<>(new ResVO<>(500, "차트 플래그 토글 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * 차트 표시 포트 조회 API (없으면 TOP 5 자동 설정)
+     */
+    @GetMapping("/devices/{deviceId}/ports/chart-enabled")
+    public ResponseEntity<ResVO<List<PortVO>>> getChartEnabledPorts(@PathVariable Integer deviceId) {
+        try {
+            List<PortVO> ports = portService.getChartEnabledPorts(deviceId);
+            ResVO<List<PortVO>> response = new ResVO<>(200, "차트 표시 포트 조회 성공", ports);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (Exception e) {
+            return new ResponseEntity<>(new ResVO<>(500, "차트 표시 포트 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * 차트 플래그 초기화 (TOP 5 재설정) API
+     */
+    @PostMapping("/devices/{deviceId}/ports/chart-flag/reset")
+    public ResponseEntity<ResVO<List<PortVO>>> resetChartFlags(@PathVariable Integer deviceId) {
+        try {
+            portService.initializeChartPorts(deviceId, 5);
+            List<PortVO> ports = portService.getChartEnabledPorts(deviceId);
+            ResVO<List<PortVO>> response = new ResVO<>(200, "차트 플래그 초기화 완료", ports);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (Exception e) {
+            return new ResponseEntity<>(new ResVO<>(500, "차트 플래그 초기화 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
      * 세션에서 로그인한 사용자 ID를 가져오는 헬퍼 메소드
      */
     private Integer getUserIdFromSession(HttpSession session) {
@@ -690,6 +738,67 @@ public class MgmtController {
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
             return new ResponseEntity<>(new ResVO<>(500, "관제 설정 수정 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    // ==================== Traffic 관련 API ====================
+
+    /**
+     * 장비 트래픽 데이터 조회 API (차트용)
+     * @param deviceId 장비 ID
+     * @param minutes 최근 N분 (기본 60분)
+     */
+    @GetMapping("/devices/{deviceId}/traffic")
+    public ResponseEntity<ResVO<Map<String, Object>>> getDeviceTraffic(
+            @PathVariable int deviceId,
+            @RequestParam(required = false, defaultValue = "60") Integer minutes) {
+        try {
+            Map<String, Object> trafficData = trafficService.getTrafficChartData(deviceId, minutes);
+            ResVO<Map<String, Object>> response = new ResVO<>(200, "트래픽 데이터 조회 성공", trafficData);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("트래픽 데이터 조회 실패 - deviceId: {}", deviceId, e);
+            return new ResponseEntity<>(new ResVO<>(500, "트래픽 데이터 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * 장비 트래픽 원시 데이터 조회 API
+     * @param deviceId 장비 ID
+     * @param minutes 최근 N분 (기본 60분)
+     */
+    @GetMapping("/devices/{deviceId}/traffic/raw")
+    public ResponseEntity<ResVO<List<TrafficVO>>> getDeviceTrafficRaw(
+            @PathVariable int deviceId,
+            @RequestParam(required = false, defaultValue = "60") Integer minutes) {
+        try {
+            List<TrafficVO> trafficData = trafficService.getRecentTraffic(deviceId, minutes);
+            ResVO<List<TrafficVO>> response = new ResVO<>(200, "트래픽 데이터 조회 성공", trafficData);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("트래픽 원시 데이터 조회 실패 - deviceId: {}", deviceId, e);
+            return new ResponseEntity<>(new ResVO<>(500, "트래픽 데이터 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * 포트별 트래픽 데이터 조회 API
+     * @param deviceId 장비 ID
+     * @param ifIndex 포트 인덱스
+     * @param minutes 최근 N분 (기본 60분)
+     */
+    @GetMapping("/devices/{deviceId}/ports/{ifIndex}/traffic")
+    public ResponseEntity<ResVO<List<TrafficVO>>> getPortTraffic(
+            @PathVariable int deviceId,
+            @PathVariable int ifIndex,
+            @RequestParam(required = false, defaultValue = "60") Integer minutes) {
+        try {
+            List<TrafficVO> trafficData = trafficService.getPortTraffic(deviceId, ifIndex, minutes);
+            ResVO<List<TrafficVO>> response = new ResVO<>(200, "포트 트래픽 데이터 조회 성공", trafficData);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("포트 트래픽 데이터 조회 실패 - deviceId: {}, ifIndex: {}", deviceId, ifIndex, e);
+            return new ResponseEntity<>(new ResVO<>(500, "트래픽 데이터 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 

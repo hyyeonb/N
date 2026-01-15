@@ -50,5 +50,4 @@ public interface DeviceMapper {
 
     DeviceScopeVO findDeviceScopeById(int deviceId);
 
-    boolean existsDeviceScope(int deviceId);
 }
