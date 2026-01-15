@@ -535,16 +535,27 @@ public class SnmpService {
         target.setRetries(2);
         target.setTimeout(10000);
         target.setVersion(SnmpConstants.version3);
-        target.setSecurityLevel(SecurityLevel.AUTH_PRIV);
         target.setSecurityName(new OctetString(user));
+
+        // 보안 레벨 동적 결정
+        boolean hasAuth = authProtocol != null && !authProtocol.isEmpty() && authPassword != null && !authPassword.isEmpty();
+        boolean hasPriv = privProtocol != null && !privProtocol.isEmpty() && privPassword != null && !privPassword.isEmpty();
+
+        if (hasAuth && hasPriv) {
+            target.setSecurityLevel(SecurityLevel.AUTH_PRIV);
+        } else if (hasAuth) {
+            target.setSecurityLevel(SecurityLevel.AUTH_NOPRIV);
+        } else {
+            target.setSecurityLevel(SecurityLevel.NOAUTH_NOPRIV);
+        }
 
         // USM (User-based Security Model) 설정
         USM usm = new USM(SecurityProtocols.getInstance(), new OctetString(MPv3.createLocalEngineID()), 0);
         SecurityModels.getInstance().addSecurityModel(usm);
 
         // AuthProtocol 설정
-        OID authProtocolOID = AuthMD5.ID;
-        if (authProtocol != null) {
+        OID authProtocolOID = null;
+        if (hasAuth) {
             switch (authProtocol.toUpperCase()) {
                 case "SHA":
                 case "SHA1":
@@ -570,8 +581,8 @@ public class SnmpService {
         }
 
         // PrivProtocol 설정
-        OID privProtocolOID = PrivDES.ID;
-        if (privProtocol != null) {
+        OID privProtocolOID = null;
+        if (hasPriv) {
             switch (privProtocol.toUpperCase()) {
                 case "3DES":
                     privProtocolOID = Priv3DES.ID;
@@ -593,15 +604,18 @@ public class SnmpService {
             }
         }
 
-        // UsmUser 추가
+        // UsmUser 추가 (보안 레벨에 따라 다른 파라미터)
+        OctetString authPass = hasAuth ? new OctetString(authPassword) : null;
+        OctetString privPass = hasPriv ? new OctetString(privPassword) : null;
+
         snmp.getUSM().addUser(
                 new OctetString(user),
                 new UsmUser(
                         new OctetString(user),
                         authProtocolOID,
-                        new OctetString(authPassword),
+                        authPass,
                         privProtocolOID,
-                        new OctetString(privPassword)
+                        privPass
                 )
         );
 

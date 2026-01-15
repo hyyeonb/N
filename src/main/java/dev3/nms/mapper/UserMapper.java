@@ -21,9 +21,19 @@ public interface UserMapper {
     Optional<UserVO> findByEmail(@Param("EMAIL") String email);
 
     /**
-     * 새 사용자 생성
+     * 새 사용자 생성 (소셜 로그인)
      */
     void insert(UserVO user);
+
+    /**
+     * 새 사용자 생성 (로컬 회원가입)
+     */
+    void insertLocal(UserVO user);
+
+    /**
+     * 로그인 ID로 사용자 조회
+     */
+    Optional<UserVO> findByLoginId(@Param("LOGIN_ID") String loginId);
 
     /**
      * 사용자 정보 업데이트

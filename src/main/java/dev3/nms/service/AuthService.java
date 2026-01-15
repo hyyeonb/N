@@ -13,6 +13,7 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.HashMap;
@@ -29,6 +30,7 @@ public class AuthService {
     private final UserMapper userMapper;
     private final SocialAccountMapper socialAccountMapper;
     private final LoginHistoryMapper loginHistoryMapper;
+    private final PasswordEncoder passwordEncoder;
 
     // 임시 세션 저장소 (실제로는 Redis 등 사용 권장)
     private final Map<String, UserVO> sessionStore = new HashMap<>();
@@ -37,12 +39,14 @@ public class AuthService {
                        SocialConfig socialConfig,
                        UserMapper userMapper,
                        SocialAccountMapper socialAccountMapper,
-                       LoginHistoryMapper loginHistoryMapper) {
+                       LoginHistoryMapper loginHistoryMapper,
+                       PasswordEncoder passwordEncoder) {
         this.restTemplate = restTemplate;
         this.socialConfig = socialConfig;
         this.userMapper = userMapper;
         this.socialAccountMapper = socialAccountMapper;
         this.loginHistoryMapper = loginHistoryMapper;
+        this.passwordEncoder = passwordEncoder;
     }
 
     /**
@@ -589,5 +593,92 @@ public class AuthService {
         String sessionId = UUID.randomUUID().toString();
         sessionStore.put(sessionId, user);
         return sessionId;
+    }
+
+    // ==================== 로컬 회원가입/로그인 ====================
+
+    /**
+     * 로컬 회원가입
+     * - 아이디 중복 체크는 DB UNIQUE 제약조건으로 처리 (DuplicateKeyException → GlobalExceptionHandler)
+     * - 이메일 중복 체크: 이미 다른 소셜 계정으로 가입한 경우 → DuplicateEmailException
+     */
+    public UserVO signup(UserVO user, String ipAddress, String userAgent) {
+        log.info("[AuthService] 로컬 회원가입 시작 - LOGIN_ID: {}, EMAIL: {}", user.getLOGIN_ID(), user.getEMAIL());
+
+        // 1. 이메일 중복 체크 (소셜 계정과의 중복)
+        if (user.getEMAIL() != null && !user.getEMAIL().isEmpty()) {
+            Optional<UserVO> existingUser = userMapper.findByEmail(user.getEMAIL());
+            if (existingUser.isPresent()) {
+                UserVO existing = existingUser.get();
+                log.warn("이메일 중복 - 기존 계정: {} ({})", existing.getEMAIL(), existing.getSOCIAL_TYPE());
+                throw new DuplicateEmailException(user.getEMAIL(), existing.getSOCIAL_TYPE(), "LOCAL");
+            }
+        }
+
+        // 2. 비밀번호 암호화
+        String encodedPassword = passwordEncoder.encode(user.getPASSWORD());
+        user.setPASSWORD(encodedPassword);
+
+        // 3. DB 저장 (LOGIN_ID/EMAIL 중복 시 DuplicateKeyException → GlobalExceptionHandler)
+        userMapper.insertLocal(user);
+        log.info("[AuthService] 회원가입 완료 - USER_ID: {}", user.getUSER_ID());
+
+        // 4. 로그인 히스토리 저장
+        saveLoginHistory(user.getUSER_ID(), "LOCAL", ipAddress, userAgent);
+
+        return user;
+    }
+
+    /**
+     * 로컬 로그인
+     */
+    public LoginResponseVO localLogin(String loginId, String password, String ipAddress, String userAgent) {
+        log.info("[AuthService] 로컬 로그인 시작 - LOGIN_ID: {}", loginId);
+
+        // 1. 사용자 조회
+        Optional<UserVO> userOptional = userMapper.findByLoginId(loginId);
+        if (userOptional.isEmpty()) {
+            log.warn("로그인 실패 - 존재하지 않는 아이디: {}", loginId);
+            throw new IllegalArgumentException("아이디 또는 비밀번호가 올바르지 않습니다.");
+        }
+
+        UserVO user = userOptional.get();
+
+        // 2. 비밀번호 검증
+        if (!passwordEncoder.matches(password, user.getPASSWORD())) {
+            log.warn("로그인 실패 - 비밀번호 불일치: {}", loginId);
+            throw new IllegalArgumentException("아이디 또는 비밀번호가 올바르지 않습니다.");
+        }
+
+        // 3. 로그인 히스토리 저장
+        saveLoginHistory(user.getUSER_ID(), "LOCAL", ipAddress, userAgent);
+
+        // 4. 세션 생성
+        String sessionId = createSession(user);
+        log.info("[AuthService] 로컬 로그인 성공 - USER_ID: {}, SESSION_ID: {}", user.getUSER_ID(), sessionId);
+
+        // 5. 응답 생성
+        return LoginResponseVO.builder()
+                .USER_ID(user.getUSER_ID())
+                .EMAIL(user.getEMAIL())
+                .NAME(user.getNAME())
+                .PROFILE_IMAGE(user.getPROFILE_IMAGE())
+                .SOCIAL_TYPE("LOCAL")
+                .SESSION_ID(sessionId)
+                .build();
+    }
+
+    /**
+     * 아이디 중복 체크
+     */
+    public boolean isLoginIdAvailable(String loginId) {
+        return userMapper.findByLoginId(loginId).isEmpty();
+    }
+
+    /**
+     * 이메일 중복 체크
+     */
+    public boolean isEmailAvailable(String email) {
+        return userMapper.findByEmail(email).isEmpty();
     }
 }

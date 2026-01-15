@@ -18,9 +18,6 @@ public interface GroupMapper {
 
     int updateGroupIcon(Integer groupId, String iconName);
 
-    int deleteGroup(GroupVO group);
-
-    int countChildren(Integer groupId);
 
     /**
      * 특정 그룹의 직접 자식 그룹 목록 조회

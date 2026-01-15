@@ -26,7 +26,7 @@ public class DeviceService {
     private final TempDeviceMapper tempDeviceMapper;
     private final VendorMapper vendorMapper;
     private final ModelMapper modelMapper;
-    private final SnmpService snmpService;
+    private final MiddlewareClient middlewareClient;
     private final PortService portService;
 
     /**
@@ -182,8 +182,8 @@ public class DeviceService {
         boolean pingSuccess = pingTest(deviceInput.getDEVICE_IP(), 3000);
 
         try {
-            // SNMP로 장비 시스템 정보 조회
-            Map<String, String> sysInfo = snmpService.getDeviceSystemInfo(
+            // SNMP로 장비 시스템 정보 조회 (Middleware API 호출)
+            Map<String, String> sysInfo = middlewareClient.getDeviceSystemInfo(
                     deviceInput.getDEVICE_IP(),
                     deviceInput.getSNMP_VERSION(),
                     deviceInput.getSNMP_PORT(),
@@ -206,31 +206,44 @@ public class DeviceService {
             Integer modelId = getOrCreateModel(sysObjectId, vendor, userId);
 
             // Device 객체 생성
-            DeviceVO device = new DeviceVO();
-            device.setGROUP_ID(deviceInput.getGROUP_ID());
-            device.setDEVICE_NAME(deviceInput.getDEVICE_NAME());
-            device.setDEVICE_SYSTEM_NAME(sysName);
-            device.setDEVICE_IP(deviceInput.getDEVICE_IP());
-            device.setDEVICE_DESC(sysDescr);
-            device.setMODEL_ID(modelId);
-            device.setCREATE_USER_ID(userId);
+            DeviceVO device = DeviceVO.builder()
+                    .GROUP_ID(deviceInput.getGROUP_ID())
+                    .DEVICE_NAME(deviceInput.getDEVICE_NAME())
+                    .DEVICE_SYSTEM_NAME(sysName)
+                    .DEVICE_IP(deviceInput.getDEVICE_IP())
+                    .DEVICE_DESC(sysDescr)
+                    .MODEL_ID(modelId)
+                    .CREATE_USER_ID(userId)
+                    .build();
 
             // r_device_t에 저장
             deviceMapper.insertDevice(device);
 
-            // r_device_snmp_t에 SNMP 정보 저장
-            DeviceSnmpVO snmp = DeviceSnmpVO.builder()
+            // r_device_snmp_t에 SNMP 정보 저장 (버전에 따라 불필요한 필드 null 처리)
+            DeviceSnmpVO.DeviceSnmpVOBuilder snmpBuilder = DeviceSnmpVO.builder()
                     .DEVICE_ID(device.getDEVICE_ID())
                     .SNMP_VERSION(deviceInput.getSNMP_VERSION())
-                    .SNMP_PORT(deviceInput.getSNMP_PORT())
-                    .SNMP_COMMUNITY(deviceInput.getSNMP_COMMUNITY())
-                    .SNMP_USER(deviceInput.getSNMP_USER())
-                    .SNMP_AUTH_PROTOCOL(deviceInput.getSNMP_AUTH_PROTOCOL())
-                    .SNMP_AUTH_PASSWORD(deviceInput.getSNMP_AUTH_PASSWORD())
-                    .SNMP_PRIV_PROTOCOL(deviceInput.getSNMP_PRIV_PROTOCOL())
-                    .SNMP_PRIV_PASSWORD(deviceInput.getSNMP_PRIV_PASSWORD())
-                    .build();
-            deviceMapper.insertDeviceSnmp(snmp);
+                    .SNMP_PORT(deviceInput.getSNMP_PORT());
+
+            int snmpVer = parseSnmpVersion(deviceInput.getSNMP_VERSION());
+            if (snmpVer == 3) {
+                // v3: Community는 null, v3 필드만 저장
+                snmpBuilder.SNMP_COMMUNITY(null)
+                        .SNMP_USER(deviceInput.getSNMP_USER())
+                        .SNMP_AUTH_PROTOCOL(deviceInput.getSNMP_AUTH_PROTOCOL())
+                        .SNMP_AUTH_PASSWORD(deviceInput.getSNMP_AUTH_PASSWORD())
+                        .SNMP_PRIV_PROTOCOL(deviceInput.getSNMP_PRIV_PROTOCOL())
+                        .SNMP_PRIV_PASSWORD(deviceInput.getSNMP_PRIV_PASSWORD());
+            } else {
+                // v1/v2c: v3 필드는 null, Community만 저장
+                snmpBuilder.SNMP_COMMUNITY(deviceInput.getSNMP_COMMUNITY())
+                        .SNMP_USER(null)
+                        .SNMP_AUTH_PROTOCOL(null)
+                        .SNMP_AUTH_PASSWORD(null)
+                        .SNMP_PRIV_PROTOCOL(null)
+                        .SNMP_PRIV_PASSWORD(null);
+            }
+            deviceMapper.insertDeviceSnmp(snmpBuilder.build());
 
             // r_device_scope_t에 관제 설정 저장
             DeviceScopeVO scope = DeviceScopeVO.builder()
@@ -241,9 +254,9 @@ public class DeviceService {
                     .build();
             deviceMapper.insertDeviceScope(scope);
 
-            // 포트 정보 수집 및 저장
+            // 포트 정보 수집 및 저장 (Middleware API 호출)
             try {
-                List<PortVO> ports = snmpService.getDevicePortInfo(
+                List<PortVO> ports = middlewareClient.getDevicePortInfo(
                         deviceInput.getDEVICE_IP(),
                         deviceInput.getSNMP_VERSION(),
                         deviceInput.getSNMP_PORT(),
@@ -337,12 +350,12 @@ public class DeviceService {
             }
 
             // Device 객체 생성 (SNMP 정보 없이)
-            DeviceVO device = new DeviceVO();
-            device.setGROUP_ID(deviceInput.getGROUP_ID());
-            device.setDEVICE_NAME(deviceInput.getDEVICE_NAME());
-            device.setDEVICE_IP(deviceInput.getDEVICE_IP());
-            device.setDEVICE_DESC(null);
-            device.setCREATE_USER_ID(userId);
+            DeviceVO device = DeviceVO.builder()
+                    .GROUP_ID(deviceInput.getGROUP_ID())
+                    .DEVICE_NAME(deviceInput.getDEVICE_NAME())
+                    .DEVICE_IP(deviceInput.getDEVICE_IP())
+                    .CREATE_USER_ID(userId)
+                    .build();
 
             // r_device_t에 저장
             deviceMapper.insertDevice(device);
@@ -434,10 +447,10 @@ public class DeviceService {
             throw new IllegalArgumentException("임시 장비를 찾을 수 없습니다: " + tempDeviceId);
         }
 
-        // 2. SNMP로 장비 시스템 정보 조회
+        // 2. SNMP로 장비 시스템 정보 조회 (Middleware API 호출)
         Map<String, String> sysInfo;
         try {
-            sysInfo = snmpService.getDeviceSystemInfo(
+            sysInfo = middlewareClient.getDeviceSystemInfo(
                     tempDevice.getDEVICE_IP(),
                     tempDevice.getSNMP_VERSION(),
                     tempDevice.getSNMP_PORT(),
@@ -460,37 +473,51 @@ public class DeviceService {
         log.info("장비 시스템 정보 - sysDescr: {}, sysObjectId: {}, sysName: {}", sysDescr, sysObjectId, sysName);
 
         // 3. sysObjectId로 벤더 매칭
+        log.info(sysObjectId);
         VendorVO vendor = vendorMapper.findVendorByOid(sysObjectId);
 
         // 4. 모델 조회 또는 생성
         Integer modelId = getOrCreateModel(sysObjectId, vendor, userId);
 
         // 5. Device 객체 생성 (SNMP 정보 제외)
-        DeviceVO device = new DeviceVO();
-        device.setGROUP_ID(tempDevice.getGROUP_ID());
-        device.setDEVICE_NAME(tempDevice.getDEVICE_NAME());
-        device.setDEVICE_SYSTEM_NAME(sysName);
-        device.setDEVICE_IP(tempDevice.getDEVICE_IP());
-        device.setDEVICE_DESC(sysDescr);
-        device.setMODEL_ID(modelId);
-        device.setCREATE_USER_ID(userId);
+        DeviceVO device = DeviceVO.builder()
+                .GROUP_ID(tempDevice.getGROUP_ID())
+                .DEVICE_NAME(tempDevice.getDEVICE_NAME())
+                .DEVICE_SYSTEM_NAME(sysName)
+                .DEVICE_IP(tempDevice.getDEVICE_IP())
+                .DEVICE_DESC(sysDescr)
+                .MODEL_ID(modelId)
+                .CREATE_USER_ID(userId)
+                .build();
 
         // 6. r_device_t에 저장
         deviceMapper.insertDevice(device);
 
-        // 7. r_device_snmp_t에 SNMP 정보 저장
-        DeviceSnmpVO snmp = DeviceSnmpVO.builder()
+        // 7. r_device_snmp_t에 SNMP 정보 저장 (버전에 따라 불필요한 필드 null 처리)
+        DeviceSnmpVO.DeviceSnmpVOBuilder snmpBuilder = DeviceSnmpVO.builder()
                 .DEVICE_ID(device.getDEVICE_ID())
                 .SNMP_VERSION(tempDevice.getSNMP_VERSION())
-                .SNMP_PORT(tempDevice.getSNMP_PORT())
-                .SNMP_COMMUNITY(tempDevice.getSNMP_COMMUNITY())
-                .SNMP_USER(tempDevice.getSNMP_USER())
-                .SNMP_AUTH_PROTOCOL(tempDevice.getSNMP_AUTH_PROTOCOL())
-                .SNMP_AUTH_PASSWORD(tempDevice.getSNMP_AUTH_PASSWORD())
-                .SNMP_PRIV_PROTOCOL(tempDevice.getSNMP_PRIV_PROTOCOL())
-                .SNMP_PRIV_PASSWORD(tempDevice.getSNMP_PRIV_PASSWORD())
-                .build();
-        deviceMapper.insertDeviceSnmp(snmp);
+                .SNMP_PORT(tempDevice.getSNMP_PORT());
+
+        int snmpVer = parseSnmpVersion(tempDevice.getSNMP_VERSION());
+        if (snmpVer == 3) {
+            // v3: Community는 null, v3 필드만 저장
+            snmpBuilder.SNMP_COMMUNITY(null)
+                    .SNMP_USER(tempDevice.getSNMP_USER())
+                    .SNMP_AUTH_PROTOCOL(tempDevice.getSNMP_AUTH_PROTOCOL())
+                    .SNMP_AUTH_PASSWORD(tempDevice.getSNMP_AUTH_PASSWORD())
+                    .SNMP_PRIV_PROTOCOL(tempDevice.getSNMP_PRIV_PROTOCOL())
+                    .SNMP_PRIV_PASSWORD(tempDevice.getSNMP_PRIV_PASSWORD());
+        } else {
+            // v1/v2c: v3 필드는 null, Community만 저장
+            snmpBuilder.SNMP_COMMUNITY(tempDevice.getSNMP_COMMUNITY())
+                    .SNMP_USER(null)
+                    .SNMP_AUTH_PROTOCOL(null)
+                    .SNMP_AUTH_PASSWORD(null)
+                    .SNMP_PRIV_PROTOCOL(null)
+                    .SNMP_PRIV_PASSWORD(null);
+        }
+        deviceMapper.insertDeviceSnmp(snmpBuilder.build());
 
         // 7-1. r_device_scope_t에 관제 설정 저장
         DeviceScopeVO scope = DeviceScopeVO.builder()
@@ -501,9 +528,9 @@ public class DeviceService {
                 .build();
         deviceMapper.insertDeviceScope(scope);
 
-        // 8. 포트 정보 수집 및 저장
+        // 8. 포트 정보 수집 및 저장 (Middleware API 호출)
         try {
-            List<PortVO> ports = snmpService.getDevicePortInfo(
+            List<PortVO> ports = middlewareClient.getDevicePortInfo(
                     tempDevice.getDEVICE_IP(),
                     tempDevice.getSNMP_VERSION(),
                     tempDevice.getSNMP_PORT(),
@@ -615,19 +642,34 @@ public class DeviceService {
         deviceUpdates.setDEVICE_ID(deviceId);
         deviceMapper.updateDevice(deviceUpdates);
 
-        // SNMP 정보 업데이트 (존재하는 경우)
-        if (deviceUpdates.getSNMP_PORT() != null || deviceUpdates.getSNMP_COMMUNITY() != null || deviceUpdates.getSNMP_VERSION() != null) {
-            DeviceSnmpVO snmpUpdate = DeviceSnmpVO.builder()
+        // SNMP 정보 업데이트 (존재하는 경우, 버전에 따라 불필요한 필드 null 처리)
+        if (deviceUpdates.getSNMP_PORT() != null || deviceUpdates.getSNMP_COMMUNITY() != null ||
+            deviceUpdates.getSNMP_VERSION() != null || deviceUpdates.getSNMP_USER() != null) {
+
+            DeviceSnmpVO.DeviceSnmpVOBuilder snmpBuilder = DeviceSnmpVO.builder()
                     .DEVICE_ID(deviceId)
                     .SNMP_VERSION(deviceUpdates.getSNMP_VERSION())
-                    .SNMP_PORT(deviceUpdates.getSNMP_PORT())
-                    .SNMP_COMMUNITY(deviceUpdates.getSNMP_COMMUNITY())
-                    .SNMP_USER(deviceUpdates.getSNMP_USER())
-                    .SNMP_AUTH_PROTOCOL(deviceUpdates.getSNMP_AUTH_PROTOCOL())
-                    .SNMP_AUTH_PASSWORD(deviceUpdates.getSNMP_AUTH_PASSWORD())
-                    .SNMP_PRIV_PROTOCOL(deviceUpdates.getSNMP_PRIV_PROTOCOL())
-                    .SNMP_PRIV_PASSWORD(deviceUpdates.getSNMP_PRIV_PASSWORD())
-                    .build();
+                    .SNMP_PORT(deviceUpdates.getSNMP_PORT());
+
+            int snmpVer = parseSnmpVersion(deviceUpdates.getSNMP_VERSION());
+            if (snmpVer == 3) {
+                // v3: Community는 null, v3 필드만 저장
+                snmpBuilder.SNMP_COMMUNITY(null)
+                        .SNMP_USER(deviceUpdates.getSNMP_USER())
+                        .SNMP_AUTH_PROTOCOL(deviceUpdates.getSNMP_AUTH_PROTOCOL())
+                        .SNMP_AUTH_PASSWORD(deviceUpdates.getSNMP_AUTH_PASSWORD())
+                        .SNMP_PRIV_PROTOCOL(deviceUpdates.getSNMP_PRIV_PROTOCOL())
+                        .SNMP_PRIV_PASSWORD(deviceUpdates.getSNMP_PRIV_PASSWORD());
+            } else {
+                // v1/v2c: v3 필드는 null, Community만 저장
+                snmpBuilder.SNMP_COMMUNITY(deviceUpdates.getSNMP_COMMUNITY())
+                        .SNMP_USER(null)
+                        .SNMP_AUTH_PROTOCOL(null)
+                        .SNMP_AUTH_PASSWORD(null)
+                        .SNMP_PRIV_PROTOCOL(null)
+                        .SNMP_PRIV_PASSWORD(null);
+            }
+            DeviceSnmpVO snmpUpdate = snmpBuilder.build();
 
             if (deviceMapper.existsDeviceSnmp(deviceId)) {
                 deviceMapper.updateDeviceSnmp(snmpUpdate);
@@ -716,8 +758,8 @@ public class DeviceService {
             throw new IllegalArgumentException("장비를 찾을 수 없습니다: " + deviceId);
         }
 
-        // 2. SNMP로 장비 시스템 정보 조회 (실패 시 RuntimeException 발생)
-        Map<String, String> sysInfo = snmpService.getDeviceSystemInfo(
+        // 2. SNMP로 장비 시스템 정보 조회 (Middleware API 호출, 실패 시 RuntimeException 발생)
+        Map<String, String> sysInfo = middlewareClient.getDeviceSystemInfo(
                 device.getDEVICE_IP(),
                 snmpVersion,
                 snmpPort,
@@ -747,18 +789,30 @@ public class DeviceService {
         deviceUpdate.setMODEL_ID(modelId);
         deviceMapper.updateDevice(deviceUpdate);
 
-        // 5. SNMP 정보 저장/업데이트
-        DeviceSnmpVO snmpVO = DeviceSnmpVO.builder()
+        // 5. SNMP 정보 저장/업데이트 (버전에 따라 불필요한 필드 null 처리)
+        DeviceSnmpVO.DeviceSnmpVOBuilder snmpBuilder = DeviceSnmpVO.builder()
                 .DEVICE_ID(deviceId)
                 .SNMP_VERSION(snmpVersion)
-                .SNMP_PORT(snmpPort)
-                .SNMP_COMMUNITY(community)
-                .SNMP_USER(user)
-                .SNMP_AUTH_PROTOCOL(authProtocol)
-                .SNMP_AUTH_PASSWORD(authPassword)
-                .SNMP_PRIV_PROTOCOL(privProtocol)
-                .SNMP_PRIV_PASSWORD(privPassword)
-                .build();
+                .SNMP_PORT(snmpPort);
+
+        if (snmpVersion == 3) {
+            // v3: Community는 null, v3 필드만 저장
+            snmpBuilder.SNMP_COMMUNITY(null)
+                    .SNMP_USER(user)
+                    .SNMP_AUTH_PROTOCOL(authProtocol)
+                    .SNMP_AUTH_PASSWORD(authPassword)
+                    .SNMP_PRIV_PROTOCOL(privProtocol)
+                    .SNMP_PRIV_PASSWORD(privPassword);
+        } else {
+            // v1/v2c: v3 필드는 null, Community만 저장
+            snmpBuilder.SNMP_COMMUNITY(community)
+                    .SNMP_USER(null)
+                    .SNMP_AUTH_PROTOCOL(null)
+                    .SNMP_AUTH_PASSWORD(null)
+                    .SNMP_PRIV_PROTOCOL(null)
+                    .SNMP_PRIV_PASSWORD(null);
+        }
+        DeviceSnmpVO snmpVO = snmpBuilder.build();
 
         if (deviceMapper.existsDeviceSnmp(deviceId)) {
             deviceMapper.updateDeviceSnmp(snmpVO);
@@ -772,9 +826,9 @@ public class DeviceService {
         scopeUpdate.setCOLLECT_SNMP(true);
         updateDeviceScope(scopeUpdate);
 
-        // 7. 포트 정보 수집 및 저장
+        // 7. 포트 정보 수집 및 저장 (Middleware API 호출)
         try {
-            List<PortVO> ports = snmpService.getDevicePortInfo(
+            List<PortVO> ports = middlewareClient.getDevicePortInfo(
                     device.getDEVICE_IP(),
                     snmpVersion,
                     snmpPort,
@@ -800,5 +854,27 @@ public class DeviceService {
         }
 
         return deviceMapper.findDeviceById(deviceId);
+    }
+
+    /**
+     * SNMP 버전을 숫자로 변환
+     * Integer, String 모두 지원
+     */
+    private int parseSnmpVersion(Object version) {
+        if (version == null) return 2;
+        if (version instanceof Integer) {
+            return (Integer) version;
+        }
+        if (version instanceof String) {
+            String str = ((String) version).toLowerCase();
+            switch (str) {
+                case "1": return 1;
+                case "2c":
+                case "2": return 2;
+                case "3": return 3;
+                default: return 2;
+            }
+        }
+        return 2;
     }
 }

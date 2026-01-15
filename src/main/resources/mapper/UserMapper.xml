@@ -6,8 +6,11 @@
 
     <resultMap id="UserResultMap" type="dev3.nms.vo.auth.UserVO">
         <id property="USER_ID" column="USER_ID"/>
+        <result property="LOGIN_ID" column="LOGIN_ID"/>
+        <result property="PASSWORD" column="PASSWORD"/>
         <result property="EMAIL" column="EMAIL"/>
         <result property="NAME" column="NAME"/>
+        <result property="PHONE" column="PHONE"/>
         <result property="PROFILE_IMAGE" column="PROFILE_IMAGE"/>
         <result property="SOCIAL_TYPE" column="SOCIAL_TYPE"/>
         <result property="SOCIAL_ID" column="SOCIAL_ID"/>
@@ -37,12 +40,26 @@
         WHERE USER_ID = #{USER_ID}
     </select>
 
-    <!-- 새 사용자 생성 -->
+    <!-- 새 사용자 생성 (소셜 로그인) -->
     <insert id="insert" parameterType="dev3.nms.vo.auth.UserVO"
             useGeneratedKeys="true" keyProperty="USER_ID" keyColumn="USER_ID">
         INSERT INTO USER (EMAIL, NAME, PROFILE_IMAGE, SOCIAL_TYPE, SOCIAL_ID)
         VALUES (#{EMAIL}, #{NAME}, #{PROFILE_IMAGE}, #{SOCIAL_TYPE}, #{SOCIAL_ID})
     </insert>
+
+    <!-- 새 사용자 생성 (로컬 회원가입) -->
+    <insert id="insertLocal" parameterType="dev3.nms.vo.auth.UserVO"
+            useGeneratedKeys="true" keyProperty="USER_ID" keyColumn="USER_ID">
+        INSERT INTO USER (LOGIN_ID, PASSWORD, EMAIL, NAME, PHONE, SOCIAL_TYPE)
+        VALUES (#{LOGIN_ID}, #{PASSWORD}, #{EMAIL}, #{NAME}, #{PHONE}, 'LOCAL')
+    </insert>
+
+    <!-- 로그인 ID로 사용자 조회 -->
+    <select id="findByLoginId" resultMap="UserResultMap">
+        SELECT *
+        FROM USER
+        WHERE LOGIN_ID = #{LOGIN_ID}
+    </select>
 
     <!-- 사용자 정보 업데이트 -->
     <update id="update" parameterType="dev3.nms.vo.auth.UserVO">

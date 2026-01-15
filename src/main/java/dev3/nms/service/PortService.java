@@ -17,9 +17,15 @@ public class PortService {
     private final PortMapper portMapper;
 
     /**
-     * 특정 장비의 모든 포트 조회
+     * 특정 장비의 모든 포트 조회 (차트 플래그 자동 초기화 포함)
      */
+    @Transactional
     public List<PortVO> getPortsByDeviceId(Integer deviceId) {
+        // 차트 플래그가 설정된 포트가 없으면 자동으로 TOP 5 설정
+        int chartCount = portMapper.countChartEnabledPorts(deviceId);
+        if (chartCount == 0) {
+            initializeChartPorts(deviceId, 5);
+        }
         return portMapper.findByDeviceId(deviceId);
     }
 
@@ -137,5 +143,77 @@ public class PortService {
         }
 
         log.info("포트 저장/업데이트 완료 - DeviceId: {}, 포트 수: {}", deviceId, ports.size());
+    }
+
+    /**
+     * 차트 플래그 토글
+     */
+    @Transactional
+    public void toggleChartFlag(Integer deviceId, Integer ifIndex) {
+        PortVO port = portMapper.findByDeviceIdAndIfIndex(deviceId, ifIndex);
+        if (port != null) {
+            Boolean newFlag = !(port.getIF_CHART_FLAG() != null && port.getIF_CHART_FLAG());
+            portMapper.updateChartFlag(deviceId, ifIndex, newFlag);
+            log.info("차트 플래그 토글 - DeviceId: {}, IfIndex: {}, NewFlag: {}", deviceId, ifIndex, newFlag);
+        }
+    }
+
+    /**
+     * 차트 플래그 설정
+     */
+    @Transactional
+    public void setChartFlag(Integer deviceId, Integer ifIndex, Boolean chartFlag) {
+        portMapper.updateChartFlag(deviceId, ifIndex, chartFlag);
+        log.info("차트 플래그 설정 - DeviceId: {}, IfIndex: {}, Flag: {}", deviceId, ifIndex, chartFlag);
+    }
+
+    /**
+     * 차트 표시 포트 조회 (없으면 TOP 5 자동 설정)
+     */
+    @Transactional
+    public List<PortVO> getChartEnabledPorts(Integer deviceId) {
+        int chartCount = portMapper.countChartEnabledPorts(deviceId);
+
+        // 차트 표시 포트가 없으면 TOP 5 자동 설정
+        if (chartCount == 0) {
+            initializeChartPorts(deviceId, 5);
+        }
+
+        return portMapper.findChartEnabledPorts(deviceId);
+    }
+
+    /**
+     * TOP N 트래픽 포트로 차트 초기화
+     */
+    @Transactional
+    public void initializeChartPorts(Integer deviceId, int limit) {
+        // 기존 차트 플래그 초기화
+        portMapper.resetChartFlags(deviceId);
+
+        // TOP N 트래픽 포트에 차트 플래그 설정
+        int updated = portMapper.setTopTrafficPortsChartFlag(deviceId, limit);
+
+        // 트래픽 데이터가 없으면 첫 N개 포트에 플래그 설정
+        if (updated == 0) {
+            List<PortVO> ports = portMapper.findByDeviceId(deviceId);
+            int count = 0;
+            for (PortVO port : ports) {
+                if (count >= limit) break;
+                portMapper.updateChartFlag(deviceId, port.getIF_INDEX(), true);
+                count++;
+            }
+            log.info("트래픽 데이터 없음 - 첫 {}개 포트에 차트 플래그 설정 (DeviceId: {})", count, deviceId);
+        } else {
+            log.info("TOP {} 트래픽 포트에 차트 플래그 설정 완료 (DeviceId: {})", updated, deviceId);
+        }
+    }
+
+    /**
+     * 차트 플래그 전체 초기화
+     */
+    @Transactional
+    public void resetChartFlags(Integer deviceId) {
+        portMapper.resetChartFlags(deviceId);
+        log.info("차트 플래그 초기화 완료 - DeviceId: {}", deviceId);
     }
 }

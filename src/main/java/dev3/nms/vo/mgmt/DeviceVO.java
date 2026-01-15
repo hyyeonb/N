@@ -1,12 +1,14 @@
 package dev3.nms.vo.mgmt;
 
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.sql.Timestamp;
 
 @Getter
 @Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class DeviceVO {
     private Integer DEVICE_ID;
     private Integer GROUP_ID;  // DEVICE_GROUP_ID → GROUP_ID

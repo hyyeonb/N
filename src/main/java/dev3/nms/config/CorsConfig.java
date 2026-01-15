@@ -20,12 +20,14 @@ public class CorsConfig {
     public CorsFilter corsFilter() {
         CorsConfiguration config = new CorsConfiguration();
 
-        // 허용할 Origin (React 개발 서버)
+        // 허용할 Origin (React 개발 서버 + 운영 서버)
         config.setAllowedOrigins(Arrays.asList(
             "http://localhost:3000",
             "http://localhost:5173",
             "http://127.0.0.1:3000",
-            "http://127.0.0.1:5173"
+            "http://127.0.0.1:5173",
+            "http://192.168.3.114",
+            "http://192.168.3.114.nip.io"
         ));
 
         // 허용할 HTTP 메서드
