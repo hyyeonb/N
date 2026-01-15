@@ -189,7 +189,7 @@
           t.device_id AS deviceId,
           DEVICE_NAME AS deviceName,
           FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(t.collected_at) / 300) * 300) AS timestamp,
-          AVG(t.cpu_usage) AS linePct
+          ROUND(AVG(t.cpu_usage), 2) AS linePct
         FROM p_cpu_mem_t t
         JOIN top10 x ON x.device_id = t.device_id
         WHERE t.collected_at >= NOW() - INTERVAL 1 DAY
@@ -238,7 +238,7 @@
           t.device_id AS deviceId,
           DEVICE_NAME AS deviceName,
           FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(t.collected_at) / 300) * 300) AS timestamp,
-          AVG(t.mem_usage) AS linePct
+          ROUND(AVG(t.mem_usage), 2) AS linePct
         FROM p_cpu_mem_t t
         JOIN top10 x ON x.device_id = t.device_id
         WHERE t.collected_at >= NOW() - INTERVAL 1 DAY
@@ -254,7 +254,7 @@
             SELECT
               A.device_id AS deviceId,
               B.DEVICE_NAME AS deviceName,
-              AVG(cpu_usage) AS barPct
+              ROUND(AVG(cpu_usage), 2) AS barPct
             FROM p_cpu_mem_t A, R_DEVICE_T B
             WHERE collected_at >= NOW() - INTERVAL 1 DAY
               AND collected_at <  NOW()
@@ -271,7 +271,7 @@
             SELECT
               A.device_id AS deviceId,
               B.DEVICE_NAME AS deviceName,
-              AVG(mem_usage) AS barPct
+              ROUND(AVG(mem_usage), 2) AS barPct
             FROM p_cpu_mem_t A, R_DEVICE_T B
             WHERE collected_at >= NOW() - INTERVAL 1 DAY
               AND collected_at <  NOW()
@@ -289,11 +289,11 @@
                 #{m.key} AS metric,
                 t.DEVICE_ID AS deviceId,
                 d.DEVICE_NAME AS deviceName,
-                t.v AS barPct
+                ROUND(t.v, 2) AS barPct
             FROM (
                 SELECT DEVICE_ID, AVG(${m.col}) AS v
                 FROM p_icmp_t
-                WHERE COLLECT_TIME >= NOW() - INTERVAL 5 DAY
+                WHERE COLLECT_TIME >= NOW() - INTERVAL 1 DAY
                     AND COLLECT_TIME <  NOW()
                 GROUP BY DEVICE_ID
                 ORDER BY v DESC
@@ -317,7 +317,7 @@
                     DEVICE_ID,
                     AVG(${m.col}) AS v
                 FROM p_icmp_t
-                WHERE COLLECT_TIME >= NOW() - INTERVAL 5 DAY
+                WHERE COLLECT_TIME >= NOW() - INTERVAL 1 DAY
                     AND COLLECT_TIME <  NOW()
                 GROUP BY DEVICE_ID
                 ORDER BY v DESC
@@ -341,20 +341,101 @@
                     FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(t.COLLECT_TIME) / #{intervalSec}) * #{intervalSec}),
                     '%Y-%m-%d %H:%i:%s'
                 ) AS timestamp,
-                AVG(${m.col}) AS linePct
+                ROUND(AVG(${m.col}), 2) AS linePct
             FROM p_icmp_t t
             JOIN (
                 SELECT DEVICE_ID
                 FROM p_icmp_t
-                WHERE COLLECT_TIME >= NOW() - INTERVAL 5 DAY
+                WHERE COLLECT_TIME >= NOW() - INTERVAL 1 DAY
                     AND COLLECT_TIME <  NOW()
                 GROUP BY DEVICE_ID
                 ORDER BY AVG(${m.col}) DESC
                 LIMIT #{topN}
             ) x ON x.device_id = t.device_id
             LEFT JOIN r_device_t d ON d.device_id = t.device_id
-            WHERE t.COLLECT_TIME >= NOW() - INTERVAL 5 DAY
+            WHERE t.COLLECT_TIME >= NOW() - INTERVAL 1 DAY
                 AND t.COLLECT_TIME <  NOW()
+            GROUP BY t.DEVICE_ID, timestamp
+            ]]>
+        </foreach>
+        ORDER BY metric, timestamp, deviceId
+    </select>
+
+    <select id="getWidgetTrafficBarChartData" parameterType="map"
+            resultType="dev3.nms.vo.dashboard.DashboardDto$WidgetBarChartData">
+        <foreach collection="metrics" item="m" open="(" separator=") UNION ALL (" close=")">
+            <![CDATA[
+            SELECT
+                #{m.key} AS metric,
+                t.DEVICE_ID AS deviceId,
+                d.DEVICE_NAME AS deviceName,
+                ROUND(t.v, 2) AS barPct
+            FROM (
+                SELECT DEVICE_ID, AVG(${m.col}) AS v
+                FROM p_traffic_t
+                WHERE COLLECTED_AT >= NOW() - INTERVAL 1 DAY
+                    AND COLLECTED_AT <  NOW()
+                GROUP BY DEVICE_ID
+                ORDER BY v DESC
+                LIMIT #{topN}
+            ) t
+            LEFT JOIN r_device_t d ON d.device_id = t.device_id
+            ]]>
+        </foreach>
+    </select>
+
+    <select id="getWidgetTrafficPieChartData" parameterType="map"
+            resultType="dev3.nms.vo.dashboard.DashboardDto$WidgetPieChartData">
+        <foreach collection="metrics" item="m" open="(" separator=") UNION ALL (" close=")">
+            <![CDATA[
+            SELECT
+                #{m.key} AS metric,
+                t.DEVICE_ID AS deviceId,
+                d.DEVICE_NAME AS deviceName,
+                ROUND(t.v / NULLIF(SUM(t.v) OVER (), 0) * 100, 2) AS piePct
+            FROM (
+                SELECT
+                    DEVICE_ID,
+                    AVG(${m.col}) AS v
+                FROM p_traffic_t
+                WHERE COLLECTED_AT >= NOW() - INTERVAL 1 DAY
+                    AND COLLECTED_AT <  NOW()
+                GROUP BY DEVICE_ID
+                ORDER BY v DESC
+                LIMIT #{topN}
+            ) t
+            LEFT JOIN r_device_t d ON d.device_id = t.device_id
+            ]]>
+        </foreach>
+        ORDER BY metric, piePct DESC
+    </select>
+
+    <select id="getWidgetTrafficLineChartData" parameterType="map"
+            resultType="dev3.nms.vo.dashboard.DashboardDto$WidgetLineChartData">
+        <foreach collection="metrics" item="m" open="(" separator=") UNION ALL (" close=")">
+            <![CDATA[
+            SELECT
+                #{m.key} AS metric,
+                t.DEVICE_ID AS deviceId,
+                d.DEVICE_NAME AS deviceName,
+                DATE_FORMAT(
+                    FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(t.COLLECTED_AT) / #{intervalSec}) * #{intervalSec}),
+                    '%Y-%m-%d %H:%i:%s'
+                ) AS timestamp,
+                ROUND(AVG(${m.col}), 2) AS linePct
+            FROM p_traffic_t t
+            JOIN (
+                SELECT DEVICE_ID
+                FROM p_traffic_t
+                WHERE COLLECTED_AT >= NOW() - INTERVAL 1 DAY
+                    AND COLLECTED_AT <  NOW()
+                GROUP BY DEVICE_ID
+                ORDER BY AVG(${m.col}) DESC
+                LIMIT #{topN}
+            ) x ON x.device_id = t.device_id
+            LEFT JOIN r_device_t d ON d.device_id = t.device_id
+            WHERE t.COLLECTED_AT >= NOW() - INTERVAL 1 DAY
+                AND t.COLLECTED_AT <  NOW()
             GROUP BY t.DEVICE_ID, timestamp
             ]]>
         </foreach>

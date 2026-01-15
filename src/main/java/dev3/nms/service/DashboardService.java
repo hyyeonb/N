@@ -75,7 +75,24 @@ public class DashboardService {
                 }else if ("PROCESS".equals(userWidgetConfig.getGroup())) {
 
                 }else if ("TRAFFIC".equals(userWidgetConfig.getGroup())) {
+                    List<Map<String, String>> metrics = toTrafficMetricParams(userWidgetConfig.getElements());
+                    if (metrics.isEmpty()) throw new IllegalArgumentException("No valid elements");
 
+                    Map<String, Object> param = new HashMap<>();
+                    param.put("metrics", metrics);   // [{key=TRAFFIC_IN_BPS,col=...}, ...]
+                    param.put("topN", 10);
+                    param.put("intervalSec", 300);
+
+                    if ("pie".equals(userWidgetConfig.getChartType())) {
+                        List<DashboardDto.WidgetPieChartData> pieChartData = dashboardMapper.getWidgetTrafficPieChartData(param);
+                        userWidget.setChartData(pieChartData);
+                    }else if ("line".equals(userWidgetConfig.getChartType())) {
+                        List<DashboardDto.WidgetLineChartData> lineChartData = dashboardMapper.getWidgetTrafficLineChartData(param);
+                        userWidget.setChartData(lineChartData);
+                    }else if ("bar".equals(userWidgetConfig.getChartType())) {
+                        List<DashboardDto.WidgetBarChartData> barChartData = dashboardMapper.getWidgetTrafficBarChartData(param);
+                        userWidget.setChartData(barChartData);
+                    }
                 }else if ("ICMP".equals(userWidgetConfig.getGroup())) {
                     List<Map<String, String>> metrics = toMetricParams(userWidgetConfig.getElements());
                     if (metrics.isEmpty()) throw new IllegalArgumentException("No valid elements");
@@ -180,6 +197,34 @@ public class DashboardService {
         return metrics;
     }
 
+    public static List<String> normalizeTrafficElements(List<String> elements) {
+        if (elements == null) return List.of();
+
+        LinkedHashSet<String> set = new LinkedHashSet<>();
+        for (String e : elements) {
+            if (e == null) continue;
+            String key = e.trim();
+            if (TrafficMetricMap.METRIC_COL.containsKey(key)) {
+                set.add(key);
+            }
+        }
+        return new ArrayList<>(set);
+    }
+
+    public static List<Map<String, String>> toTrafficMetricParams(List<String> elements) {
+        List<String> keys = normalizeTrafficElements(elements);
+        List<Map<String, String>> metrics = new ArrayList<>(keys.size());
+        for (String k : keys) {
+            String col = TrafficMetricMap.METRIC_COL.get(k);
+            if (col == null) continue;
+            Map<String, String> item = new HashMap<>();
+            item.put("key", k);
+            item.put("col", col);
+            metrics.add(item);
+        }
+        return metrics;
+    }
+
     public static class IcmpMetricMap {
         // key = elements 값, value = DB 컬럼(또는 식)
         public static final Map<String, String> METRIC_COL;
@@ -189,6 +234,23 @@ public class DashboardService {
             m.put("ICMP_MIN",  "RESPONSE_MIN_TIME");
             m.put("ICMP_AVG",  "RESPONSE_TIME");
             m.put("ICMP_LOSS", "PACKET_LOSS");
+            METRIC_COL = Collections.unmodifiableMap(m);
+        }
+    }
+
+    public static class TrafficMetricMap {
+        // key = elements 값, value = DB 컬럼(또는 식)
+        public static final Map<String, String> METRIC_COL;
+        static {
+            Map<String, String> m = new LinkedHashMap<>();
+            m.put("TRAFFIC_IN_BPS",  "COALESCE(IN_HIGH_BPS, IN_BPS, 0)");
+            m.put("TRAFFIC_OUT_BPS", "COALESCE(OUT_HIGH_BPS, OUT_BPS, 0)");
+            m.put("TRAFFIC_IN_ERR",  "IN_ERROR");
+            m.put("TRAFFIC_OUT_ERR", "OUT_ERROR");
+            m.put("TRAFFIC_IN_BYTE", "COALESCE(IN_HIGH_USED, IN_USED, 0)");
+            m.put("TRAFFIC_OUT_BYTE", "COALESCE(OUT_HIGH_USED, OUT_USED, 0)");
+            m.put("TRAFFIC_IN_DISCARD", "IN_DISCARD");
+            m.put("TRAFFIC_OUT_DISCARD", "OUT_DISCARD");
             METRIC_COL = Collections.unmodifiableMap(m);
         }
     }

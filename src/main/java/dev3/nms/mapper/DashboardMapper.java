@@ -38,4 +38,10 @@ public interface DashboardMapper {
     List<DashboardDto.WidgetPieChartData> getWidgetIcmpPieChartData(Map<String, Object> param);
 
     List<DashboardDto.WidgetLineChartData> getWidgetIcmpLineChartData(Map<String, Object> param);
+
+    List<DashboardDto.WidgetBarChartData> getWidgetTrafficBarChartData(Map<String, Object> param);
+
+    List<DashboardDto.WidgetPieChartData> getWidgetTrafficPieChartData(Map<String, Object> param);
+
+    List<DashboardDto.WidgetLineChartData> getWidgetTrafficLineChartData(Map<String, Object> param);
 }
