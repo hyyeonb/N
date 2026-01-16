@@ -156,7 +156,7 @@
         WITH t AS (
         SELECT A.device_id, B.DEVICE_NAME, AVG(cpu_usage) AS avg_cpu
             FROM p_cpu_mem_t A, R_DEVICE_T B
-        WHERE collected_at >= NOW() - INTERVAL 1 DAY
+        WHERE collected_at >= NOW() - INTERVAL 5 DAY
             AND collected_at <  NOW()
             AND A.DEVICE_ID = B.DEVICE_ID
         GROUP BY device_id
@@ -178,7 +178,7 @@
           WITH top10 AS (
           SELECT A.device_id, B.DEVICE_NAME
           FROM p_cpu_mem_t A, R_DEVICE_T B
-          WHERE collected_at >= NOW() - INTERVAL 1 DAY
+          WHERE collected_at >= NOW() - INTERVAL 5 DAY
             AND collected_at <  NOW()
             AND A.DEVICE_ID = B.DEVICE_ID
           GROUP BY device_id
@@ -192,7 +192,7 @@
           ROUND(AVG(t.cpu_usage), 2) AS linePct
         FROM p_cpu_mem_t t
         JOIN top10 x ON x.device_id = t.device_id
-        WHERE t.collected_at >= NOW() - INTERVAL 1 DAY
+        WHERE t.collected_at >= NOW() - INTERVAL 5 DAY
           AND t.collected_at <  NOW()
         GROUP BY t.device_id, timestamp
         ORDER BY timestamp, t.device_id
@@ -205,7 +205,7 @@
         WITH t AS (
         SELECT A.device_id, B.DEVICE_NAME, AVG(mem_usage) AS avg_mem
             FROM p_cpu_mem_t A, R_DEVICE_T B
-        WHERE collected_at >= NOW() - INTERVAL 1 DAY
+        WHERE collected_at >= NOW() - INTERVAL 5 DAY
             AND collected_at <  NOW()
             AND A.DEVICE_ID = B.DEVICE_ID
         GROUP BY device_id
@@ -227,7 +227,7 @@
           WITH top10 AS (
           SELECT A.device_id, B.DEVICE_NAME
           FROM p_cpu_mem_t A, R_DEVICE_T B
-          WHERE collected_at >= NOW() - INTERVAL 1 DAY
+          WHERE collected_at >= NOW() - INTERVAL 5 DAY
             AND collected_at <  NOW()
             AND A.DEVICE_ID = B.DEVICE_ID
           GROUP BY device_id
@@ -241,7 +241,7 @@
           ROUND(AVG(t.mem_usage), 2) AS linePct
         FROM p_cpu_mem_t t
         JOIN top10 x ON x.device_id = t.device_id
-        WHERE t.collected_at >= NOW() - INTERVAL 1 DAY
+        WHERE t.collected_at >= NOW() - INTERVAL 5 DAY
           AND t.collected_at <  NOW()
         GROUP BY t.device_id, timestamp
         ORDER BY timestamp, t.device_id
@@ -256,7 +256,7 @@
               B.DEVICE_NAME AS deviceName,
               ROUND(AVG(cpu_usage), 2) AS barPct
             FROM p_cpu_mem_t A, R_DEVICE_T B
-            WHERE collected_at >= NOW() - INTERVAL 1 DAY
+            WHERE collected_at >= NOW() - INTERVAL 5 DAY
               AND collected_at <  NOW()
               AND A.DEVICE_ID = B.DEVICE_ID
             GROUP BY A.device_id
@@ -273,7 +273,7 @@
               B.DEVICE_NAME AS deviceName,
               ROUND(AVG(mem_usage), 2) AS barPct
             FROM p_cpu_mem_t A, R_DEVICE_T B
-            WHERE collected_at >= NOW() - INTERVAL 1 DAY
+            WHERE collected_at >= NOW() - INTERVAL 5 DAY
               AND collected_at <  NOW()
               AND A.DEVICE_ID = B.DEVICE_ID
             GROUP BY A.device_id
@@ -281,6 +281,89 @@
             LIMIT 10
          ]]>
     </select>
+
+    <!-- CPU_MEM 파라미터화 쿼리 -->
+    <select id="getWidgetCpuMemPieChartData" parameterType="map"
+            resultType="dev3.nms.vo.dashboard.DashboardDto$WidgetPieChartData">
+        <foreach collection="metrics" item="m" open="(" separator=") UNION ALL (" close=")">
+            <![CDATA[
+            SELECT
+                #{m.key} AS metric,
+                t.DEVICE_ID AS deviceId,
+                d.DEVICE_NAME AS deviceName,
+                ROUND(t.v / NULLIF(SUM(t.v) OVER (), 0) * 100, 2) AS piePct
+            FROM (
+                SELECT
+                    DEVICE_ID,
+                    AVG(${m.col}) AS v
+                FROM p_cpu_mem_t
+                WHERE collected_at >= NOW() - INTERVAL 5 DAY
+                    AND collected_at < NOW()
+                GROUP BY DEVICE_ID
+                ORDER BY v DESC
+                LIMIT #{topN}
+            ) t
+            LEFT JOIN r_device_t d ON d.device_id = t.device_id
+            ]]>
+        </foreach>
+        ORDER BY metric, piePct DESC
+    </select>
+
+    <select id="getWidgetCpuMemLineChartData" parameterType="map"
+            resultType="dev3.nms.vo.dashboard.DashboardDto$WidgetLineChartData">
+        <foreach collection="metrics" item="m" open="(" separator=") UNION ALL (" close=")">
+            <![CDATA[
+            SELECT
+                #{m.key} AS metric,
+                t.DEVICE_ID AS deviceId,
+                d.DEVICE_NAME AS deviceName,
+                DATE_FORMAT(
+                    FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(t.collected_at) / #{intervalSec}) * #{intervalSec}),
+                    '%Y-%m-%d %H:%i:%s'
+                ) AS timestamp,
+                ROUND(AVG(${m.col}), 2) AS linePct
+            FROM p_cpu_mem_t t
+            JOIN (
+                SELECT DEVICE_ID
+                FROM p_cpu_mem_t
+                WHERE collected_at >= NOW() - INTERVAL 5 DAY
+                    AND collected_at < NOW()
+                GROUP BY DEVICE_ID
+                ORDER BY AVG(${m.col}) DESC
+                LIMIT #{topN}
+            ) x ON x.device_id = t.device_id
+            LEFT JOIN r_device_t d ON d.device_id = t.device_id
+            WHERE t.collected_at >= NOW() - INTERVAL 5 DAY
+                AND t.collected_at < NOW()
+            GROUP BY t.DEVICE_ID, timestamp
+            ]]>
+        </foreach>
+        ORDER BY metric, timestamp, deviceId
+    </select>
+
+    <select id="getWidgetCpuMemBarChartData" parameterType="map"
+            resultType="dev3.nms.vo.dashboard.DashboardDto$WidgetBarChartData">
+        <foreach collection="metrics" item="m" open="(" separator=") UNION ALL (" close=")">
+            <![CDATA[
+            SELECT
+                #{m.key} AS metric,
+                t.DEVICE_ID AS deviceId,
+                d.DEVICE_NAME AS deviceName,
+                ROUND(t.v, 2) AS barPct
+            FROM (
+                SELECT DEVICE_ID, AVG(${m.col}) AS v
+                FROM p_cpu_mem_t
+                WHERE collected_at >= NOW() - INTERVAL 5 DAY
+                    AND collected_at < NOW()
+                GROUP BY DEVICE_ID
+                ORDER BY v DESC
+                LIMIT #{topN}
+            ) t
+            LEFT JOIN r_device_t d ON d.device_id = t.device_id
+            ]]>
+        </foreach>
+    </select>
+
     <select id="getWidgetIcmpBarChartData" parameterType="map"
             resultType="dev3.nms.vo.dashboard.DashboardDto$WidgetBarChartData">
         <foreach collection="metrics" item="m" open="(" separator=") UNION ALL (" close=")">
@@ -293,7 +376,7 @@
             FROM (
                 SELECT DEVICE_ID, AVG(${m.col}) AS v
                 FROM p_icmp_t
-                WHERE COLLECT_TIME >= NOW() - INTERVAL 1 DAY
+                WHERE COLLECT_TIME >= NOW() - INTERVAL 5 DAY
                     AND COLLECT_TIME <  NOW()
                 GROUP BY DEVICE_ID
                 ORDER BY v DESC
@@ -317,7 +400,7 @@
                     DEVICE_ID,
                     AVG(${m.col}) AS v
                 FROM p_icmp_t
-                WHERE COLLECT_TIME >= NOW() - INTERVAL 1 DAY
+                WHERE COLLECT_TIME >= NOW() - INTERVAL 5 DAY
                     AND COLLECT_TIME <  NOW()
                 GROUP BY DEVICE_ID
                 ORDER BY v DESC
@@ -346,14 +429,14 @@
             JOIN (
                 SELECT DEVICE_ID
                 FROM p_icmp_t
-                WHERE COLLECT_TIME >= NOW() - INTERVAL 1 DAY
+                WHERE COLLECT_TIME >= NOW() - INTERVAL 5 DAY
                     AND COLLECT_TIME <  NOW()
                 GROUP BY DEVICE_ID
                 ORDER BY AVG(${m.col}) DESC
                 LIMIT #{topN}
             ) x ON x.device_id = t.device_id
             LEFT JOIN r_device_t d ON d.device_id = t.device_id
-            WHERE t.COLLECT_TIME >= NOW() - INTERVAL 1 DAY
+            WHERE t.COLLECT_TIME >= NOW() - INTERVAL 5 DAY
                 AND t.COLLECT_TIME <  NOW()
             GROUP BY t.DEVICE_ID, timestamp
             ]]>
@@ -373,7 +456,7 @@
             FROM (
                 SELECT DEVICE_ID, AVG(${m.col}) AS v
                 FROM p_traffic_t
-                WHERE COLLECTED_AT >= NOW() - INTERVAL 1 DAY
+                WHERE COLLECTED_AT >= NOW() - INTERVAL 5 DAY
                     AND COLLECTED_AT <  NOW()
                 GROUP BY DEVICE_ID
                 ORDER BY v DESC
@@ -398,7 +481,7 @@
                     DEVICE_ID,
                     AVG(${m.col}) AS v
                 FROM p_traffic_t
-                WHERE COLLECTED_AT >= NOW() - INTERVAL 1 DAY
+                WHERE COLLECTED_AT >= NOW() - INTERVAL 5 DAY
                     AND COLLECTED_AT <  NOW()
                 GROUP BY DEVICE_ID
                 ORDER BY v DESC
@@ -427,14 +510,14 @@
             JOIN (
                 SELECT DEVICE_ID
                 FROM p_traffic_t
-                WHERE COLLECTED_AT >= NOW() - INTERVAL 1 DAY
+                WHERE COLLECTED_AT >= NOW() - INTERVAL 5 DAY
                     AND COLLECTED_AT <  NOW()
                 GROUP BY DEVICE_ID
                 ORDER BY AVG(${m.col}) DESC
                 LIMIT #{topN}
             ) x ON x.device_id = t.device_id
             LEFT JOIN r_device_t d ON d.device_id = t.device_id
-            WHERE t.COLLECTED_AT >= NOW() - INTERVAL 1 DAY
+            WHERE t.COLLECTED_AT >= NOW() - INTERVAL 5 DAY
                 AND t.COLLECTED_AT <  NOW()
             GROUP BY t.DEVICE_ID, timestamp
             ]]>
