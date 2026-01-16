@@ -47,28 +47,23 @@ public class DashboardService {
 
                 // 그룹구분
                 if ("CPU_MEM".equals(userWidgetConfig.getGroup())) {
-                    if ("CPU".equals(userWidgetConfig.getElements().get(0))) {
-                        if ("pie".equals(userWidgetConfig.getChartType())) {
-                            List<DashboardDto.WidgetPieChartData> pieChartData = dashboardMapper.getWidgetCpuPieChartData();
-                            userWidget.setChartData(pieChartData);
-                        }else if ("line".equals(userWidgetConfig.getChartType())) {
-                            List<DashboardDto.WidgetLineChartData> lineChartData = dashboardMapper.getWidgetCpuLineChartData();
-                            userWidget.setChartData(lineChartData);
-                        }else if ("bar".equals(userWidgetConfig.getChartType())) {
-                            List<DashboardDto.WidgetBarChartData>  barChartData = dashboardMapper.getWidgetCpuBarChartData();
-                            userWidget.setChartData(barChartData);
-                        }
-                    }else {
-                        if ("pie".equals(userWidgetConfig.getChartType())) {
-                            List<DashboardDto.WidgetPieChartData> pieChartData = dashboardMapper.getWidgetMemPieChartData();
-                            userWidget.setChartData(pieChartData);
-                        }else if ("line".equals(userWidgetConfig.getChartType())) {
-                            List<DashboardDto.WidgetLineChartData> lineChartData = dashboardMapper.getWidgetMemLineChartData();
-                            userWidget.setChartData(lineChartData);
-                        }else if ("bar".equals(userWidgetConfig.getChartType())) {
-                            List<DashboardDto.WidgetBarChartData> barChartData = dashboardMapper.getWidgetMemBarChartData();
-                            userWidget.setChartData(barChartData);
-                        }
+                    List<Map<String, String>> metrics = toCpuMemMetricParams(userWidgetConfig.getElements());
+                    if (metrics.isEmpty()) throw new IllegalArgumentException("No valid CPU_MEM elements");
+
+                    Map<String, Object> param = new HashMap<>();
+                    param.put("metrics", metrics);
+                    param.put("topN", 10);
+                    param.put("intervalSec", 300);
+
+                    if ("pie".equals(userWidgetConfig.getChartType())) {
+                        List<DashboardDto.WidgetPieChartData> pieChartData = dashboardMapper.getWidgetCpuMemPieChartData(param);
+                        userWidget.setChartData(pieChartData);
+                    } else if ("line".equals(userWidgetConfig.getChartType())) {
+                        List<DashboardDto.WidgetLineChartData> lineChartData = dashboardMapper.getWidgetCpuMemLineChartData(param);
+                        userWidget.setChartData(lineChartData);
+                    } else if ("bar".equals(userWidgetConfig.getChartType())) {
+                        List<DashboardDto.WidgetBarChartData> barChartData = dashboardMapper.getWidgetCpuMemBarChartData(param);
+                        userWidget.setChartData(barChartData);
                     }
                 }else if ("FILE".equals(userWidgetConfig.getGroup())) {
 
@@ -253,5 +248,44 @@ public class DashboardService {
             m.put("TRAFFIC_OUT_DISCARD", "OUT_DISCARD");
             METRIC_COL = Collections.unmodifiableMap(m);
         }
+    }
+
+    public static class CpuMemMetricMap {
+        // key = elements 값, value = DB 컬럼
+        public static final Map<String, String> METRIC_COL;
+        static {
+            Map<String, String> m = new LinkedHashMap<>();
+            m.put("CPU", "CPU_USAGE");
+            m.put("MEMORY", "MEM_USAGE");
+            METRIC_COL = Collections.unmodifiableMap(m);
+        }
+    }
+
+    public static List<String> normalizeCpuMemElements(List<String> elements) {
+        if (elements == null) return List.of();
+
+        LinkedHashSet<String> set = new LinkedHashSet<>();
+        for (String e : elements) {
+            if (e == null) continue;
+            String key = e.trim();
+            if (CpuMemMetricMap.METRIC_COL.containsKey(key)) {
+                set.add(key);
+            }
+        }
+        return new ArrayList<>(set);
+    }
+
+    public static List<Map<String, String>> toCpuMemMetricParams(List<String> elements) {
+        List<String> keys = normalizeCpuMemElements(elements);
+        List<Map<String, String>> metrics = new ArrayList<>(keys.size());
+        for (String k : keys) {
+            String col = CpuMemMetricMap.METRIC_COL.get(k);
+            if (col == null) continue;
+            Map<String, String> item = new HashMap<>();
+            item.put("key", k);
+            item.put("col", col);
+            metrics.add(item);
+        }
+        return metrics;
     }
 }

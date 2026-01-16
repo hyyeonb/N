@@ -33,6 +33,12 @@ public interface DashboardMapper {
 
     List<DashboardDto.WidgetBarChartData> getWidgetMemBarChartData();
 
+    List<DashboardDto.WidgetPieChartData> getWidgetCpuMemPieChartData(Map<String, Object> param);
+
+    List<DashboardDto.WidgetLineChartData> getWidgetCpuMemLineChartData(Map<String, Object> param);
+
+    List<DashboardDto.WidgetBarChartData> getWidgetCpuMemBarChartData(Map<String, Object> param);
+
     List<DashboardDto.WidgetBarChartData> getWidgetIcmpBarChartData(Map<String, Object> param);
 
     List<DashboardDto.WidgetPieChartData> getWidgetIcmpPieChartData(Map<String, Object> param);
