@@ -39,4 +39,21 @@ public interface UserMapper {
      * 사용자 정보 업데이트
      */
     void update(UserVO user);
+
+    /**
+     * 이름과 전화번호로 사용자 조회 (아이디 찾기)
+     */
+    Optional<UserVO> findByNameAndPhone(@Param("NAME") String name, @Param("PHONE") String phone);
+
+    /**
+     * 로그인 ID, 이름, 전화번호로 사용자 조회 (비밀번호 재설정 검증)
+     */
+    Optional<UserVO> findByLoginIdAndNameAndPhone(@Param("LOGIN_ID") String loginId,
+                                                    @Param("NAME") String name,
+                                                    @Param("PHONE") String phone);
+
+    /**
+     * 비밀번호 변경
+     */
+    void updatePassword(@Param("USER_ID") Long userId, @Param("PASSWORD") String password);
 }

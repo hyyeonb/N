@@ -201,8 +201,9 @@ public class AuthController {
             HttpSession session) {
 
         log.info("========== 로컬 로그인 요청 ==========");
-        String loginId = request.get("loginId");
-        String password = request.get("password");
+        // 프론트엔드 필드명 호환 (LOGIN_ID/loginId 둘 다 지원)
+        String loginId = request.get("LOGIN_ID") != null ? request.get("LOGIN_ID") : request.get("loginId");
+        String password = request.get("PASSWORD") != null ? request.get("PASSWORD") : request.get("password");
         log.info("LOGIN_ID: {}", loginId);
 
         String ipAddress = getClientIp(httpRequest);
@@ -242,6 +243,52 @@ public class AuthController {
         boolean available = authService.isEmailAvailable(email);
         String message = available ? "사용 가능한 이메일입니다." : "이미 사용 중인 이메일입니다.";
         return new ResVO<>(200, message, available);
+    }
+
+    /**
+     * 아이디 찾기 API
+     */
+    @PostMapping("/find-id")
+    public ResponseEntity<ResVO<String>> findId(@RequestBody Map<String, String> request) {
+        log.info("========== 아이디 찾기 요청 ==========");
+        String name = request.get("NAME");
+        String phone = request.get("PHONE");
+        log.info("NAME: {}, PHONE: {}", name, phone);
+
+        String loginId = authService.findLoginId(name, phone);
+
+        if (loginId == null) {
+            log.warn("아이디 찾기 실패 - 일치하는 계정 없음");
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ResVO<>(404, "일치하는 계정을 찾을 수 없습니다.", null));
+        }
+
+        log.info("========== 아이디 찾기 완료 ==========");
+        return ResponseEntity.ok(new ResVO<>(200, "아이디 조회 성공", loginId));
+    }
+
+    /**
+     * 비밀번호 재설정 API
+     */
+    @PostMapping("/reset-password")
+    public ResponseEntity<ResVO<Void>> resetPassword(@RequestBody Map<String, String> request) {
+        log.info("========== 비밀번호 재설정 요청 ==========");
+        String loginId = request.get("LOGIN_ID");
+        String name = request.get("NAME");
+        String phone = request.get("PHONE");
+        String newPassword = request.get("NEW_PASSWORD");
+        log.info("LOGIN_ID: {}, NAME: {}", loginId, name);
+
+        boolean success = authService.resetPassword(loginId, name, phone, newPassword);
+
+        if (!success) {
+            log.warn("비밀번호 재설정 실패 - 일치하는 계정 없음");
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ResVO<>(404, "일치하는 계정을 찾을 수 없습니다.", null));
+        }
+
+        log.info("========== 비밀번호 재설정 완료 ==========");
+        return ResponseEntity.ok(new ResVO<>(200, "비밀번호가 변경되었습니다.", null));
     }
 
     /**

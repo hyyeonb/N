@@ -22,6 +22,7 @@ public class WebConfig implements WebMvcConfigurer {
                 .excludePathPatterns(
                         "/api/auth/**",          // 인증 관련 API 제외
                         "/api/oauth/**",         // OAuth 소셜 로그인 API 제외
+                        "/api/alerts/**",        // Alert API 제외 (Kafka Consumer 내부 호출용)
                         "/api/mgmt/vendors/test-oid",  // 벤더 OID 테스트 API (디버그용)
                         "/error"
                 );

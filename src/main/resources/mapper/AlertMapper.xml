@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="dev3.nms.mapper.AlertMapper">
+
+    <resultMap id="AlertResultMap" type="dev3.nms.vo.alert.AlertVO">
+        <id property="alertId" column="ALERT_ID"/>
+        <result property="id" column="ID"/>
+        <result property="category" column="CATEGORY"/>
+        <result property="alertType" column="ALERT_TYPE"/>
+        <result property="severity" column="SEVERITY"/>
+        <result property="deviceId" column="DEVICE_ID"/>
+        <result property="deviceName" column="DEVICE_NAME"/>
+        <result property="deviceIp" column="DEVICE_IP"/>
+        <result property="ifIndex" column="IF_INDEX"/>
+        <result property="ifName" column="IF_NAME"/>
+        <result property="metricName" column="METRIC_NAME"/>
+        <result property="currentValue" column="CURRENT_VALUE"/>
+        <result property="thresholdValue" column="THRESHOLD_VALUE"/>
+        <result property="unit" column="UNIT"/>
+        <result property="message" column="MESSAGE"/>
+        <result property="isCleared" column="IS_CLEARED"/>
+        <result property="occurredAt" column="OCCURRED_AT"/>
+        <result property="createdAt" column="CREATED_AT"/>
+        <result property="updatedAt" column="UPDATED_AT"/>
+    </resultMap>
+
+    <!-- 현재 장애 추가/갱신 -->
+    <insert id="upsertCurrentAlert" parameterType="dev3.nms.vo.alert.AlertVO">
+        INSERT INTO R_ALERT_CURRENT_T (
+            ALERT_ID, CATEGORY, ALERT_TYPE, SEVERITY,
+            DEVICE_ID, IF_INDEX, METRIC_NAME,
+            CURRENT_VALUE, THRESHOLD_VALUE, MESSAGE, OCCURRED_AT
+        ) VALUES (
+            #{alertId}, #{category}, #{alertType}, #{severity},
+            #{deviceId}, #{ifIndex}, #{metricName},
+            #{currentValue}, #{thresholdValue}, #{message}, #{occurredAt}
+        )
+        ON DUPLICATE KEY UPDATE
+            SEVERITY = VALUES(SEVERITY),
+            CURRENT_VALUE = VALUES(CURRENT_VALUE),
+            MESSAGE = VALUES(MESSAGE),
+            UPDATED_AT = NOW()
+    </insert>
+
+    <!-- 현재 장애 삭제 -->
+    <delete id="deleteCurrentAlert">
+        DELETE FROM R_ALERT_CURRENT_T
+        WHERE DEVICE_ID = #{deviceId}
+          AND ALERT_TYPE = #{alertType}
+          <if test="ifIndex != null">
+              AND IF_INDEX = #{ifIndex}
+          </if>
+          <if test="ifIndex == null">
+              AND IF_INDEX IS NULL
+          </if>
+    </delete>
+
+    <!-- 현재 장애 목록 조회 -->
+    <select id="selectCurrentAlerts" resultMap="AlertResultMap">
+        SELECT
+            a.*,
+            d.DEVICE_NAME,
+            d.DEVICE_IP
+        FROM R_ALERT_CURRENT_T a
+        LEFT JOIN R_DEVICE_T d ON a.DEVICE_ID = d.DEVICE_ID
+        WHERE 1=1
+        <if test="category != null and category != ''">
+            AND a.CATEGORY = #{category}
+        </if>
+        <if test="severity != null and severity != ''">
+            AND a.SEVERITY = #{severity}
+        </if>
+        ORDER BY
+            FIELD(a.SEVERITY, 'CRITICAL', 'MAJOR', 'MINOR', 'WARNING', 'INFO'),
+            a.OCCURRED_AT DESC
+    </select>
+
+    <!-- 특정 장비의 현재 장애 조회 -->
+    <select id="selectCurrentAlertsByDeviceId" resultMap="AlertResultMap">
+        SELECT
+            a.*,
+            d.DEVICE_NAME,
+            d.DEVICE_IP
+        FROM R_ALERT_CURRENT_T a
+        LEFT JOIN R_DEVICE_T d ON a.DEVICE_ID = d.DEVICE_ID
+        WHERE a.DEVICE_ID = #{deviceId}
+        ORDER BY a.OCCURRED_AT DESC
+    </select>
+
+    <!-- 현재 장애 수 조회 -->
+    <select id="countCurrentAlerts" resultType="int">
+        SELECT COUNT(*) FROM R_ALERT_CURRENT_T
+        WHERE 1=1
+        <if test="category != null and category != ''">
+            AND CATEGORY = #{category}
+        </if>
+        <if test="severity != null and severity != ''">
+            AND SEVERITY = #{severity}
+        </if>
+    </select>
+
+    <!-- 알림 히스토리 저장 -->
+    <insert id="insertAlertHistory" parameterType="dev3.nms.vo.alert.AlertVO">
+        INSERT INTO P_ALERT_HISTORY_T (
+            ALERT_ID, CATEGORY, ALERT_TYPE, SEVERITY,
+            DEVICE_ID, DEVICE_NAME, DEVICE_IP,
+            IF_INDEX, IF_NAME, METRIC_NAME,
+            CURRENT_VALUE, THRESHOLD_VALUE, UNIT,
+            MESSAGE, IS_CLEARED, OCCURRED_AT
+        ) VALUES (
+            #{alertId}, #{category}, #{alertType}, #{severity},
+            #{deviceId}, #{deviceName}, #{deviceIp},
+            #{ifIndex}, #{ifName}, #{metricName},
+            #{currentValue}, #{thresholdValue}, #{unit},
+            #{message}, #{isCleared}, #{occurredAt}
+        )
+    </insert>
+
+    <!-- 알림 히스토리 조회 -->
+    <select id="selectAlertHistory" resultMap="AlertResultMap">
+        SELECT * FROM P_ALERT_HISTORY_T
+        WHERE 1=1
+        <if test="category != null and category != ''">
+            AND CATEGORY = #{category}
+        </if>
+        <if test="deviceId != null">
+            AND DEVICE_ID = #{deviceId}
+        </if>
+        <if test="startDate != null and startDate != ''">
+            AND OCCURRED_AT >= #{startDate}
+        </if>
+        <if test="endDate != null and endDate != ''">
+            AND OCCURRED_AT &lt;= #{endDate}
+        </if>
+        ORDER BY OCCURRED_AT DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <!-- 알림 히스토리 총 건수 -->
+    <select id="countAlertHistory" resultType="int">
+        SELECT COUNT(*) FROM P_ALERT_HISTORY_T
+        WHERE 1=1
+        <if test="category != null and category != ''">
+            AND CATEGORY = #{category}
+        </if>
+        <if test="deviceId != null">
+            AND DEVICE_ID = #{deviceId}
+        </if>
+        <if test="startDate != null and startDate != ''">
+            AND OCCURRED_AT >= #{startDate}
+        </if>
+        <if test="endDate != null and endDate != ''">
+            AND OCCURRED_AT &lt;= #{endDate}
+        </if>
+    </select>
+
+</mapper>

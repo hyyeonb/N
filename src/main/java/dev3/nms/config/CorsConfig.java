@@ -46,6 +46,7 @@ public class CorsConfig {
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", config);
+        source.registerCorsConfiguration("/ws/**", config);  // WebSocket CORS
 
         return new CorsFilter(source);
     }
