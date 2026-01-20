@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="dev3.nms.mapper.ErrorMapper">
+
+    <!-- 실시간 장애 목록 조회 -->
+    <select id="selectErrors" resultType="dev3.nms.vo.fault.ErrorVO">
+        SELECT
+            e.ERROR_ID,
+            e.DEVICE_ID,
+            e.ERROR_CODE_ID,
+            e.ERROR_MESSAGE,
+            e.ERROR_LEVEL,
+            e.ERROR_FLAG,
+            e.OCCUR_AT,
+            e.USER_MESSAGE,
+            e.UPDATE_AT,
+            e.DEVICE_IP,
+            e.IF_IP_ADDRESS,
+            d.DEVICE_NAME,
+            g.GROUP_NAME
+        FROM f_error_t e
+        LEFT JOIN r_device_t d ON e.DEVICE_ID = d.DEVICE_ID
+        LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
+        WHERE 1=1
+        <if test="errorLevel != null and errorLevel != ''">
+            AND e.ERROR_LEVEL = #{errorLevel}
+        </if>
+        <if test="deviceId != null">
+            AND e.DEVICE_ID = #{deviceId}
+        </if>
+        <if test="deviceName != null and deviceName != ''">
+            AND d.DEVICE_NAME LIKE CONCAT('%', #{deviceName}, '%')
+        </if>
+        <if test="deviceIp != null and deviceIp != ''">
+            AND e.DEVICE_IP LIKE CONCAT('%', #{deviceIp}, '%')
+        </if>
+        <if test="errorMessage != null and errorMessage != ''">
+            AND e.ERROR_MESSAGE LIKE CONCAT('%', #{errorMessage}, '%')
+        </if>
+        <if test="groupName != null and groupName != ''">
+            AND g.GROUP_NAME LIKE CONCAT('%', #{groupName}, '%')
+        </if>
+        ORDER BY e.OCCUR_AT DESC
+    </select>
+
+    <!-- 실시간 장애 수 조회 -->
+    <select id="countErrors" resultType="int">
+        SELECT COUNT(*)
+        FROM f_error_t e
+        LEFT JOIN r_device_t d ON e.DEVICE_ID = d.DEVICE_ID
+        LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
+        WHERE 1=1
+        <if test="errorLevel != null and errorLevel != ''">
+            AND e.ERROR_LEVEL = #{errorLevel}
+        </if>
+        <if test="deviceId != null">
+            AND e.DEVICE_ID = #{deviceId}
+        </if>
+        <if test="deviceName != null and deviceName != ''">
+            AND d.DEVICE_NAME LIKE CONCAT('%', #{deviceName}, '%')
+        </if>
+        <if test="deviceIp != null and deviceIp != ''">
+            AND e.DEVICE_IP LIKE CONCAT('%', #{deviceIp}, '%')
+        </if>
+        <if test="errorMessage != null and errorMessage != ''">
+            AND e.ERROR_MESSAGE LIKE CONCAT('%', #{errorMessage}, '%')
+        </if>
+        <if test="groupName != null and groupName != ''">
+            AND g.GROUP_NAME LIKE CONCAT('%', #{groupName}, '%')
+        </if>
+    </select>
+
+    <!-- 장애 상세 조회 -->
+    <select id="selectErrorById" resultType="dev3.nms.vo.fault.ErrorVO">
+        SELECT
+            e.ERROR_ID,
+            e.DEVICE_ID,
+            e.ERROR_CODE_ID,
+            e.ERROR_MESSAGE,
+            e.ERROR_LEVEL,
+            e.ERROR_FLAG,
+            e.OCCUR_AT,
+            e.USER_MESSAGE,
+            e.UPDATE_AT,
+            e.DEVICE_IP,
+            e.IF_IP_ADDRESS,
+            d.DEVICE_NAME
+        FROM f_error_t e
+        LEFT JOIN r_device_t d ON e.DEVICE_ID = d.DEVICE_ID
+        WHERE e.ERROR_ID = #{errorId}
+    </select>
+
+    <!-- 장애 인지 처리 -->
+    <update id="updateErrorFlag">
+        UPDATE f_error_t
+        SET ERROR_FLAG = #{errorFlag},
+            USER_MESSAGE = #{userMessage},
+            UPDATE_AT = NOW()
+        WHERE ERROR_ID = #{errorId}
+    </update>
+
+    <!-- 장애 이력 목록 조회 -->
+    <select id="selectErrorHistory" resultType="dev3.nms.vo.fault.ErrorHistoryVO">
+        SELECT
+            h.ERROR_HISTORY_ID,
+            h.ERROR_ID,
+            h.DEVICE_ID,
+            h.ERROR_CODE_ID,
+            h.ERROR_MESSAGE,
+            h.ERROR_LEVEL,
+            h.OCCUR_AT,
+            h.CLEAR_AT,
+            h.USER_MESSAGE,
+            h.UPDATE_AT,
+            h.DEVICE_IP,
+            d.DEVICE_NAME,
+            g.GROUP_NAME
+        FROM f_error_history_t h
+        LEFT JOIN r_device_t d ON h.DEVICE_ID = d.DEVICE_ID
+        LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
+        WHERE 1=1
+        <if test="errorLevel != null and errorLevel != ''">
+            AND h.ERROR_LEVEL = #{errorLevel}
+        </if>
+        <if test="deviceId != null">
+            AND h.DEVICE_ID = #{deviceId}
+        </if>
+        <if test="startDate != null and startDate != ''">
+            AND h.OCCUR_AT >= #{startDate}
+        </if>
+        <if test="endDate != null and endDate != ''">
+            AND h.OCCUR_AT &lt;= CONCAT(#{endDate}, ' 23:59:59')
+        </if>
+        <if test="deviceName != null and deviceName != ''">
+            AND d.DEVICE_NAME LIKE CONCAT('%', #{deviceName}, '%')
+        </if>
+        <if test="deviceIp != null and deviceIp != ''">
+            AND h.DEVICE_IP LIKE CONCAT('%', #{deviceIp}, '%')
+        </if>
+        <if test="errorMessage != null and errorMessage != ''">
+            AND h.ERROR_MESSAGE LIKE CONCAT('%', #{errorMessage}, '%')
+        </if>
+        <if test="groupName != null and groupName != ''">
+            AND g.GROUP_NAME LIKE CONCAT('%', #{groupName}, '%')
+        </if>
+        ORDER BY h.CLEAR_AT DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <!-- 장애 이력 수 조회 -->
+    <select id="countErrorHistory" resultType="int">
+        SELECT COUNT(*)
+        FROM f_error_history_t h
+        LEFT JOIN r_device_t d ON h.DEVICE_ID = d.DEVICE_ID
+        LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
+        WHERE 1=1
+        <if test="errorLevel != null and errorLevel != ''">
+            AND h.ERROR_LEVEL = #{errorLevel}
+        </if>
+        <if test="deviceId != null">
+            AND h.DEVICE_ID = #{deviceId}
+        </if>
+        <if test="startDate != null and startDate != ''">
+            AND h.OCCUR_AT >= #{startDate}
+        </if>
+        <if test="endDate != null and endDate != ''">
+            AND h.OCCUR_AT &lt;= CONCAT(#{endDate}, ' 23:59:59')
+        </if>
+        <if test="deviceName != null and deviceName != ''">
+            AND d.DEVICE_NAME LIKE CONCAT('%', #{deviceName}, '%')
+        </if>
+        <if test="deviceIp != null and deviceIp != ''">
+            AND h.DEVICE_IP LIKE CONCAT('%', #{deviceIp}, '%')
+        </if>
+        <if test="errorMessage != null and errorMessage != ''">
+            AND h.ERROR_MESSAGE LIKE CONCAT('%', #{errorMessage}, '%')
+        </if>
+        <if test="groupName != null and groupName != ''">
+            AND g.GROUP_NAME LIKE CONCAT('%', #{groupName}, '%')
+        </if>
+    </select>
+
+    <!-- 장애 이력 상세 조회 -->
+    <select id="selectErrorHistoryById" resultType="dev3.nms.vo.fault.ErrorHistoryVO">
+        SELECT
+            h.ERROR_HISTORY_ID,
+            h.ERROR_ID,
+            h.DEVICE_ID,
+            h.ERROR_CODE_ID,
+            h.ERROR_MESSAGE,
+            h.ERROR_LEVEL,
+            h.OCCUR_AT,
+            h.CLEAR_AT,
+            h.USER_MESSAGE,
+            h.UPDATE_AT,
+            h.DEVICE_IP,
+            d.DEVICE_NAME
+        FROM f_error_history_t h
+        LEFT JOIN r_device_t d ON h.DEVICE_ID = d.DEVICE_ID
+        WHERE h.ERROR_HISTORY_ID = #{errorHistoryId}
+    </select>
+
+</mapper>
