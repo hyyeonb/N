@@ -30,6 +30,9 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
 
+    // Caffeine Cache (알림 중복 방지)
+    implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
+
     // MyBatis
     implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.4'
 

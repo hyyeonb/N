@@ -681,4 +681,51 @@ public class AuthService {
     public boolean isEmailAvailable(String email) {
         return userMapper.findByEmail(email).isEmpty();
     }
+
+    /**
+     * 아이디 찾기
+     * @param name 이름
+     * @param phone 전화번호
+     * @return 로그인 ID (없으면 null)
+     */
+    public String findLoginId(String name, String phone) {
+        log.info("[AuthService] 아이디 찾기 - NAME: {}, PHONE: {}", name, phone);
+        Optional<UserVO> userOptional = userMapper.findByNameAndPhone(name, phone);
+
+        if (userOptional.isEmpty()) {
+            log.warn("아이디 찾기 실패 - 일치하는 사용자 없음");
+            return null;
+        }
+
+        String loginId = userOptional.get().getLOGIN_ID();
+        log.info("[AuthService] 아이디 찾기 성공 - LOGIN_ID: {}", loginId);
+        return loginId;
+    }
+
+    /**
+     * 비밀번호 재설정
+     * @param loginId 로그인 ID
+     * @param name 이름
+     * @param phone 전화번호
+     * @param newPassword 새 비밀번호
+     * @return 성공 여부
+     */
+    public boolean resetPassword(String loginId, String name, String phone, String newPassword) {
+        log.info("[AuthService] 비밀번호 재설정 - LOGIN_ID: {}, NAME: {}", loginId, name);
+
+        // 1. 사용자 검증
+        Optional<UserVO> userOptional = userMapper.findByLoginIdAndNameAndPhone(loginId, name, phone);
+
+        if (userOptional.isEmpty()) {
+            log.warn("비밀번호 재설정 실패 - 일치하는 사용자 없음");
+            return false;
+        }
+
+        // 2. 비밀번호 암호화 및 저장
+        String encodedPassword = passwordEncoder.encode(newPassword);
+        userMapper.updatePassword(userOptional.get().getUSER_ID(), encodedPassword);
+
+        log.info("[AuthService] 비밀번호 재설정 성공 - USER_ID: {}", userOptional.get().getUSER_ID());
+        return true;
+    }
 }
