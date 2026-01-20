@@ -36,11 +36,14 @@ public class DashboardDto {
         private String name;
         private String icon;
         private String category;
+        private String config;
         private String title;
         private int x;
         private int y;
         private int width;
         private int height;
+        @Setter private Object chartData;
+        @Setter private Object cntData;
     }
 
     @Getter
@@ -61,6 +64,7 @@ public class DashboardDto {
         private int width;
         private int height;
         @Setter private Object chartData;
+        @Setter private Object cntData;
     }
 
     @Getter
@@ -130,5 +134,25 @@ public class DashboardDto {
         private Long deviceId;
         private String deviceName;
         private Float barPct;
+    }
+
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class WidgetAlertCntData {
+        private Integer criticalCnt = 0;
+        private Integer majorCnt = 0;
+        private Integer minorCnt = 0;
+        private Integer warningCnt = 0;
+    }
+
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class WidgetDeviceCntData {
+        private Integer networkCnt = 0;
+        private Integer majorCnt = 0;
+        private Integer minorCnt = 0;
+        private Integer warningCnt = 0;
     }
 }

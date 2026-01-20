@@ -66,4 +66,16 @@ public class DashboardController {
         ResVO<Boolean> response = new ResVO<>(200, "저장 성공", userWidgets);
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
+
+    /**
+     * 대시보드 위젯 초기화
+     */
+    @PostMapping("/user-widget/{userId}/reset")
+    public ResponseEntity<ResVO<List<DashboardDto.UserWidgetRes>>> resetUserWidget(
+            @PathVariable Long userId
+    ) {
+        List<DashboardDto.UserWidgetRes> userWidgets = dashboardService.resetUserWidget(userId);
+        ResVO<List<DashboardDto.UserWidgetRes>> response = new ResVO<>(200, "리셋 성공", userWidgets);
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    }
 }

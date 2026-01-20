@@ -31,7 +31,81 @@ public class DashboardService {
 
     public List<DashboardDto.DefaultWidgetRes> getDefaultWidget() {
         try {
-            return dashboardMapper.getDefaultWidget();
+            List<DashboardDto.DefaultWidgetRes> defaultWidgetList = dashboardMapper.getDefaultWidget();
+            ObjectMapper om = new ObjectMapper();
+            for (DashboardDto.DefaultWidgetRes defaultWidget : defaultWidgetList) {
+                DashboardDto.UserWidgetConfig userWidgetConfig = om.readValue(defaultWidget.getConfig(), DashboardDto.UserWidgetConfig.class);
+
+                // 그룹구분
+                if ("CPU_MEM".equals(userWidgetConfig.getGroup())) {
+                    List<Map<String, String>> metrics = toCpuMemMetricParams(userWidgetConfig.getElements());
+                    if (metrics.isEmpty()) throw new IllegalArgumentException("No valid CPU_MEM elements");
+
+                    Map<String, Object> param = new HashMap<>();
+                    param.put("metrics", metrics);
+                    param.put("topN", 10);
+                    param.put("intervalSec", 300);
+
+                    if ("pie".equals(userWidgetConfig.getChartType())) {
+                        List<DashboardDto.WidgetPieChartData> pieChartData = dashboardMapper.getWidgetCpuMemPieChartData(param);
+                        defaultWidget.setChartData(pieChartData);
+                    } else if ("line".equals(userWidgetConfig.getChartType())) {
+                        List<DashboardDto.WidgetLineChartData> lineChartData = dashboardMapper.getWidgetCpuMemLineChartData(param);
+                        defaultWidget.setChartData(lineChartData);
+                    } else if ("bar".equals(userWidgetConfig.getChartType())) {
+                        List<DashboardDto.WidgetBarChartData> barChartData = dashboardMapper.getWidgetCpuMemBarChartData(param);
+                        defaultWidget.setChartData(barChartData);
+                    }
+                }else if ("FILE".equals(userWidgetConfig.getGroup())) {
+
+                }else if ("PROCESS".equals(userWidgetConfig.getGroup())) {
+
+                }else if ("TRAFFIC".equals(userWidgetConfig.getGroup())) {
+                    List<Map<String, String>> metrics = toTrafficMetricParams(userWidgetConfig.getElements());
+                    if (metrics.isEmpty()) throw new IllegalArgumentException("No valid elements");
+
+                    Map<String, Object> param = new HashMap<>();
+                    param.put("metrics", metrics);   // [{key=TRAFFIC_IN_BPS,col=...}, ...]
+                    param.put("topN", 10);
+                    param.put("intervalSec", 300);
+
+                    if ("pie".equals(userWidgetConfig.getChartType())) {
+                        List<DashboardDto.WidgetPieChartData> pieChartData = dashboardMapper.getWidgetTrafficPieChartData(param);
+                        defaultWidget.setChartData(pieChartData);
+                    }else if ("line".equals(userWidgetConfig.getChartType())) {
+                        List<DashboardDto.WidgetLineChartData> lineChartData = dashboardMapper.getWidgetTrafficLineChartData(param);
+                        defaultWidget.setChartData(lineChartData);
+                    }else if ("bar".equals(userWidgetConfig.getChartType())) {
+                        List<DashboardDto.WidgetBarChartData> barChartData = dashboardMapper.getWidgetTrafficBarChartData(param);
+                        defaultWidget.setChartData(barChartData);
+                    }
+                }else if ("ICMP".equals(userWidgetConfig.getGroup())) {
+                    List<Map<String, String>> metrics = toMetricParams(userWidgetConfig.getElements());
+                    if (metrics.isEmpty()) throw new IllegalArgumentException("No valid elements");
+
+                    Map<String, Object> param = new HashMap<>();
+                    param.put("metrics", metrics);   // [{key=ICMP_MAX,col=...}, ...]
+                    param.put("topN", 10);
+                    param.put("intervalSec", 300);
+
+                    if ("pie".equals(userWidgetConfig.getChartType())) {
+                        List<DashboardDto.WidgetPieChartData> pieChartData = dashboardMapper.getWidgetIcmpPieChartData(param);
+                        defaultWidget.setChartData(pieChartData);
+                    }else if ("line".equals(userWidgetConfig.getChartType())) {
+                        List<DashboardDto.WidgetLineChartData> lineChartData = dashboardMapper.getWidgetIcmpLineChartData(param);
+                        defaultWidget.setChartData(lineChartData);
+                    }else if ("bar".equals(userWidgetConfig.getChartType())) {
+                        List<DashboardDto.WidgetBarChartData> barChartData = dashboardMapper.getWidgetIcmpBarChartData(param);
+                        defaultWidget.setChartData(barChartData);
+                    }
+                }
+                // 장애 현황
+                if ("ALERT_SUMMARY".equals(defaultWidget.getWidgetCode())) {
+                    DashboardDto.WidgetAlertCntData cntData = dashboardMapper.getWidgetAlertSummary();
+                    defaultWidget.setCntData(cntData);
+                }
+            }
+            return defaultWidgetList;
         } catch (Exception e) {
             log.warn("대시보드 기본 위젯 조회 실패 - {}", e.getMessage());
             return Collections.singletonList(DashboardDto.DefaultWidgetRes.builder().build());
@@ -108,6 +182,11 @@ public class DashboardService {
                         userWidget.setChartData(barChartData);
                     }
                 }
+                // 장애 현황
+                if ("ALERT_SUMMARY".equals(userWidget.getWidgetCode())) {
+                    DashboardDto.WidgetAlertCntData cntData = dashboardMapper.getWidgetAlertSummary();
+                    userWidget.setCntData(cntData);
+                }
 
 
             }
@@ -119,22 +198,20 @@ public class DashboardService {
         }
     }
 
-    private void getWidgetCpuPieChartData() {
-    }
-
     @Transactional
     public Boolean putUserWidget(Long userId, DashboardDto.UpdateUserWidgetsReq req) {
         try {
             // 먼저 요청에 포함된 ID 목록 추출 (나중에 DELETE에서 제외할 대상)
-            List<Long> keepIds = req.getWidgets().stream()
+            List<Long> keepIds = new ArrayList<>(req.getWidgets().stream()
                     .map(DashboardDto.UserWidgetReq::getUserDashboardWidgetId)
                     .filter(Objects::nonNull)
-                    .toList();
+                    .toList());
+            if (keepIds.isEmpty()) keepIds.add(0L);
 
-            // 요청에 포함되지 않은 위젯 먼저 DELETE
-            if (keepIds.size() != 0) {
-                dashboardMapper.deleteUserWidget(Map.of("userId", userId, "keepIds", keepIds));
-            }
+            // 요청에 포함되지 않은 위젯 먼저 DELETE (keepIds가 비어있으면 모든 위젯 삭제)
+            log.info("DELETE 호출 - userId: {}, keepIds: {}", userId, keepIds);
+            int deletedRows = dashboardMapper.deleteUserWidget(Map.of("userId", userId, "keepIds", keepIds));
+            log.info("DELETE 결과 - 삭제된 행: {}", deletedRows);
 
             // 그 다음 UPDATE/INSERT 처리
             for (DashboardDto.UserWidgetReq widget : req.getWidgets()) {
@@ -161,6 +238,32 @@ public class DashboardService {
         } catch (Exception e) {
             log.warn("대시보드 사용자 위젯 저장 실패 - {}", e.getMessage());
             return false;
+        }
+    }
+    @Transactional
+    public List<DashboardDto.UserWidgetRes> resetUserWidget(Long userId) {
+        try {
+            List<DashboardDto.DefaultWidgetRes> defaultWidget = dashboardMapper.getDefaultWidget();
+
+            if (defaultWidget.size() > 0) {
+                // 다 지움
+                List<Long> keepIds = new ArrayList<>();
+                keepIds.add(0L);
+                dashboardMapper.deleteUserWidget(Map.of("userId", userId, "keepIds", keepIds));
+
+                // 기본 값으로 업데이트
+                for (DashboardDto.DefaultWidgetRes dto : defaultWidget) {
+                    int insertedRows = dashboardMapper.insertUserWidgetByDefault(userId, dto);
+                    log.info("INSERT 결과 - 영향받은 행: {}", insertedRows);
+                }
+                return getUserWidget(userId);
+            }else {
+                log.info("대시보드 기본 값 X 업데이트 불가");
+                return null;
+            }
+        }catch (Exception e) {
+            log.warn("대시보드 사용자 위젯 저장 실패 - {}", e.getMessage());
+            return null;
         }
     }
 

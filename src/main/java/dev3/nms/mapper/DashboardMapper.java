@@ -19,6 +19,8 @@ public interface DashboardMapper {
 
     int insertUserWidget(@Param("userId") Long userId, @Param("widget") DashboardDto.UserWidgetReq widget);
 
+    int insertUserWidgetByDefault(@Param("userId") Long userId, @Param("widget") DashboardDto.DefaultWidgetRes widget);
+
     int deleteUserWidget(Map<String, Object> params);
 
     List<DashboardDto.WidgetPieChartData> getWidgetCpuPieChartData();
@@ -50,4 +52,6 @@ public interface DashboardMapper {
     List<DashboardDto.WidgetPieChartData> getWidgetTrafficPieChartData(Map<String, Object> param);
 
     List<DashboardDto.WidgetLineChartData> getWidgetTrafficLineChartData(Map<String, Object> param);
+
+    DashboardDto.WidgetAlertCntData getWidgetAlertSummary();
 }

@@ -43,6 +43,7 @@
             B.ICON,
             B.CATEGORY,
             TITLE,
+            CONFIG,
             POS_X AS X,
             POS_Y AS Y,
             WIDTH,
@@ -137,16 +138,11 @@
     <delete id="deleteUserWidget" parameterType="map">
         DELETE FROM r_user_dashboard_widget_t
         WHERE USER_ID = #{userId}
-
         <if test="keepIds != null and keepIds.size() > 0">
             AND USER_DASHBOARD_WIDGET_ID NOT IN
             <foreach collection="keepIds" item="id" open="(" separator="," close=")">
                 #{id}
             </foreach>
-        </if>
-
-        <if test="keepIds == null or keepIds.size() == 0">
-            AND 1 = 0
         </if>
     </delete>
 
@@ -524,4 +520,42 @@
         </foreach>
         ORDER BY metric, timestamp, deviceId
     </select>
+    <select id="getWidgetAlertSummary"
+            resultType="dev3.nms.vo.dashboard.DashboardDto$WidgetAlertCntData">
+        <![CDATA[
+        SELECT
+            (SELECT COUNT(1) FROM f_error_t WHERE ERROR_LEVEL = 'C' AND ERROR_FLAG = 0) AS criticalCnt,
+            (SELECT COUNT(1) FROM f_error_t WHERE ERROR_LEVEL = 'M' AND ERROR_FLAG = 0) AS majorCnt,
+            (SELECT COUNT(1) FROM f_error_t WHERE ERROR_LEVEL = 'N' AND ERROR_FLAG = 0) AS minorCnt,
+            (SELECT COUNT(1) FROM f_error_t WHERE ERROR_LEVEL = 'W' AND ERROR_FLAG = 0) AS waringCnt
+        FROM
+        f_error_t A
+        WHERE 1=1
+        AND ROWNUM() <= 1
+        ]]>
+    </select>
+    <insert id="insertUserWidgetByDefault">
+        INSERT INTO r_user_dashboard_widget_t
+        (
+        USER_ID,
+        WIDGET_ID,
+        TITLE,
+        CONFIG,
+        POS_X,
+        POS_Y,
+        WIDTH,
+        HEIGHT
+        )
+        VALUES
+        (
+        #{userId},
+        #{widget.widgetId},
+        #{widget.title},
+        #{widget.config},
+        #{widget.x},
+        #{widget.y},
+        #{widget.width},
+        #{widget.height}
+        )
+    </insert>
 </mapper>
