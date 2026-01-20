@@ -26,6 +26,22 @@ public interface DeviceMapper {
     // 총 개수 조회
     int countDevicesByGroupIds(@Param("groupIds") List<Integer> groupIds);
 
+    // 페이지네이션 + 정렬 + 검색 지원 조회
+    List<DeviceVO> findDevicesByGroupIdsPagedWithSearch(@Param("groupIds") List<Integer> groupIds,
+                                                         @Param("limit") int limit,
+                                                         @Param("offset") int offset,
+                                                         @Param("sort") String sort,
+                                                         @Param("order") String order,
+                                                         @Param("deviceName") String deviceName,
+                                                         @Param("deviceIp") String deviceIp,
+                                                         @Param("groupName") String groupName);
+
+    // 검색 조건 포함 총 개수 조회
+    int countDevicesByGroupIdsWithSearch(@Param("groupIds") List<Integer> groupIds,
+                                          @Param("deviceName") String deviceName,
+                                          @Param("deviceIp") String deviceIp,
+                                          @Param("groupName") String groupName);
+
     int insertDevice(DeviceVO device);
 
     int insertDeviceSnmp(DeviceSnmpVO snmp);

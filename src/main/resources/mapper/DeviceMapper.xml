@@ -215,6 +215,118 @@
         </if>
     </select>
 
+    <!-- 그룹 ID 목록으로 장비 조회 (페이지네이션 + 정렬 + 검색) -->
+    <select id="findDevicesByGroupIdsPagedWithSearch" resultType="dev3.nms.vo.mgmt.DeviceVO">
+        SELECT
+            d.DEVICE_ID,
+            d.GROUP_ID,
+            g.GROUP_NAME,
+            d.DEVICE_NAME,
+            d.DEVICE_SYSTEM_NAME,
+            d.DEVICE_IP,
+            d.DEVICE_DESC,
+            d.MODEL_ID,
+            (SELECT COUNT(*) FROM r_port_t p WHERE p.DEVICE_ID = d.DEVICE_ID AND p.DELETE_AT IS NULL) AS PORT_COUNT,
+            m.MODEL_NAME,
+            m.MODEL_OID,
+            v.VENDOR_NAME,
+            s.SNMP_VERSION,
+            s.SNMP_PORT,
+            s.SNMP_COMMUNITY,
+            s.SNMP_USER,
+            s.SNMP_AUTH_PROTOCOL,
+            s.SNMP_AUTH_PASSWORD,
+            s.SNMP_PRIV_PROTOCOL,
+            s.SNMP_PRIV_PASSWORD,
+            d.CREATE_USER_ID,
+            d.CREATE_AT,
+            d.MODIFY_USER_ID,
+            d.MODIFY_AT,
+            d.DELETE_USER_ID,
+            d.DELETE_AT
+        FROM r_device_t d
+        LEFT JOIN r_device_snmp_t s ON d.DEVICE_ID = s.DEVICE_ID
+        LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
+        LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
+        LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
+        WHERE d.GROUP_ID IN
+        <foreach collection="groupIds" item="item" open="(" separator="," close=")">
+            #{item}
+        </foreach>
+        AND d.DELETE_AT IS NULL
+        <if test="deviceName != null and deviceName != ''">
+            AND d.DEVICE_NAME LIKE CONCAT('%', #{deviceName}, '%')
+        </if>
+        <if test="deviceIp != null and deviceIp != ''">
+            AND d.DEVICE_IP LIKE CONCAT('%', #{deviceIp}, '%')
+        </if>
+        <if test="groupName != null and groupName != ''">
+            AND g.GROUP_NAME LIKE CONCAT('%', #{groupName}, '%')
+        </if>
+        <choose>
+            <when test="sort == 'DEVICE_ID'">
+                ORDER BY d.DEVICE_ID
+            </when>
+            <when test="sort == 'DEVICE_NAME'">
+                ORDER BY d.DEVICE_NAME
+            </when>
+            <when test="sort == 'GROUP_NAME'">
+                ORDER BY g.GROUP_NAME
+            </when>
+            <when test="sort == 'DEVICE_SYSTEM_NAME'">
+                ORDER BY d.DEVICE_SYSTEM_NAME
+            </when>
+            <when test="sort == 'DEVICE_IP'">
+                ORDER BY d.DEVICE_IP
+            </when>
+            <when test="sort == 'VENDOR_NAME'">
+                ORDER BY v.VENDOR_NAME
+            </when>
+            <when test="sort == 'PORT_COUNT'">
+                ORDER BY d.PORT_COUNT
+            </when>
+            <when test="sort == 'CREATE_AT'">
+                ORDER BY d.CREATE_AT
+            </when>
+            <otherwise>
+                ORDER BY d.DEVICE_ID
+            </otherwise>
+        </choose>
+        <if test="order == 'desc'">
+            DESC
+        </if>
+        <if test="order != 'desc'">
+            ASC
+        </if>
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 그룹 ID 목록으로 장비 총 개수 조회 (검색 조건 포함) -->
+    <select id="countDevicesByGroupIdsWithSearch" resultType="int">
+        SELECT COUNT(*)
+        FROM r_device_t d
+        LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
+        WHERE d.DELETE_AT IS NULL
+        <if test="groupIds != null and groupIds.size() > 0">
+            AND d.GROUP_ID IN
+            <foreach collection="groupIds" item="item" open="(" separator="," close=")">
+                #{item}
+            </foreach>
+        </if>
+        <if test="groupIds == null or groupIds.size() == 0">
+            AND 1 = 0
+        </if>
+        <if test="deviceName != null and deviceName != ''">
+            AND d.DEVICE_NAME LIKE CONCAT('%', #{deviceName}, '%')
+        </if>
+        <if test="deviceIp != null and deviceIp != ''">
+            AND d.DEVICE_IP LIKE CONCAT('%', #{deviceIp}, '%')
+        </if>
+        <if test="groupName != null and groupName != ''">
+            AND g.GROUP_NAME LIKE CONCAT('%', #{groupName}, '%')
+        </if>
+    </select>
+
     <!-- 장비 등록 (SNMP 정보 제외) -->
     <insert id="insertDevice" parameterType="dev3.nms.vo.mgmt.DeviceVO" useGeneratedKeys="true" keyProperty="DEVICE_ID">
         INSERT INTO r_device_t (
