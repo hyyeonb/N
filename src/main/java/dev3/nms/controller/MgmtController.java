@@ -4,6 +4,7 @@ import dev3.nms.mapper.GroupMapper;
 import dev3.nms.mapper.ModelMapper;
 import dev3.nms.mapper.VendorMapper;
 import dev3.nms.service.AuthService;
+import dev3.nms.service.DevCodeService;
 import dev3.nms.service.DeviceService;
 import dev3.nms.service.GroupService;
 import dev3.nms.service.PortService;
@@ -20,6 +21,7 @@ import dev3.nms.vo.mgmt.GroupVO;
 import dev3.nms.vo.mgmt.ModelVO;
 import dev3.nms.vo.mgmt.PortVO;
 import dev3.nms.vo.mgmt.TempDeviceVO;
+import dev3.nms.vo.mgmt.DevCodeVO;
 import dev3.nms.vo.mgmt.VendorVO;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +45,7 @@ public class MgmtController {
     private final PortService portService;
     private final AuthService authService;
     private final TrafficService trafficService;
+    private final DevCodeService devCodeService;
     private final GroupMapper groupMapper;
     private final VendorMapper vendorMapper;
     private final ModelMapper modelMapper;
@@ -574,11 +577,16 @@ public class MgmtController {
 
     /**
      * 특정 장비의 포트 목록 조회 API
+     * @param type "all"이면 전체 포트, 기본값은 Ethernet 포트만
      */
     @GetMapping("/devices/{deviceId}/ports")
-    public ResponseEntity<ResVO<List<PortVO>>> getPortsByDeviceId(@PathVariable Integer deviceId) {
+    public ResponseEntity<ResVO<List<PortVO>>> getPortsByDeviceId(
+            @PathVariable Integer deviceId,
+            @RequestParam(required = false, defaultValue = "ethernet") String type) {
         try {
-            List<PortVO> ports = portService.getPortsByDeviceId(deviceId);
+            List<PortVO> ports = "all".equalsIgnoreCase(type)
+                    ? portService.getAllPortsByDeviceId(deviceId)
+                    : portService.getPortsByDeviceId(deviceId);
             ResVO<List<PortVO>> response = new ResVO<>(200, "포트 목록 조회 성공", ports);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
@@ -1023,6 +1031,105 @@ public class MgmtController {
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
             return new ResponseEntity<>(new ResVO<>(500, "모델 삭제 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    // ==================== DevCode (장비군) 관련 API ====================
+
+    /**
+     * 장비군 코드 트리 조회 API
+     */
+    @GetMapping("/dev-codes/tree")
+    public ResponseEntity<ResVO<List<DevCodeVO>>> getDevCodeTree() {
+        try {
+            List<DevCodeVO> tree = devCodeService.getDevCodeTree();
+            ResVO<List<DevCodeVO>> response = new ResVO<>(200, "장비군 트리 조회 성공", tree);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (Exception e) {
+            return new ResponseEntity<>(new ResVO<>(500, "장비군 트리 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * 장비군 코드 목록 조회 API (플랫 리스트)
+     */
+    @GetMapping("/dev-codes")
+    public ResponseEntity<ResVO<List<DevCodeVO>>> getAllDevCodes() {
+        try {
+            List<DevCodeVO> codes = devCodeService.getAllDevCodes();
+            ResVO<List<DevCodeVO>> response = new ResVO<>(200, "장비군 목록 조회 성공", codes);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (Exception e) {
+            return new ResponseEntity<>(new ResVO<>(500, "장비군 목록 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * 특정 장비군 코드 조회 API
+     */
+    @GetMapping("/dev-codes/{devCodeId}")
+    public ResponseEntity<ResVO<DevCodeVO>> getDevCodeById(@PathVariable Long devCodeId) {
+        try {
+            DevCodeVO code = devCodeService.getDevCodeById(devCodeId);
+            if (code == null) {
+                return new ResponseEntity<>(new ResVO<>(404, "장비군 코드를 찾을 수 없습니다", null), HttpStatus.NOT_FOUND);
+            }
+            ResVO<DevCodeVO> response = new ResVO<>(200, "장비군 조회 성공", code);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (Exception e) {
+            return new ResponseEntity<>(new ResVO<>(500, "장비군 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * 장비군 코드 생성 API
+     */
+    @PostMapping("/dev-codes")
+    public ResponseEntity<ResVO<DevCodeVO>> createDevCode(@RequestBody DevCodeVO devCode) {
+        try {
+            DevCodeVO created = devCodeService.createDevCode(devCode);
+            ResVO<DevCodeVO> response = new ResVO<>(201, "장비군 생성 성공", created);
+            return new ResponseEntity<>(response, HttpStatus.CREATED);
+        } catch (Exception e) {
+            return new ResponseEntity<>(new ResVO<>(500, "장비군 생성 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * 장비군 코드 수정 API
+     */
+    @PutMapping("/dev-codes/{devCodeId}")
+    public ResponseEntity<ResVO<DevCodeVO>> updateDevCode(@PathVariable Long devCodeId, @RequestBody DevCodeVO devCode) {
+        try {
+            DevCodeVO existing = devCodeService.getDevCodeById(devCodeId);
+            if (existing == null) {
+                return new ResponseEntity<>(new ResVO<>(404, "장비군 코드를 찾을 수 없습니다", null), HttpStatus.NOT_FOUND);
+            }
+            devCode.setDEV_CODE_ID(devCodeId);
+            devCodeService.updateDevCode(devCode);
+            DevCodeVO updated = devCodeService.getDevCodeById(devCodeId);
+            ResVO<DevCodeVO> response = new ResVO<>(200, "장비군 수정 성공", updated);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (Exception e) {
+            return new ResponseEntity<>(new ResVO<>(500, "장비군 수정 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * 장비군 코드 삭제 API (하위 코드 포함 삭제)
+     */
+    @DeleteMapping("/dev-codes/{devCodeId}")
+    public ResponseEntity<ResVO<Void>> deleteDevCode(@PathVariable Long devCodeId) {
+        try {
+            DevCodeVO existing = devCodeService.getDevCodeById(devCodeId);
+            if (existing == null) {
+                return new ResponseEntity<>(new ResVO<>(404, "장비군 코드를 찾을 수 없습니다", null), HttpStatus.NOT_FOUND);
+            }
+            devCodeService.deleteDevCode(devCodeId);
+            ResVO<Void> response = new ResVO<>(200, "장비군 삭제 성공", null);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (Exception e) {
+            return new ResponseEntity<>(new ResVO<>(500, "장비군 삭제 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 }

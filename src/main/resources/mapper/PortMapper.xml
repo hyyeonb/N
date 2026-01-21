@@ -27,7 +27,7 @@
         <result property="DELETE_AT" column="DELETE_AT"/>
     </resultMap>
 
-    <!-- 특정 장비의 Ethernet 포트 조회 (IF_TYPE = 6) -->
+    <!-- 특정 장비의 Ethernet 포트 조회 (IF_TYPE = 6, 물리 포트만) -->
     <select id="findByDeviceId" resultMap="PortResultMap">
         SELECT
             p.*,
@@ -39,6 +39,21 @@
         LEFT JOIN r_if_type_t t ON p.IF_TYPE = t.IF_TYPE
         WHERE p.DEVICE_ID = #{deviceId}
           AND p.IF_TYPE = 6
+          AND p.DELETE_AT IS NULL
+        ORDER BY p.IF_INDEX
+    </select>
+
+    <!-- 특정 장비의 모든 포트 조회 (타입 제한 없음) -->
+    <select id="findAllByDeviceId" resultMap="PortResultMap">
+        SELECT
+            p.*,
+            d.DEVICE_NAME,
+            d.DEVICE_IP,
+            t.IF_TYPE_NAME
+        FROM r_port_t p
+        LEFT JOIN r_device_t d ON p.DEVICE_ID = d.DEVICE_ID
+        LEFT JOIN r_if_type_t t ON p.IF_TYPE = t.IF_TYPE
+        WHERE p.DEVICE_ID = #{deviceId}
           AND p.DELETE_AT IS NULL
         ORDER BY p.IF_INDEX
     </select>

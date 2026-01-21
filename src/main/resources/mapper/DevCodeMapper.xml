@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="dev3.nms.mapper.DevCodeMapper">
+
+    <resultMap id="DevCodeResultMap" type="dev3.nms.vo.mgmt.DevCodeVO">
+        <id property="DEV_CODE_ID" column="DEV_CODE_ID"/>
+        <result property="PARENT_DEV_CODE_ID" column="PARENT_DEV_CODE_ID"/>
+        <result property="CODE_NM" column="CODE_NM"/>
+        <result property="CODE_DESCRIPTION" column="CODE_DESCRIPTION"/>
+        <result property="CREATE_AT" column="CREATE_AT"/>
+        <result property="UPDATE_AT" column="UPDATE_AT"/>
+    </resultMap>
+
+    <!-- 모든 장비군 코드 조회 -->
+    <select id="findAllDevCodes" resultMap="DevCodeResultMap">
+        SELECT DEV_CODE_ID, PARENT_DEV_CODE_ID, CODE_NM, CODE_DESCRIPTION, CREATE_AT, UPDATE_AT
+        FROM b_dev_code_t
+        ORDER BY ISNULL(PARENT_DEV_CODE_ID) DESC, PARENT_DEV_CODE_ID, CODE_NM
+    </select>
+
+    <!-- ID로 장비군 코드 조회 -->
+    <select id="findById" resultMap="DevCodeResultMap">
+        SELECT DEV_CODE_ID, PARENT_DEV_CODE_ID, CODE_NM, CODE_DESCRIPTION, CREATE_AT, UPDATE_AT
+        FROM b_dev_code_t
+        WHERE DEV_CODE_ID = #{devCodeId}
+    </select>
+
+    <!-- 부모 ID로 자식 장비군 코드 조회 -->
+    <select id="findByParentId" resultMap="DevCodeResultMap">
+        SELECT DEV_CODE_ID, PARENT_DEV_CODE_ID, CODE_NM, CODE_DESCRIPTION, CREATE_AT, UPDATE_AT
+        FROM b_dev_code_t
+        WHERE
+        <choose>
+            <when test="parentDevCodeId != null">
+                PARENT_DEV_CODE_ID = #{parentDevCodeId}
+            </when>
+            <otherwise>
+                PARENT_DEV_CODE_ID IS NULL
+            </otherwise>
+        </choose>
+        ORDER BY CODE_NM
+    </select>
+
+    <!-- 장비군 코드 등록 -->
+    <insert id="insertDevCode" parameterType="dev3.nms.vo.mgmt.DevCodeVO"
+            useGeneratedKeys="true" keyProperty="DEV_CODE_ID" keyColumn="DEV_CODE_ID">
+        INSERT INTO b_dev_code_t (PARENT_DEV_CODE_ID, CODE_NM, CODE_DESCRIPTION, CREATE_AT)
+        VALUES (#{PARENT_DEV_CODE_ID}, #{CODE_NM}, #{CODE_DESCRIPTION}, CURRENT_TIMESTAMP)
+    </insert>
+
+    <!-- 장비군 코드 수정 -->
+    <update id="updateDevCode" parameterType="dev3.nms.vo.mgmt.DevCodeVO">
+        UPDATE b_dev_code_t
+        <set>
+            <if test="PARENT_DEV_CODE_ID != null">PARENT_DEV_CODE_ID = #{PARENT_DEV_CODE_ID},</if>
+            <if test="CODE_NM != null and CODE_NM != ''">CODE_NM = #{CODE_NM},</if>
+            <if test="CODE_DESCRIPTION != null">CODE_DESCRIPTION = #{CODE_DESCRIPTION},</if>
+            UPDATE_AT = CURRENT_TIMESTAMP
+        </set>
+        WHERE DEV_CODE_ID = #{DEV_CODE_ID}
+    </update>
+
+    <!-- 장비군 코드 삭제 (실제 삭제) -->
+    <delete id="deleteDevCode">
+        DELETE FROM b_dev_code_t
+        WHERE DEV_CODE_ID = #{devCodeId}
+    </delete>
+
+    <!-- 특정 장비군 코드 및 모든 하위 코드 ID 목록 조회 (재귀) -->
+    <select id="findDevCodeIdWithDescendants" parameterType="long" resultType="long">
+        WITH RECURSIVE dev_code_tree AS (
+            SELECT DEV_CODE_ID FROM b_dev_code_t
+            WHERE DEV_CODE_ID = #{devCodeId}
+            UNION ALL
+            SELECT dc.DEV_CODE_ID FROM b_dev_code_t dc
+            INNER JOIN dev_code_tree dct ON dc.PARENT_DEV_CODE_ID = dct.DEV_CODE_ID
+        )
+        SELECT DEV_CODE_ID FROM dev_code_tree
+    </select>
+
+</mapper>

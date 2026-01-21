@@ -17,7 +17,7 @@ public class PortService {
     private final PortMapper portMapper;
 
     /**
-     * 특정 장비의 모든 포트 조회 (차트 플래그 자동 초기화 포함)
+     * 특정 장비의 Ethernet 포트 조회 (차트 플래그 자동 초기화 포함, 물리 포트만)
      */
     @Transactional
     public List<PortVO> getPortsByDeviceId(Integer deviceId) {
@@ -27,6 +27,13 @@ public class PortService {
             initializeChartPorts(deviceId, 5);
         }
         return portMapper.findByDeviceId(deviceId);
+    }
+
+    /**
+     * 특정 장비의 모든 포트 조회 (타입 제한 없음)
+     */
+    public List<PortVO> getAllPortsByDeviceId(Integer deviceId) {
+        return portMapper.findAllByDeviceId(deviceId);
     }
 
     /**

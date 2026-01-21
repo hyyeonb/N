@@ -5,9 +5,11 @@
     <resultMap id="ModelResultMap" type="dev3.nms.vo.mgmt.ModelVO">
         <id property="MODEL_ID" column="MODEL_ID"/>
         <result property="VENDOR_ID" column="VENDOR_ID"/>
+        <result property="DEV_CODE_ID" column="DEV_CODE_ID"/>
         <result property="MODEL_OID" column="MODEL_OID"/>
         <result property="MODEL_NAME" column="MODEL_NAME"/>
         <result property="VENDOR_NAME" column="VENDOR_NAME"/>
+        <result property="DEV_CODE_NM" column="DEV_CODE_NM"/>
         <result property="CREATE_USER_ID" column="CREATE_USER_ID"/>
         <result property="CREATE_AT" column="CREATE_AT"/>
         <result property="MODIFY_USER_ID" column="MODIFY_USER_ID"/>
@@ -21,9 +23,11 @@
         SELECT
             m.MODEL_ID,
             m.VENDOR_ID,
+            m.DEV_CODE_ID,
             m.MODEL_OID,
             m.MODEL_NAME,
             v.VENDOR_NAME,
+            dc.CODE_NM AS DEV_CODE_NM,
             m.CREATE_USER_ID,
             m.CREATE_AT,
             m.MODIFY_USER_ID,
@@ -32,6 +36,7 @@
             m.DELETE_AT
         FROM r_model_t m
         LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
+        LEFT JOIN b_dev_code_t dc ON m.DEV_CODE_ID = dc.DEV_CODE_ID
         WHERE m.MODEL_OID = #{modelOid}
           AND m.VENDOR_ID = #{vendorId}
           AND m.DELETE_AT IS NULL
@@ -42,9 +47,11 @@
         SELECT
             m.MODEL_ID,
             m.VENDOR_ID,
+            m.DEV_CODE_ID,
             m.MODEL_OID,
             m.MODEL_NAME,
             v.VENDOR_NAME,
+            dc.CODE_NM AS DEV_CODE_NM,
             m.CREATE_USER_ID,
             m.CREATE_AT,
             m.MODIFY_USER_ID,
@@ -53,6 +60,7 @@
             m.DELETE_AT
         FROM r_model_t m
         LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
+        LEFT JOIN b_dev_code_t dc ON m.DEV_CODE_ID = dc.DEV_CODE_ID
         WHERE m.MODEL_ID = #{modelId}
           AND m.DELETE_AT IS NULL
     </select>
@@ -60,9 +68,9 @@
     <!-- 모델 등록 -->
     <insert id="insertModel" parameterType="dev3.nms.vo.mgmt.ModelVO" useGeneratedKeys="true" keyProperty="MODEL_ID">
         INSERT INTO r_model_t (
-            VENDOR_ID, MODEL_OID, MODEL_NAME, CREATE_USER_ID, CREATE_AT
+            VENDOR_ID, DEV_CODE_ID, MODEL_OID, MODEL_NAME, CREATE_USER_ID, CREATE_AT
         ) VALUES (
-            #{VENDOR_ID}, #{MODEL_OID}, #{MODEL_NAME}, #{CREATE_USER_ID}, NOW()
+            #{VENDOR_ID}, #{DEV_CODE_ID}, #{MODEL_OID}, #{MODEL_NAME}, #{CREATE_USER_ID}, NOW()
         )
     </insert>
 
@@ -71,6 +79,7 @@
         UPDATE r_model_t
         <set>
             <if test="VENDOR_ID != null">VENDOR_ID = #{VENDOR_ID},</if>
+            DEV_CODE_ID = #{DEV_CODE_ID},
             <if test="MODEL_OID != null">MODEL_OID = #{MODEL_OID},</if>
             <if test="MODEL_NAME != null">MODEL_NAME = #{MODEL_NAME},</if>
             <if test="MODIFY_USER_ID != null">MODIFY_USER_ID = #{MODIFY_USER_ID},</if>
@@ -84,9 +93,11 @@
         SELECT
             m.MODEL_ID,
             m.VENDOR_ID,
+            m.DEV_CODE_ID,
             m.MODEL_OID,
             m.MODEL_NAME,
             v.VENDOR_NAME,
+            dc.CODE_NM AS DEV_CODE_NM,
             m.CREATE_USER_ID,
             m.CREATE_AT,
             m.MODIFY_USER_ID,
@@ -95,6 +106,7 @@
             m.DELETE_AT
         FROM r_model_t m
         LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
+        LEFT JOIN b_dev_code_t dc ON m.DEV_CODE_ID = dc.DEV_CODE_ID
         WHERE m.DELETE_AT IS NULL
         ORDER BY v.VENDOR_NAME, m.MODEL_NAME
     </select>
@@ -104,9 +116,11 @@
         SELECT
             m.MODEL_ID,
             m.VENDOR_ID,
+            m.DEV_CODE_ID,
             m.MODEL_OID,
             m.MODEL_NAME,
             v.VENDOR_NAME,
+            dc.CODE_NM AS DEV_CODE_NM,
             m.CREATE_USER_ID,
             m.CREATE_AT,
             m.MODIFY_USER_ID,
@@ -115,6 +129,7 @@
             m.DELETE_AT
         FROM r_model_t m
         LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
+        LEFT JOIN b_dev_code_t dc ON m.DEV_CODE_ID = dc.DEV_CODE_ID
         WHERE m.VENDOR_ID = #{vendorId}
           AND m.DELETE_AT IS NULL
         ORDER BY m.MODEL_NAME

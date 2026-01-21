@@ -677,8 +677,13 @@ public class AuthService {
 
     /**
      * 이메일 중복 체크
+     * - NULL 또는 빈 문자열인 경우 중복 체크를 스킵하고 true 반환 (사용 가능)
      */
     public boolean isEmailAvailable(String email) {
+        // 이메일이 NULL이거나 빈 문자열이면 중복 체크 스킵
+        if (email == null || email.trim().isEmpty()) {
+            return true;
+        }
         return userMapper.findByEmail(email).isEmpty();
     }
 

@@ -10,9 +10,14 @@ import java.util.List;
 public interface PortMapper {
 
     /**
-     * 특정 장비의 모든 포트 조회
+     * 특정 장비의 Ethernet 포트 조회 (IF_TYPE = 6, 물리 포트만)
      */
     List<PortVO> findByDeviceId(Integer deviceId);
+
+    /**
+     * 특정 장비의 모든 포트 조회 (타입 제한 없음)
+     */
+    List<PortVO> findAllByDeviceId(Integer deviceId);
 
     /**
      * 특정 포트 조회

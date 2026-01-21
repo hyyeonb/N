@@ -226,7 +226,7 @@
             d.DEVICE_IP,
             d.DEVICE_DESC,
             d.MODEL_ID,
-            (SELECT COUNT(*) FROM r_port_t p WHERE p.DEVICE_ID = d.DEVICE_ID AND p.DELETE_AT IS NULL) AS PORT_COUNT,
+            (SELECT COUNT(IF_INDEX) FROM r_port_t p WHERE p.DEVICE_ID = d.DEVICE_ID AND p.DELETE_AT IS NULL AND p.IF_TYPE = 6) AS PORT_COUNT,
             m.MODEL_NAME,
             m.MODEL_OID,
             v.VENDOR_NAME,
