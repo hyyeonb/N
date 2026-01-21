@@ -147,12 +147,21 @@ public class DashboardDto {
     }
 
     @Getter
+    @Setter
     @NoArgsConstructor
     @AllArgsConstructor
     public static class WidgetDeviceCntData {
         private Integer networkCnt = 0;
-        private Integer majorCnt = 0;
-        private Integer minorCnt = 0;
-        private Integer warningCnt = 0;
+        private Integer serverCnt = 0;
+        private Integer tranCnt = 0;
+        private Integer fmsCnt = 0;
+    }
+
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class DevCodeData {
+        private Long devCodeId;
+        private String codeNm;
     }
 }

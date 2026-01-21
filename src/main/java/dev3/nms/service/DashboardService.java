@@ -103,6 +103,25 @@ public class DashboardService {
                 if ("ALERT_SUMMARY".equals(defaultWidget.getWidgetCode())) {
                     DashboardDto.WidgetAlertCntData cntData = dashboardMapper.getWidgetAlertSummary();
                     defaultWidget.setCntData(cntData);
+                }else if ("DEVICE_SUMMARY".equals(defaultWidget.getWidgetCode())) {
+                    List<DashboardDto.DevCodeData> devCodeList =  dashboardMapper.getDevCode();
+                    DashboardDto.WidgetDeviceCntData deviceCnt = new DashboardDto.WidgetDeviceCntData();
+
+                    for (DashboardDto.DevCodeData devCode : devCodeList) {
+                        List<Long> devCodeIdList = dashboardMapper.getDevCodeAllId(devCode.getDevCodeId()); // 하위 장비코드조회
+                        Integer count = dashboardMapper.getDeviceCountBydevCodeId(devCodeIdList);
+
+                        if ("네트워크".equals(devCode.getCodeNm())) {
+                            deviceCnt.setNetworkCnt(count);
+                        }else if ("서버".equals(devCode.getCodeNm())) {
+                            deviceCnt.setServerCnt(count);
+                        }else if ("전송".equals(devCode.getCodeNm())) {
+                            deviceCnt.setTranCnt(count);
+                        }else if ("FMS".equals(devCode.getCodeNm())) {
+                            deviceCnt.setFmsCnt(count);
+                        }
+                    }
+                    defaultWidget.setCntData(deviceCnt);
                 }
             }
             return defaultWidgetList;
@@ -186,9 +205,26 @@ public class DashboardService {
                 if ("ALERT_SUMMARY".equals(userWidget.getWidgetCode())) {
                     DashboardDto.WidgetAlertCntData cntData = dashboardMapper.getWidgetAlertSummary();
                     userWidget.setCntData(cntData);
+                }else if ("DEVICE_SUMMARY".equals(userWidget.getWidgetCode())) {
+                    List<DashboardDto.DevCodeData> devCodeList =  dashboardMapper.getDevCode();
+                    DashboardDto.WidgetDeviceCntData deviceCnt = new DashboardDto.WidgetDeviceCntData();
+
+                    for (DashboardDto.DevCodeData devCode : devCodeList) {
+                        List<Long> devCodeIdList = dashboardMapper.getDevCodeAllId(devCode.getDevCodeId()); // 하위 장비코드조회
+                        Integer count = dashboardMapper.getDeviceCountBydevCodeId(devCodeIdList);
+
+                        if ("네트워크".equals(devCode.getCodeNm())) {
+                            deviceCnt.setNetworkCnt(count);
+                        }else if ("서버".equals(devCode.getCodeNm())) {
+                            deviceCnt.setServerCnt(count);
+                        }else if ("전송".equals(devCode.getCodeNm())) {
+                            deviceCnt.setTranCnt(count);
+                        }else if ("FMS".equals(devCode.getCodeNm())) {
+                            deviceCnt.setFmsCnt(count);
+                        }
+                    }
+                    userWidget.setCntData(deviceCnt);
                 }
-
-
             }
             
             return userWidgets;
