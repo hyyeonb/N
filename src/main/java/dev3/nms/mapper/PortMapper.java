@@ -71,31 +71,4 @@ public interface PortMapper {
      * 특정 장비의 포트 개수 조회
      */
     int countByDeviceId(Integer deviceId);
-
-    /**
-     * 차트 플래그 업데이트
-     */
-    int updateChartFlag(@Param("deviceId") Integer deviceId,
-                        @Param("ifIndex") Integer ifIndex,
-                        @Param("chartFlag") Boolean chartFlag);
-
-    /**
-     * 차트 표시 포트 조회
-     */
-    List<PortVO> findChartEnabledPorts(Integer deviceId);
-
-    /**
-     * 차트 표시 포트 수 조회
-     */
-    int countChartEnabledPorts(Integer deviceId);
-
-    /**
-     * 장비의 모든 포트 차트 플래그 초기화
-     */
-    int resetChartFlags(Integer deviceId);
-
-    /**
-     * TOP N 트래픽 포트에 차트 플래그 설정
-     */
-    int setTopTrafficPortsChartFlag(@Param("deviceId") Integer deviceId, @Param("limit") Integer limit);
 }

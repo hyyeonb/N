@@ -1,5 +1,6 @@
 package dev3.nms.service;
 
+import dev3.nms.mapper.CpuMemMapper;
 import dev3.nms.mapper.DeviceMapper;
 import dev3.nms.mapper.ModelMapper;
 import dev3.nms.mapper.TempDeviceMapper;
@@ -26,6 +27,7 @@ public class DeviceService {
     private final TempDeviceMapper tempDeviceMapper;
     private final VendorMapper vendorMapper;
     private final ModelMapper modelMapper;
+    private final CpuMemMapper cpuMemMapper;
     private final MiddlewareClient middlewareClient;
     private final PortService portService;
 
@@ -885,5 +887,26 @@ public class DeviceService {
             }
         }
         return 2;
+    }
+
+    /**
+     * 특정 장비의 최신 CPU/MEM 데이터 조회
+     */
+    public CpuMemVO getLatestCpuMem(int deviceId) {
+        return cpuMemMapper.findLatestByDeviceId(deviceId);
+    }
+
+    /**
+     * 특정 장비의 최근 CPU/MEM 데이터 조회 (시계열)
+     */
+    public List<CpuMemVO> getRecentCpuMem(int deviceId, int minutes) {
+        return cpuMemMapper.findRecentByDeviceId(deviceId, minutes);
+    }
+
+    /**
+     * 특정 장비의 코어별 CPU 데이터 조회
+     */
+    public List<CpuMemVO> getCpuCores(int deviceId) {
+        return cpuMemMapper.findLatestCoresByDeviceId(deviceId);
     }
 }

@@ -163,7 +163,7 @@ public class TrafficService {
             series.add(portSeries);
         }
 
-        // 트래픽이 많은 순으로 정렬 (제한 없이 모든 포트 반환 - 프론트엔드에서 IF_CHART_FLAG 기반 필터링)
+        // 트래픽이 많은 순으로 정렬 (제한 없이 모든 포트 반환 - 프론트엔드에서 세션 기반 필터링)
         series.sort((a, b) -> {
             @SuppressWarnings("unchecked")
             List<Double> dataA = (List<Double>) a.get("data");

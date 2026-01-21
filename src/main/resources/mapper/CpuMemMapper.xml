@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="dev3.nms.mapper.CpuMemMapper">
+
+    <resultMap id="CpuMemResultMap" type="dev3.nms.vo.mgmt.CpuMemVO">
+        <id property="ID" column="ID"/>
+        <result property="DEVICE_ID" column="DEVICE_ID"/>
+        <result property="COLLECTED_AT" column="COLLECTED_AT"/>
+        <result property="CORE_INDEX" column="CORE_INDEX"/>
+        <result property="CPU_USAGE" column="CPU_USAGE"/>
+        <result property="CPU_IDLE" column="CPU_IDLE"/>
+        <result property="CPU_USER" column="CPU_USER"/>
+        <result property="CPU_SYSTEM" column="CPU_SYSTEM"/>
+        <result property="MEM_TOTAL" column="MEM_TOTAL"/>
+        <result property="MEM_FREE" column="MEM_FREE"/>
+        <result property="MEM_AVAIL" column="MEM_AVAIL"/>
+        <result property="MEM_BUFFER" column="MEM_BUFFER"/>
+        <result property="MEM_CACHE" column="MEM_CACHE"/>
+        <result property="MEM_USED" column="MEM_USED"/>
+        <result property="MEM_USAGE" column="MEM_USAGE"/>
+    </resultMap>
+
+    <!-- 특정 장비의 최신 CPU/MEM 데이터 조회 (집계값만) -->
+    <select id="findLatestByDeviceId" resultMap="CpuMemResultMap">
+        SELECT *
+        FROM P_CPU_MEM_T
+        WHERE DEVICE_ID = #{deviceId}
+          AND CORE_INDEX IS NULL
+        ORDER BY COLLECTED_AT DESC
+        LIMIT 1
+    </select>
+
+    <!-- 특정 장비의 최근 CPU/MEM 데이터 조회 (집계값만) -->
+    <select id="findRecentByDeviceId" resultMap="CpuMemResultMap">
+        SELECT *
+        FROM P_CPU_MEM_T
+        WHERE DEVICE_ID = #{deviceId}
+          AND CORE_INDEX IS NULL
+          AND COLLECTED_AT >= DATE_SUB(NOW(), INTERVAL #{minutes} MINUTE)
+        ORDER BY COLLECTED_AT ASC
+    </select>
+
+    <!-- 특정 장비의 코어별 CPU 데이터 조회 (가장 최신) -->
+    <select id="findLatestCoresByDeviceId" resultMap="CpuMemResultMap">
+        SELECT c.*
+        FROM P_CPU_MEM_T c
+        INNER JOIN (
+            SELECT DEVICE_ID, MAX(COLLECTED_AT) as MAX_TIME
+            FROM P_CPU_MEM_T
+            WHERE DEVICE_ID = #{deviceId}
+              AND CORE_INDEX IS NOT NULL
+            GROUP BY DEVICE_ID
+        ) latest ON c.DEVICE_ID = latest.DEVICE_ID
+                 AND c.COLLECTED_AT = latest.MAX_TIME
+        WHERE c.CORE_INDEX IS NOT NULL
+        ORDER BY c.CORE_INDEX ASC
+    </select>
+
+    <!-- 특정 장비의 CPU/MEM 데이터 조회 (시간 범위) -->
+    <select id="findByDeviceIdAndTimeRange" resultMap="CpuMemResultMap">
+        SELECT *
+        FROM P_CPU_MEM_T
+        WHERE DEVICE_ID = #{deviceId}
+          AND CORE_INDEX IS NULL
+          AND COLLECTED_AT BETWEEN #{startTime} AND #{endTime}
+        ORDER BY COLLECTED_AT ASC
+    </select>
+
+</mapper>

@@ -11,6 +11,7 @@ import dev3.nms.service.PortService;
 import dev3.nms.service.TempDeviceService;
 import dev3.nms.service.TrafficService;
 import dev3.nms.vo.mgmt.TrafficVO;
+import dev3.nms.vo.mgmt.CpuMemVO;
 import dev3.nms.vo.auth.UserVO;
 import dev3.nms.vo.common.PageVO;
 import dev3.nms.vo.common.ResVO;
@@ -664,51 +665,6 @@ public class MgmtController {
     }
 
     /**
-     * 포트 차트 플래그 토글 API
-     */
-    @PatchMapping("/devices/{deviceId}/ports/{ifIndex}/chart-flag")
-    public ResponseEntity<ResVO<Void>> togglePortChartFlag(
-            @PathVariable Integer deviceId,
-            @PathVariable Integer ifIndex) {
-        try {
-            portService.toggleChartFlag(deviceId, ifIndex);
-            ResVO<Void> response = new ResVO<>(200, "차트 플래그 토글 성공", null);
-            return new ResponseEntity<>(response, HttpStatus.OK);
-        } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "차트 플래그 토글 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-    }
-
-    /**
-     * 차트 표시 포트 조회 API (없으면 TOP 5 자동 설정)
-     */
-    @GetMapping("/devices/{deviceId}/ports/chart-enabled")
-    public ResponseEntity<ResVO<List<PortVO>>> getChartEnabledPorts(@PathVariable Integer deviceId) {
-        try {
-            List<PortVO> ports = portService.getChartEnabledPorts(deviceId);
-            ResVO<List<PortVO>> response = new ResVO<>(200, "차트 표시 포트 조회 성공", ports);
-            return new ResponseEntity<>(response, HttpStatus.OK);
-        } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "차트 표시 포트 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-    }
-
-    /**
-     * 차트 플래그 초기화 (TOP 5 재설정) API
-     */
-    @PostMapping("/devices/{deviceId}/ports/chart-flag/reset")
-    public ResponseEntity<ResVO<List<PortVO>>> resetChartFlags(@PathVariable Integer deviceId) {
-        try {
-            portService.initializeChartPorts(deviceId, 5);
-            List<PortVO> ports = portService.getChartEnabledPorts(deviceId);
-            ResVO<List<PortVO>> response = new ResVO<>(200, "차트 플래그 초기화 완료", ports);
-            return new ResponseEntity<>(response, HttpStatus.OK);
-        } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "차트 플래그 초기화 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-    }
-
-    /**
      * 세션에서 로그인한 사용자 ID를 가져오는 헬퍼 메소드
      */
     private Integer getUserIdFromSession(HttpSession session) {
@@ -790,6 +746,41 @@ public class MgmtController {
         } catch (Exception e) {
             log.error("트래픽 원시 데이터 조회 실패 - deviceId: {}", deviceId, e);
             return new ResponseEntity<>(new ResVO<>(500, "트래픽 데이터 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * CPU/MEM 데이터 조회 API (최신값)
+     * @param deviceId 장비 ID
+     */
+    @GetMapping("/devices/{deviceId}/cpu-mem")
+    public ResponseEntity<ResVO<CpuMemVO>> getDeviceCpuMem(@PathVariable int deviceId) {
+        try {
+            CpuMemVO cpuMem = deviceService.getLatestCpuMem(deviceId);
+            ResVO<CpuMemVO> response = new ResVO<>(200, "CPU/MEM 데이터 조회 성공", cpuMem);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("CPU/MEM 데이터 조회 실패 - deviceId: {}", deviceId, e);
+            return new ResponseEntity<>(new ResVO<>(500, "CPU/MEM 데이터 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * CPU/MEM 시계열 데이터 조회 API
+     * @param deviceId 장비 ID
+     * @param minutes 최근 N분 (기본 60분)
+     */
+    @GetMapping("/devices/{deviceId}/cpu-mem/history")
+    public ResponseEntity<ResVO<List<CpuMemVO>>> getDeviceCpuMemHistory(
+            @PathVariable int deviceId,
+            @RequestParam(required = false, defaultValue = "60") Integer minutes) {
+        try {
+            List<CpuMemVO> cpuMemData = deviceService.getRecentCpuMem(deviceId, minutes);
+            ResVO<List<CpuMemVO>> response = new ResVO<>(200, "CPU/MEM 시계열 데이터 조회 성공", cpuMemData);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("CPU/MEM 시계열 데이터 조회 실패 - deviceId: {}", deviceId, e);
+            return new ResponseEntity<>(new ResVO<>(500, "CPU/MEM 시계열 데이터 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 

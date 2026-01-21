@@ -21,7 +21,6 @@
         <result property="IF_IP_NETMASK" column="IF_IP_NETMASK"/>
         <result property="IF_PERF_FLAG" column="IF_PERF_FLAG"/>
         <result property="IF_OPER_FLAG" column="IF_OPER_FLAG"/>
-        <result property="IF_CHART_FLAG" column="IF_CHART_FLAG"/>
         <result property="DEVICE_NAME" column="DEVICE_NAME"/>
         <result property="DEVICE_IP" column="DEVICE_IP"/>
         <result property="DELETE_AT" column="DELETE_AT"/>
@@ -153,7 +152,6 @@
             <if test="IF_IP_NETMASK != null">IF_IP_NETMASK = #{IF_IP_NETMASK},</if>
             <if test="IF_PERF_FLAG != null">IF_PERF_FLAG = #{IF_PERF_FLAG},</if>
             <if test="IF_OPER_FLAG != null">IF_OPER_FLAG = #{IF_OPER_FLAG},</if>
-            <if test="IF_CHART_FLAG != null">IF_CHART_FLAG = #{IF_CHART_FLAG},</if>
         </set>
         WHERE DEVICE_ID = #{DEVICE_ID} AND IF_INDEX = #{IF_INDEX}
     </update>
@@ -185,60 +183,5 @@
         SELECT COUNT(*) FROM r_port_t
         WHERE DEVICE_ID = #{deviceId} AND DELETE_AT IS NULL
     </select>
-
-    <!-- 차트 플래그 토글 -->
-    <update id="updateChartFlag">
-        UPDATE r_port_t
-        SET IF_CHART_FLAG = #{chartFlag}
-        WHERE DEVICE_ID = #{deviceId} AND IF_INDEX = #{ifIndex}
-    </update>
-
-    <!-- 장비의 차트 표시 포트 조회 -->
-    <select id="findChartEnabledPorts" resultMap="PortResultMap">
-        SELECT
-            p.*,
-            d.DEVICE_NAME,
-            d.DEVICE_IP,
-            t.IF_TYPE_NAME
-        FROM r_port_t p
-        LEFT JOIN r_device_t d ON p.DEVICE_ID = d.DEVICE_ID
-        LEFT JOIN r_if_type_t t ON p.IF_TYPE = t.IF_TYPE
-        WHERE p.DEVICE_ID = #{deviceId}
-          AND p.IF_CHART_FLAG = 1
-          AND p.DELETE_AT IS NULL
-        ORDER BY p.IF_INDEX
-    </select>
-
-    <!-- 장비의 차트 표시 포트 수 조회 -->
-    <select id="countChartEnabledPorts" resultType="int">
-        SELECT COUNT(*) FROM r_port_t
-        WHERE DEVICE_ID = #{deviceId}
-          AND IF_CHART_FLAG = 1
-          AND DELETE_AT IS NULL
-    </select>
-
-    <!-- 장비의 모든 포트 차트 플래그 초기화 -->
-    <update id="resetChartFlags">
-        UPDATE r_port_t
-        SET IF_CHART_FLAG = 0
-        WHERE DEVICE_ID = #{deviceId}
-    </update>
-
-    <!-- TOP N 트래픽 포트에 차트 플래그 설정 (MariaDB 호환 - JOIN 사용) -->
-    <update id="setTopTrafficPortsChartFlag">
-        UPDATE r_port_t p
-        INNER JOIN (
-            SELECT t.IF_INDEX
-            FROM p_traffic_t t
-            WHERE t.DEVICE_ID = #{deviceId}
-              AND t.COLLECTED_AT >= DATE_SUB(NOW(), INTERVAL 1 HOUR)
-            GROUP BY t.IF_INDEX
-            ORDER BY AVG(COALESCE(t.IN_BPS, 0) + COALESCE(t.OUT_BPS, 0)) DESC
-            LIMIT #{limit}
-        ) top_ports ON p.IF_INDEX = top_ports.IF_INDEX
-        SET p.IF_CHART_FLAG = 1
-        WHERE p.DEVICE_ID = #{deviceId}
-          AND p.DELETE_AT IS NULL
-    </update>
 
 </mapper>

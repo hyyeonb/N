@@ -35,7 +35,6 @@ public class PortVO {
     private String IF_IP_NETMASK;     // 서브넷 마스크 - OID: IF_ADDRESS_ENTRY_NETMASK
     private Boolean IF_OPER_FLAG;    // Oper 감시 여부
     private Boolean IF_PERF_FLAG;    // 성능 감시 여부
-    private Boolean IF_CHART_FLAG;   // 차트 표시 여부
 
     // JOIN으로 가져오는 정보
     private String DEVICE_NAME;
