@@ -558,4 +558,51 @@
         #{widget.height}
         )
     </insert>
+    <select id="getDevCode"
+            resultType="dev3.nms.vo.dashboard.DashboardDto$DevCodeData">
+        <![CDATA[
+        SELECT
+            dev_code_id AS devCodeId,
+            CODE_NM AS codeNm
+        FROM
+            b_dev_code_t
+        WHERE
+            1 = 1
+            AND parent_dev_code_id IS NULL
+        ]]>
+    </select>
+
+    <select id="getDevCodeAllId"
+            parameterType="long"
+            resultType="long">
+        <![CDATA[
+        WITH RECURSIVE tree AS (
+          SELECT t.dev_code_id, t.parent_dev_code_id, 0 AS depth
+          FROM b_dev_code_t t
+          WHERE t.dev_code_id = #{devCodeId}
+          UNION ALL
+          SELECT c.dev_code_id, c.parent_dev_code_id, tree.depth + 1
+          FROM b_dev_code_t c
+          JOIN tree ON c.parent_dev_code_id = tree.dev_code_id
+        )
+        SELECT dev_code_id
+        FROM tree a
+        ORDER BY depth, dev_code_id
+        ]]>
+    </select>
+
+    <select id="getDeviceCountBydevCodeId"
+            parameterType="list"
+            resultType="int">
+        SELECT COUNT(a.device_id)
+        FROM r_device_t a, r_model_t b
+        WHERE 1=1
+            AND a.model_id = b.model_id
+            AND a.delete_at IS NULL
+            AND b.dev_code_id IN
+            <foreach collection="list" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+    </select>
+
 </mapper>
