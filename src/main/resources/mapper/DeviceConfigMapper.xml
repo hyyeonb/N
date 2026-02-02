@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="dev3.nms.mapper.DeviceConfigMapper">
+    <!-- 장비 설정 조회 -->
+    <select id="getDeviceConfig" resultType="dev3.nms.vo.deviceConfig.DeviceConfigDto$DeviceConfigRes">
+        SELECT
+            DEVICE_CONFIG_ID AS deviceConfigId,
+            DEVICE_ID AS deviceId,
+            CONFIG AS config,
+            REG_DT AS regDate
+        FROM r_device_config_t
+        WHERE 1=1
+            AND device_id = #{deviceId}
+            AND DATE(reg_dt) = #{dateStr}
+        ORDER BY DEVICE_CONFIG_ID DESC
+        LIMIT 1
+    </select>
+
+    <!-- 그룹 ID 목록으로 장비 조회 (페이지네이션 + 정렬 + 검색) -->
+    <select id="findDevicesByGroupIdsPagedWithSearch" resultType="dev3.nms.vo.deviceConfig.DeviceConfigDto$DeviceConfigTableRes">
+        SELECT
+            d.DEVICE_ID AS deviceId,
+            d.GROUP_ID AS groupId,
+            g.GROUP_NAME AS groupNm,
+            d.DEVICE_NAME AS deviceNm,
+            d.DEVICE_IP AS deviceIp,
+            d.MODEL_ID AS modelId,
+            m.MODEL_NAME AS modelNm,
+            (SELECT REG_DT FROM r_device_config_t WHERE DEVICE_ID = d.DEVICE_ID ORDER BY REG_DT DESC LIMIT 1) as deviceConfigDate
+        FROM r_device_t d
+        LEFT JOIN r_device_snmp_t s ON d.DEVICE_ID = s.DEVICE_ID
+        LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
+        LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
+        LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
+        WHERE d.GROUP_ID IN
+        <foreach collection="groupIds" item="item" open="(" separator="," close=")">
+            #{item}
+        </foreach>
+        AND m.dev_code_id IN
+        <foreach collection="devCodeIdList" item="item" open="(" separator="," close=")">
+            #{item}
+        </foreach>
+        AND d.DELETE_AT IS NULL
+        <if test="deviceName != null and deviceName != ''">
+            AND d.DEVICE_NAME LIKE CONCAT('%', #{deviceName}, '%')
+        </if>
+        <if test="deviceIp != null and deviceIp != ''">
+            AND d.DEVICE_IP LIKE CONCAT('%', #{deviceIp}, '%')
+        </if>
+        <if test="groupName != null and groupName != ''">
+            AND g.GROUP_NAME LIKE CONCAT('%', #{groupName}, '%')
+        </if>
+        <choose>
+            <when test="sort == 'DEVICE_ID'">
+                ORDER BY d.DEVICE_ID
+            </when>
+            <when test="sort == 'DEVICE_NAME'">
+                ORDER BY d.DEVICE_NAME
+            </when>
+            <when test="sort == 'GROUP_NAME'">
+                ORDER BY g.GROUP_NAME
+            </when>
+            <when test="sort == 'DEVICE_SYSTEM_NAME'">
+                ORDER BY d.DEVICE_SYSTEM_NAME
+            </when>
+            <when test="sort == 'DEVICE_IP'">
+                ORDER BY d.DEVICE_IP
+            </when>
+            <when test="sort == 'VENDOR_NAME'">
+                ORDER BY v.VENDOR_NAME
+            </when>
+            <when test="sort == 'PORT_COUNT'">
+                ORDER BY d.PORT_COUNT
+            </when>
+            <when test="sort == 'CREATE_AT'">
+                ORDER BY d.CREATE_AT
+            </when>
+            <otherwise>
+                ORDER BY d.DEVICE_ID
+            </otherwise>
+        </choose>
+        <if test="order == 'desc'">
+            DESC
+        </if>
+        <if test="order != 'desc'">
+            ASC
+        </if>
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 그룹 ID 목록으로 장비 총 개수 조회 (검색 조건 포함) -->
+    <select id="countDevicesByGroupIdsWithSearch" resultType="int">
+        SELECT COUNT(*)
+        FROM r_device_t d
+        LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
+        LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
+        WHERE d.DELETE_AT IS NULL
+        <if test="groupIds != null and groupIds.size() > 0">
+            AND d.GROUP_ID IN
+            <foreach collection="groupIds" item="item" open="(" separator="," close=")">
+                #{item}
+            </foreach>
+        </if>
+        AND m.dev_code_id IN
+        <foreach collection="devCodeIdList" item="item" open="(" separator="," close=")">
+            #{item}
+        </foreach>
+        <if test="groupIds == null or groupIds.size() == 0">
+            AND 1 = 0
+        </if>
+        <if test="deviceName != null and deviceName != ''">
+            AND d.DEVICE_NAME LIKE CONCAT('%', #{deviceName}, '%')
+        </if>
+        <if test="deviceIp != null and deviceIp != ''">
+            AND d.DEVICE_IP LIKE CONCAT('%', #{deviceIp}, '%')
+        </if>
+        <if test="groupName != null and groupName != ''">
+            AND g.GROUP_NAME LIKE CONCAT('%', #{groupName}, '%')
+        </if>
+    </select>
+</mapper>

@@ -55,6 +55,31 @@
             AND B.IS_ACTIVE = 1
     </select>
 
+    <!-- 대시보드 기본 위젯 단건 조회 -->
+    <select id="getDefaultWidgetById"
+            parameterType="long"
+            resultMap="defaultWidgetResultMap">
+        SELECT
+            DEFAULT_DASHBOARD_WIDGET_ID,
+            A.WIDGET_ID,
+            B.WIDGET_CODE,
+            B.NAME,
+            B.ICON,
+            B.CATEGORY,
+            TITLE,
+            CONFIG,
+            POS_X AS X,
+            POS_Y AS Y,
+            WIDTH,
+            HEIGHT
+        FROM
+            r_default_dashboard_widget_t A, r_widget_t B
+        WHERE 1=1
+            AND A.WIDGET_ID = B.WIDGET_ID
+            AND B.IS_ACTIVE = 1
+            AND DEFAULT_DASHBOARD_WIDGET_ID = #{widgetId}
+    </select>
+
     <!-- 대시보드 사용자 위젯 화면 조회 -->
     <resultMap id="userWidgetResultMap" type="dev3.nms.vo.dashboard.DashboardDto$UserWidgetRes">
         <result column="USER_DASHBOARD_WIDGET_ID" property="userDashboardWidgetId"/>
@@ -93,6 +118,31 @@
             AND A.WIDGET_ID = B.WIDGET_ID
             AND B.IS_ACTIVE = 1
             AND USER_ID = #{userId}
+    </select>
+
+    <!-- 대시보드 사용자 위젯 단건 조회 -->
+    <select id="getUserWidgetById"
+            parameterType="long"
+            resultMap="userWidgetResultMap">
+        SELECT
+            USER_DASHBOARD_WIDGET_ID,
+            A.WIDGET_ID,
+            B.WIDGET_CODE,
+            B.NAME,
+            B.ICON,
+            B.CATEGORY,
+            CONFIG,
+            TITLE,
+            POS_X AS X,
+            POS_Y AS Y,
+            WIDTH,
+            HEIGHT
+        FROM
+            r_user_dashboard_widget_t A, r_widget_t B
+        WHERE 1=1
+            AND A.WIDGET_ID = B.WIDGET_ID
+            AND B.IS_ACTIVE = 1
+            AND USER_DASHBOARD_WIDGET_ID = #{userDashboardWidgetId}
     </select>
 
     <update id="updateUserWidget">

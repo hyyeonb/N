@@ -11,6 +11,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.tags.BindErrorsTag;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @Slf4j
 @Service
@@ -33,97 +36,24 @@ public class DashboardService {
         try {
             List<DashboardDto.DefaultWidgetRes> defaultWidgetList = dashboardMapper.getDefaultWidget();
             ObjectMapper om = new ObjectMapper();
-            for (DashboardDto.DefaultWidgetRes defaultWidget : defaultWidgetList) {
-                DashboardDto.UserWidgetConfig userWidgetConfig = om.readValue(defaultWidget.getConfig(), DashboardDto.UserWidgetConfig.class);
 
-                // 그룹구분
-                if ("CPU_MEM".equals(userWidgetConfig.getGroup())) {
-                    List<Map<String, String>> metrics = toCpuMemMetricParams(userWidgetConfig.getElements());
-                    if (metrics.isEmpty()) throw new IllegalArgumentException("No valid CPU_MEM elements");
+            // 병렬 처리를 위한 ExecutorService
+            ExecutorService executor = Executors.newFixedThreadPool(Math.min(defaultWidgetList.size(), 10));
 
-                    Map<String, Object> param = new HashMap<>();
-                    param.put("metrics", metrics);
-                    param.put("topN", 10);
-                    param.put("intervalSec", 300);
-
-                    if ("pie".equals(userWidgetConfig.getChartType())) {
-                        List<DashboardDto.WidgetPieChartData> pieChartData = dashboardMapper.getWidgetCpuMemPieChartData(param);
-                        defaultWidget.setChartData(pieChartData);
-                    } else if ("line".equals(userWidgetConfig.getChartType())) {
-                        List<DashboardDto.WidgetLineChartData> lineChartData = dashboardMapper.getWidgetCpuMemLineChartData(param);
-                        defaultWidget.setChartData(lineChartData);
-                    } else if ("bar".equals(userWidgetConfig.getChartType())) {
-                        List<DashboardDto.WidgetBarChartData> barChartData = dashboardMapper.getWidgetCpuMemBarChartData(param);
-                        defaultWidget.setChartData(barChartData);
-                    }
-                }else if ("FILE".equals(userWidgetConfig.getGroup())) {
-
-                }else if ("PROCESS".equals(userWidgetConfig.getGroup())) {
-
-                }else if ("TRAFFIC".equals(userWidgetConfig.getGroup())) {
-                    List<Map<String, String>> metrics = toTrafficMetricParams(userWidgetConfig.getElements());
-                    if (metrics.isEmpty()) throw new IllegalArgumentException("No valid elements");
-
-                    Map<String, Object> param = new HashMap<>();
-                    param.put("metrics", metrics);   // [{key=TRAFFIC_IN_BPS,col=...}, ...]
-                    param.put("topN", 10);
-                    param.put("intervalSec", 300);
-
-                    if ("pie".equals(userWidgetConfig.getChartType())) {
-                        List<DashboardDto.WidgetPieChartData> pieChartData = dashboardMapper.getWidgetTrafficPieChartData(param);
-                        defaultWidget.setChartData(pieChartData);
-                    }else if ("line".equals(userWidgetConfig.getChartType())) {
-                        List<DashboardDto.WidgetLineChartData> lineChartData = dashboardMapper.getWidgetTrafficLineChartData(param);
-                        defaultWidget.setChartData(lineChartData);
-                    }else if ("bar".equals(userWidgetConfig.getChartType())) {
-                        List<DashboardDto.WidgetBarChartData> barChartData = dashboardMapper.getWidgetTrafficBarChartData(param);
-                        defaultWidget.setChartData(barChartData);
-                    }
-                }else if ("ICMP".equals(userWidgetConfig.getGroup())) {
-                    List<Map<String, String>> metrics = toMetricParams(userWidgetConfig.getElements());
-                    if (metrics.isEmpty()) throw new IllegalArgumentException("No valid elements");
-
-                    Map<String, Object> param = new HashMap<>();
-                    param.put("metrics", metrics);   // [{key=ICMP_MAX,col=...}, ...]
-                    param.put("topN", 10);
-                    param.put("intervalSec", 300);
-
-                    if ("pie".equals(userWidgetConfig.getChartType())) {
-                        List<DashboardDto.WidgetPieChartData> pieChartData = dashboardMapper.getWidgetIcmpPieChartData(param);
-                        defaultWidget.setChartData(pieChartData);
-                    }else if ("line".equals(userWidgetConfig.getChartType())) {
-                        List<DashboardDto.WidgetLineChartData> lineChartData = dashboardMapper.getWidgetIcmpLineChartData(param);
-                        defaultWidget.setChartData(lineChartData);
-                    }else if ("bar".equals(userWidgetConfig.getChartType())) {
-                        List<DashboardDto.WidgetBarChartData> barChartData = dashboardMapper.getWidgetIcmpBarChartData(param);
-                        defaultWidget.setChartData(barChartData);
-                    }
-                }
-                // 장애 현황
-                if ("ALERT_SUMMARY".equals(defaultWidget.getWidgetCode())) {
-                    DashboardDto.WidgetAlertCntData cntData = dashboardMapper.getWidgetAlertSummary();
-                    defaultWidget.setCntData(cntData);
-                }else if ("DEVICE_SUMMARY".equals(defaultWidget.getWidgetCode())) {
-                    List<DashboardDto.DevCodeData> devCodeList =  dashboardMapper.getDevCode();
-                    DashboardDto.WidgetDeviceCntData deviceCnt = new DashboardDto.WidgetDeviceCntData();
-
-                    for (DashboardDto.DevCodeData devCode : devCodeList) {
-                        List<Long> devCodeIdList = dashboardMapper.getDevCodeAllId(devCode.getDevCodeId()); // 하위 장비코드조회
-                        Integer count = dashboardMapper.getDeviceCountBydevCodeId(devCodeIdList);
-
-                        if ("네트워크".equals(devCode.getCodeNm())) {
-                            deviceCnt.setNetworkCnt(count);
-                        }else if ("서버".equals(devCode.getCodeNm())) {
-                            deviceCnt.setServerCnt(count);
-                        }else if ("전송".equals(devCode.getCodeNm())) {
-                            deviceCnt.setTranCnt(count);
-                        }else if ("FMS".equals(devCode.getCodeNm())) {
-                            deviceCnt.setFmsCnt(count);
+            List<CompletableFuture<Void>> futures = defaultWidgetList.stream()
+                    .map(defaultWidget -> CompletableFuture.runAsync(() -> {
+                        try {
+                            loadDefaultWidgetData(defaultWidget, om);
+                        } catch (Exception e) {
+                            log.warn("기본 위젯 데이터 로드 실패 - widgetId: {}, error: {}", defaultWidget.getWidgetId(), e.getMessage());
                         }
-                    }
-                    defaultWidget.setCntData(deviceCnt);
-                }
-            }
+                    }, executor))
+                    .toList();
+
+            // 모든 작업 완료 대기
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            executor.shutdown();
+
             return defaultWidgetList;
         } catch (Exception e) {
             log.warn("대시보드 기본 위젯 조회 실패 - {}", e.getMessage());
@@ -135,102 +65,222 @@ public class DashboardService {
         try {
             List<DashboardDto.UserWidgetRes> userWidgets = dashboardMapper.getUserWidget(userId);
             ObjectMapper om = new ObjectMapper();
-            for (DashboardDto.UserWidgetRes userWidget : userWidgets) {
-                DashboardDto.UserWidgetConfig userWidgetConfig = om.readValue(userWidget.getConfig(), DashboardDto.UserWidgetConfig.class);
 
-                // 그룹구분
-                if ("CPU_MEM".equals(userWidgetConfig.getGroup())) {
-                    List<Map<String, String>> metrics = toCpuMemMetricParams(userWidgetConfig.getElements());
-                    if (metrics.isEmpty()) throw new IllegalArgumentException("No valid CPU_MEM elements");
+            // 병렬 처리를 위한 ExecutorService
+            ExecutorService executor = Executors.newFixedThreadPool(Math.min(userWidgets.size(), 10));
 
-                    Map<String, Object> param = new HashMap<>();
-                    param.put("metrics", metrics);
-                    param.put("topN", 10);
-                    param.put("intervalSec", 300);
-
-                    if ("pie".equals(userWidgetConfig.getChartType())) {
-                        List<DashboardDto.WidgetPieChartData> pieChartData = dashboardMapper.getWidgetCpuMemPieChartData(param);
-                        userWidget.setChartData(pieChartData);
-                    } else if ("line".equals(userWidgetConfig.getChartType())) {
-                        List<DashboardDto.WidgetLineChartData> lineChartData = dashboardMapper.getWidgetCpuMemLineChartData(param);
-                        userWidget.setChartData(lineChartData);
-                    } else if ("bar".equals(userWidgetConfig.getChartType())) {
-                        List<DashboardDto.WidgetBarChartData> barChartData = dashboardMapper.getWidgetCpuMemBarChartData(param);
-                        userWidget.setChartData(barChartData);
-                    }
-                }else if ("FILE".equals(userWidgetConfig.getGroup())) {
-
-                }else if ("PROCESS".equals(userWidgetConfig.getGroup())) {
-
-                }else if ("TRAFFIC".equals(userWidgetConfig.getGroup())) {
-                    List<Map<String, String>> metrics = toTrafficMetricParams(userWidgetConfig.getElements());
-                    if (metrics.isEmpty()) throw new IllegalArgumentException("No valid elements");
-
-                    Map<String, Object> param = new HashMap<>();
-                    param.put("metrics", metrics);   // [{key=TRAFFIC_IN_BPS,col=...}, ...]
-                    param.put("topN", 10);
-                    param.put("intervalSec", 300);
-
-                    if ("pie".equals(userWidgetConfig.getChartType())) {
-                        List<DashboardDto.WidgetPieChartData> pieChartData = dashboardMapper.getWidgetTrafficPieChartData(param);
-                        userWidget.setChartData(pieChartData);
-                    }else if ("line".equals(userWidgetConfig.getChartType())) {
-                        List<DashboardDto.WidgetLineChartData> lineChartData = dashboardMapper.getWidgetTrafficLineChartData(param);
-                        userWidget.setChartData(lineChartData);
-                    }else if ("bar".equals(userWidgetConfig.getChartType())) {
-                        List<DashboardDto.WidgetBarChartData> barChartData = dashboardMapper.getWidgetTrafficBarChartData(param);
-                        userWidget.setChartData(barChartData);
-                    }
-                }else if ("ICMP".equals(userWidgetConfig.getGroup())) {
-                    List<Map<String, String>> metrics = toMetricParams(userWidgetConfig.getElements());
-                    if (metrics.isEmpty()) throw new IllegalArgumentException("No valid elements");
-
-                    Map<String, Object> param = new HashMap<>();
-                    param.put("metrics", metrics);   // [{key=ICMP_MAX,col=...}, ...]
-                    param.put("topN", 10);
-                    param.put("intervalSec", 300);
-
-                    if ("pie".equals(userWidgetConfig.getChartType())) {
-                        List<DashboardDto.WidgetPieChartData> pieChartData = dashboardMapper.getWidgetIcmpPieChartData(param);
-                        userWidget.setChartData(pieChartData);
-                    }else if ("line".equals(userWidgetConfig.getChartType())) {
-                        List<DashboardDto.WidgetLineChartData> lineChartData = dashboardMapper.getWidgetIcmpLineChartData(param);
-                        userWidget.setChartData(lineChartData);
-                    }else if ("bar".equals(userWidgetConfig.getChartType())) {
-                        List<DashboardDto.WidgetBarChartData> barChartData = dashboardMapper.getWidgetIcmpBarChartData(param);
-                        userWidget.setChartData(barChartData);
-                    }
-                }
-                // 장애 현황
-                if ("ALERT_SUMMARY".equals(userWidget.getWidgetCode())) {
-                    DashboardDto.WidgetAlertCntData cntData = dashboardMapper.getWidgetAlertSummary();
-                    userWidget.setCntData(cntData);
-                }else if ("DEVICE_SUMMARY".equals(userWidget.getWidgetCode())) {
-                    List<DashboardDto.DevCodeData> devCodeList =  dashboardMapper.getDevCode();
-                    DashboardDto.WidgetDeviceCntData deviceCnt = new DashboardDto.WidgetDeviceCntData();
-
-                    for (DashboardDto.DevCodeData devCode : devCodeList) {
-                        List<Long> devCodeIdList = dashboardMapper.getDevCodeAllId(devCode.getDevCodeId()); // 하위 장비코드조회
-                        Integer count = dashboardMapper.getDeviceCountBydevCodeId(devCodeIdList);
-
-                        if ("네트워크".equals(devCode.getCodeNm())) {
-                            deviceCnt.setNetworkCnt(count);
-                        }else if ("서버".equals(devCode.getCodeNm())) {
-                            deviceCnt.setServerCnt(count);
-                        }else if ("전송".equals(devCode.getCodeNm())) {
-                            deviceCnt.setTranCnt(count);
-                        }else if ("FMS".equals(devCode.getCodeNm())) {
-                            deviceCnt.setFmsCnt(count);
+            List<CompletableFuture<Void>> futures = userWidgets.stream()
+                    .map(userWidget -> CompletableFuture.runAsync(() -> {
+                        try {
+                            loadWidgetData(userWidget, om);
+                        } catch (Exception e) {
+                            log.warn("위젯 데이터 로드 실패 - widgetId: {}, error: {}", userWidget.getWidgetId(), e.getMessage());
                         }
-                    }
-                    userWidget.setCntData(deviceCnt);
-                }
-            }
-            
+                    }, executor))
+                    .toList();
+
+            // 모든 작업 완료 대기
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            executor.shutdown();
+
             return userWidgets;
-        }catch (Exception e) {
+        } catch (Exception e) {
             log.warn("대시보드 사용자 위젯 조회 실패 - {}", e.getMessage());
             return Collections.singletonList(DashboardDto.UserWidgetRes.builder().build());
+        }
+    }
+
+    /**
+     * 기본 대시보드 특정 위젯 데이터 갱신
+     */
+    public DashboardDto.DefaultWidgetRes getDefaultWidgetById(Long widgetId) {
+        try {
+            DashboardDto.DefaultWidgetRes defaultWidget = dashboardMapper.getDefaultWidgetById(widgetId);
+            if (defaultWidget == null) {
+                return null;
+            }
+            ObjectMapper om = new ObjectMapper();
+            loadDefaultWidgetData(defaultWidget, om);
+            return defaultWidget;
+        } catch (Exception e) {
+            log.warn("기본 위젯 단건 조회 실패 - widgetId: {}, error: {}", widgetId, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 사용자 대시보드 특정 위젯 데이터 갱신
+     */
+    public DashboardDto.UserWidgetRes getUserWidgetById(Long userDashboardWidgetId) {
+        try {
+            DashboardDto.UserWidgetRes userWidget = dashboardMapper.getUserWidgetById(userDashboardWidgetId);
+            if (userWidget == null) {
+                return null;
+            }
+            ObjectMapper om = new ObjectMapper();
+            loadWidgetData(userWidget, om);
+            return userWidget;
+        } catch (Exception e) {
+            log.warn("사용자 위젯 단건 조회 실패 - userDashboardWidgetId: {}, error: {}", userDashboardWidgetId, e.getMessage());
+            return null;
+        }
+    }
+
+    private void loadDefaultWidgetData(DashboardDto.DefaultWidgetRes defaultWidget, ObjectMapper om) throws Exception {
+        DashboardDto.UserWidgetConfig userWidgetConfig = om.readValue(defaultWidget.getConfig(), DashboardDto.UserWidgetConfig.class);
+
+        // 그룹구분
+        if ("CPU_MEM".equals(userWidgetConfig.getGroup())) {
+            List<Map<String, String>> metrics = toCpuMemMetricParams(userWidgetConfig.getElements());
+            if (metrics.isEmpty()) return;
+
+            Map<String, Object> param = new HashMap<>();
+            param.put("metrics", metrics);
+            param.put("topN", 10);
+            param.put("intervalSec", 300);
+
+            if ("pie".equals(userWidgetConfig.getChartType())) {
+                defaultWidget.setChartData(dashboardMapper.getWidgetCpuMemPieChartData(param));
+            } else if ("line".equals(userWidgetConfig.getChartType())) {
+                defaultWidget.setChartData(dashboardMapper.getWidgetCpuMemLineChartData(param));
+            } else if ("bar".equals(userWidgetConfig.getChartType())) {
+                defaultWidget.setChartData(dashboardMapper.getWidgetCpuMemBarChartData(param));
+            }
+        } else if ("TRAFFIC".equals(userWidgetConfig.getGroup())) {
+            List<Map<String, String>> metrics = toTrafficMetricParams(userWidgetConfig.getElements());
+            if (metrics.isEmpty()) return;
+
+            Map<String, Object> param = new HashMap<>();
+            param.put("metrics", metrics);
+            param.put("topN", 10);
+            param.put("intervalSec", 300);
+
+            if ("pie".equals(userWidgetConfig.getChartType())) {
+                defaultWidget.setChartData(dashboardMapper.getWidgetTrafficPieChartData(param));
+            } else if ("line".equals(userWidgetConfig.getChartType())) {
+                defaultWidget.setChartData(dashboardMapper.getWidgetTrafficLineChartData(param));
+            } else if ("bar".equals(userWidgetConfig.getChartType())) {
+                defaultWidget.setChartData(dashboardMapper.getWidgetTrafficBarChartData(param));
+            }
+        } else if ("ICMP".equals(userWidgetConfig.getGroup())) {
+            List<Map<String, String>> metrics = toMetricParams(userWidgetConfig.getElements());
+            if (metrics.isEmpty()) return;
+
+            Map<String, Object> param = new HashMap<>();
+            param.put("metrics", metrics);
+            param.put("topN", 10);
+            param.put("intervalSec", 300);
+
+            if ("pie".equals(userWidgetConfig.getChartType())) {
+                defaultWidget.setChartData(dashboardMapper.getWidgetIcmpPieChartData(param));
+            } else if ("line".equals(userWidgetConfig.getChartType())) {
+                defaultWidget.setChartData(dashboardMapper.getWidgetIcmpLineChartData(param));
+            } else if ("bar".equals(userWidgetConfig.getChartType())) {
+                defaultWidget.setChartData(dashboardMapper.getWidgetIcmpBarChartData(param));
+            }
+        }
+
+        // 장애 현황
+        if ("ALERT_SUMMARY".equals(defaultWidget.getWidgetCode())) {
+            defaultWidget.setCntData(dashboardMapper.getWidgetAlertSummary());
+        } else if ("DEVICE_SUMMARY".equals(defaultWidget.getWidgetCode())) {
+            List<DashboardDto.DevCodeData> devCodeList = dashboardMapper.getDevCode();
+            DashboardDto.WidgetDeviceCntData deviceCnt = new DashboardDto.WidgetDeviceCntData();
+
+            for (DashboardDto.DevCodeData devCode : devCodeList) {
+                List<Long> devCodeIdList = dashboardMapper.getDevCodeAllId(devCode.getDevCodeId());
+                Integer count = dashboardMapper.getDeviceCountBydevCodeId(devCodeIdList);
+
+                if ("네트워크".equals(devCode.getCodeNm())) {
+                    deviceCnt.setNetworkCnt(count);
+                } else if ("서버".equals(devCode.getCodeNm())) {
+                    deviceCnt.setServerCnt(count);
+                } else if ("전송".equals(devCode.getCodeNm())) {
+                    deviceCnt.setTranCnt(count);
+                } else if ("FMS".equals(devCode.getCodeNm())) {
+                    deviceCnt.setFmsCnt(count);
+                }
+            }
+            defaultWidget.setCntData(deviceCnt);
+        }
+    }
+
+    private void loadWidgetData(DashboardDto.UserWidgetRes userWidget, ObjectMapper om) throws Exception {
+        DashboardDto.UserWidgetConfig userWidgetConfig = om.readValue(userWidget.getConfig(), DashboardDto.UserWidgetConfig.class);
+
+        // 그룹구분
+        if ("CPU_MEM".equals(userWidgetConfig.getGroup())) {
+            List<Map<String, String>> metrics = toCpuMemMetricParams(userWidgetConfig.getElements());
+            if (metrics.isEmpty()) return;
+
+            Map<String, Object> param = new HashMap<>();
+            param.put("metrics", metrics);
+            param.put("topN", 10);
+            param.put("intervalSec", 300);
+
+            if ("pie".equals(userWidgetConfig.getChartType())) {
+                userWidget.setChartData(dashboardMapper.getWidgetCpuMemPieChartData(param));
+            } else if ("line".equals(userWidgetConfig.getChartType())) {
+                userWidget.setChartData(dashboardMapper.getWidgetCpuMemLineChartData(param));
+            } else if ("bar".equals(userWidgetConfig.getChartType())) {
+                userWidget.setChartData(dashboardMapper.getWidgetCpuMemBarChartData(param));
+            }
+        } else if ("TRAFFIC".equals(userWidgetConfig.getGroup())) {
+            List<Map<String, String>> metrics = toTrafficMetricParams(userWidgetConfig.getElements());
+            if (metrics.isEmpty()) return;
+
+            Map<String, Object> param = new HashMap<>();
+            param.put("metrics", metrics);
+            param.put("topN", 10);
+            param.put("intervalSec", 300);
+
+            if ("pie".equals(userWidgetConfig.getChartType())) {
+                userWidget.setChartData(dashboardMapper.getWidgetTrafficPieChartData(param));
+            } else if ("line".equals(userWidgetConfig.getChartType())) {
+                userWidget.setChartData(dashboardMapper.getWidgetTrafficLineChartData(param));
+            } else if ("bar".equals(userWidgetConfig.getChartType())) {
+                userWidget.setChartData(dashboardMapper.getWidgetTrafficBarChartData(param));
+            }
+        } else if ("ICMP".equals(userWidgetConfig.getGroup())) {
+            List<Map<String, String>> metrics = toMetricParams(userWidgetConfig.getElements());
+            if (metrics.isEmpty()) return;
+
+            Map<String, Object> param = new HashMap<>();
+            param.put("metrics", metrics);
+            param.put("topN", 10);
+            param.put("intervalSec", 300);
+
+            if ("pie".equals(userWidgetConfig.getChartType())) {
+                userWidget.setChartData(dashboardMapper.getWidgetIcmpPieChartData(param));
+            } else if ("line".equals(userWidgetConfig.getChartType())) {
+                userWidget.setChartData(dashboardMapper.getWidgetIcmpLineChartData(param));
+            } else if ("bar".equals(userWidgetConfig.getChartType())) {
+                userWidget.setChartData(dashboardMapper.getWidgetIcmpBarChartData(param));
+            }
+        }
+
+        // 장애 현황
+        if ("ALERT_SUMMARY".equals(userWidget.getWidgetCode())) {
+            userWidget.setCntData(dashboardMapper.getWidgetAlertSummary());
+        } else if ("DEVICE_SUMMARY".equals(userWidget.getWidgetCode())) {
+            List<DashboardDto.DevCodeData> devCodeList = dashboardMapper.getDevCode();
+            DashboardDto.WidgetDeviceCntData deviceCnt = new DashboardDto.WidgetDeviceCntData();
+
+            for (DashboardDto.DevCodeData devCode : devCodeList) {
+                List<Long> devCodeIdList = dashboardMapper.getDevCodeAllId(devCode.getDevCodeId());
+                Integer count = dashboardMapper.getDeviceCountBydevCodeId(devCodeIdList);
+
+                if ("네트워크".equals(devCode.getCodeNm())) {
+                    deviceCnt.setNetworkCnt(count);
+                } else if ("서버".equals(devCode.getCodeNm())) {
+                    deviceCnt.setServerCnt(count);
+                } else if ("전송".equals(devCode.getCodeNm())) {
+                    deviceCnt.setTranCnt(count);
+                } else if ("FMS".equals(devCode.getCodeNm())) {
+                    deviceCnt.setFmsCnt(count);
+                }
+            }
+            userWidget.setCntData(deviceCnt);
         }
     }
 
@@ -282,7 +332,7 @@ public class DashboardService {
             List<DashboardDto.DefaultWidgetRes> defaultWidget = dashboardMapper.getDefaultWidget();
 
             if (defaultWidget.size() > 0) {
-                // 다 지움
+                // 다 지움장비 목록 조회 성공
                 List<Long> keepIds = new ArrayList<>();
                 keepIds.add(0L);
                 dashboardMapper.deleteUserWidget(Map.of("userId", userId, "keepIds", keepIds));
@@ -302,7 +352,6 @@ public class DashboardService {
             return null;
         }
     }
-
 
     public static List<String> normalizeElements(List<String> elements) {
         if (elements == null) return List.of();
@@ -358,6 +407,7 @@ public class DashboardService {
         }
         return metrics;
     }
+
 
     public static class IcmpMetricMap {
         // key = elements 값, value = DB 컬럼(또는 식)

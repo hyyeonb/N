@@ -13,7 +13,11 @@ public interface DashboardMapper {
 
     List<DashboardDto.DefaultWidgetRes> getDefaultWidget();
 
+    DashboardDto.DefaultWidgetRes getDefaultWidgetById(@Param("widgetId") Long widgetId);
+
     List<DashboardDto.UserWidgetRes> getUserWidget(Long userId);
+
+    DashboardDto.UserWidgetRes getUserWidgetById(@Param("userDashboardWidgetId") Long userDashboardWidgetId);
 
     int updateUserWidget(@Param("userId") Long userId, @Param("widget") DashboardDto.UserWidgetReq widget);
 

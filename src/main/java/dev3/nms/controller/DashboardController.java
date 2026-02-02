@@ -43,6 +43,22 @@ public class DashboardController {
     }
 
     /**
+     * 기본 대시보드 특정 위젯 데이터 갱신
+     */
+    @GetMapping("/default-widget/{widgetId}")
+    public ResponseEntity<ResVO<DashboardDto.DefaultWidgetRes>> getDefaultWidgetById(
+            @PathVariable Long widgetId
+    ) {
+        DashboardDto.DefaultWidgetRes defaultWidgetRes = dashboardService.getDefaultWidgetById(widgetId);
+        if (defaultWidgetRes == null) {
+            ResVO<DashboardDto.DefaultWidgetRes> response = new ResVO<>(404, "위젯을 찾을 수 없습니다", null);
+            return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+        }
+        ResVO<DashboardDto.DefaultWidgetRes> response = new ResVO<>(200, "조회 성공", defaultWidgetRes);
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    /**
      * 대시보드 위젯 표출 조회
      */
     @GetMapping("/user-widget/{userId}")
@@ -51,6 +67,22 @@ public class DashboardController {
     ) {
         List<DashboardDto.UserWidgetRes> userWidgets = dashboardService.getUserWidget(userId);
         ResVO<List<DashboardDto.UserWidgetRes>> response = new ResVO<>(200, "조회 성공", userWidgets);
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    /**
+     * 사용자 대시보드 특정 위젯 데이터 갱신
+     */
+    @GetMapping("/user-widget/refresh/{userDashboardWidgetId}")
+    public ResponseEntity<ResVO<DashboardDto.UserWidgetRes>> getUserWidgetById(
+            @PathVariable Long userDashboardWidgetId
+    ) {
+        DashboardDto.UserWidgetRes userWidgetRes = dashboardService.getUserWidgetById(userDashboardWidgetId);
+        if (userWidgetRes == null) {
+            ResVO<DashboardDto.UserWidgetRes> response = new ResVO<>(404, "위젯을 찾을 수 없습니다", null);
+            return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+        }
+        ResVO<DashboardDto.UserWidgetRes> response = new ResVO<>(200, "조회 성공", userWidgetRes);
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
@@ -78,4 +110,5 @@ public class DashboardController {
         ResVO<List<DashboardDto.UserWidgetRes>> response = new ResVO<>(200, "리셋 성공", userWidgets);
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
+
 }
