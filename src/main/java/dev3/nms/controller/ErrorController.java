@@ -29,19 +29,20 @@ public class ErrorController {
     public ResVO<Map<String, Object>> getErrors(
             @RequestParam(required = false) String errorLevel,
             @RequestParam(required = false) Long deviceId,
+            @RequestParam(required = false) Long devCodeId,
             @RequestParam(required = false) String deviceName,
             @RequestParam(required = false) String deviceIp,
             @RequestParam(required = false) String errorMessage,
             @RequestParam(required = false) String groupName) {
 
-        List<ErrorVO> errors = errorService.getErrors(errorLevel, deviceId, deviceName, deviceIp, errorMessage, groupName);
-        int totalCount = errorService.countErrors(errorLevel, deviceId, deviceName, deviceIp, errorMessage, groupName);
+        List<ErrorVO> errors = errorService.getErrors(errorLevel, deviceId, devCodeId, deviceName, deviceIp, errorMessage, groupName);
+        int totalCount = errorService.countErrors(errorLevel, deviceId, devCodeId, deviceName, deviceIp, errorMessage, groupName);
 
         // 등급별 카운트 (검색 조건 적용)
-        int criticalCount = errorService.countErrors("C", deviceId, deviceName, deviceIp, errorMessage, groupName);
-        int majorCount = errorService.countErrors("M", deviceId, deviceName, deviceIp, errorMessage, groupName);
-        int minorCount = errorService.countErrors("N", deviceId, deviceName, deviceIp, errorMessage, groupName);
-        int warningCount = errorService.countErrors("W", deviceId, deviceName, deviceIp, errorMessage, groupName);
+        int criticalCount = errorService.countErrors("C", deviceId, devCodeId, deviceName, deviceIp, errorMessage, groupName);
+        int majorCount = errorService.countErrors("M", deviceId, devCodeId, deviceName, deviceIp, errorMessage, groupName);
+        int minorCount = errorService.countErrors("N", deviceId, devCodeId, deviceName, deviceIp, errorMessage, groupName);
+        int warningCount = errorService.countErrors("W", deviceId, devCodeId, deviceName, deviceIp, errorMessage, groupName);
 
         Map<String, Object> result = new HashMap<>();
         result.put("list", errors);
@@ -96,16 +97,20 @@ public class ErrorController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String errorLevel,
             @RequestParam(required = false) Long deviceId,
+            @RequestParam(required = false) Long devCodeId,
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate,
             @RequestParam(required = false) String deviceName,
             @RequestParam(required = false) String deviceIp,
             @RequestParam(required = false) String errorMessage,
-            @RequestParam(required = false) String groupName) {
+            @RequestParam(required = false) String groupName,
+            @RequestParam(defaultValue = "CLEAR_AT") String sortKey,
+            @RequestParam(defaultValue = "desc") String sortDirection) {
 
         PageVO<ErrorHistoryVO> pageVO = errorService.getErrorHistory(
-                page, size, errorLevel, deviceId, startDate, endDate,
-                deviceName, deviceIp, errorMessage, groupName);
+                page, size, errorLevel, deviceId, devCodeId, startDate, endDate,
+                deviceName, deviceIp, errorMessage, groupName,
+                sortKey, sortDirection);
 
         return new ResVO<>(200, "조회 성공", pageVO);
     }

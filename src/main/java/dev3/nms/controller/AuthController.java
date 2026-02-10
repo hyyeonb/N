@@ -246,6 +246,16 @@ public class AuthController {
     }
 
     /**
+     * 전화번호 중복 체크 API
+     */
+    @GetMapping("/check-phone")
+    public ResVO<Boolean> checkPhone(@RequestParam("phone") String phone) {
+        boolean available = authService.isPhoneAvailable(phone);
+        String message = available ? "사용 가능한 전화번호입니다." : "이미 사용 중인 전화번호입니다.";
+        return new ResVO<>(200, message, available);
+    }
+
+    /**
      * 아이디 찾기 API
      */
     @PostMapping("/find-id")

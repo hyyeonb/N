@@ -615,15 +615,24 @@ public class AuthService {
             }
         }
 
-        // 2. 비밀번호 암호화
+        // 2. 전화번호 중복 체크
+        if (user.getPHONE() != null && !user.getPHONE().isEmpty()) {
+            Optional<UserVO> existingUser = userMapper.findByPhone(user.getPHONE());
+            if (existingUser.isPresent()) {
+                log.warn("전화번호 중복 - PHONE: {}", user.getPHONE());
+                throw new IllegalArgumentException("이미 사용 중인 전화번호입니다.");
+            }
+        }
+
+        // 3. 비밀번호 암호화
         String encodedPassword = passwordEncoder.encode(user.getPASSWORD());
         user.setPASSWORD(encodedPassword);
 
-        // 3. DB 저장 (LOGIN_ID/EMAIL 중복 시 DuplicateKeyException → GlobalExceptionHandler)
+        // 4. DB 저장 (LOGIN_ID/EMAIL 중복 시 DuplicateKeyException → GlobalExceptionHandler)
         userMapper.insertLocal(user);
         log.info("[AuthService] 회원가입 완료 - USER_ID: {}", user.getUSER_ID());
 
-        // 4. 로그인 히스토리 저장
+        // 5. 로그인 히스토리 저장
         saveLoginHistory(user.getUSER_ID(), "LOCAL", ipAddress, userAgent);
 
         return user;
@@ -685,6 +694,16 @@ public class AuthService {
             return true;
         }
         return userMapper.findByEmail(email).isEmpty();
+    }
+
+    /**
+     * 전화번호 중복 체크
+     */
+    public boolean isPhoneAvailable(String phone) {
+        if (phone == null || phone.trim().isEmpty()) {
+            return true;
+        }
+        return userMapper.findByPhone(phone).isEmpty();
     }
 
     /**

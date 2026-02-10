@@ -41,6 +41,11 @@ public interface UserMapper {
     void update(UserVO user);
 
     /**
+     * 전화번호로 사용자 조회 (전화번호 중복 체크)
+     */
+    Optional<UserVO> findByPhone(@Param("PHONE") String phone);
+
+    /**
      * 이름과 전화번호로 사용자 조회 (아이디 찾기)
      */
     Optional<UserVO> findByNameAndPhone(@Param("NAME") String name, @Param("PHONE") String phone);

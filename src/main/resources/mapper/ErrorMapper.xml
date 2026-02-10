@@ -22,6 +22,7 @@
             g.GROUP_NAME
         FROM f_error_t e
         LEFT JOIN r_device_t d ON e.DEVICE_ID = d.DEVICE_ID
+        LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
         LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
         WHERE 1=1
         <if test="errorLevel != null and errorLevel != ''">
@@ -29,6 +30,17 @@
         </if>
         <if test="deviceId != null">
             AND e.DEVICE_ID = #{deviceId}
+        </if>
+        <if test="devCodeId != null">
+            AND m.DEV_CODE_ID IN (
+                WITH RECURSIVE dev_code_tree AS (
+                    SELECT DEV_CODE_ID FROM b_dev_code_t WHERE DEV_CODE_ID = #{devCodeId}
+                    UNION ALL
+                    SELECT dc.DEV_CODE_ID FROM b_dev_code_t dc
+                    INNER JOIN dev_code_tree dct ON dc.PARENT_DEV_CODE_ID = dct.DEV_CODE_ID
+                )
+                SELECT DEV_CODE_ID FROM dev_code_tree
+            )
         </if>
         <if test="deviceName != null and deviceName != ''">
             AND d.DEVICE_NAME LIKE CONCAT('%', #{deviceName}, '%')
@@ -50,6 +62,7 @@
         SELECT COUNT(*)
         FROM f_error_t e
         LEFT JOIN r_device_t d ON e.DEVICE_ID = d.DEVICE_ID
+        LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
         LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
         WHERE 1=1
         <if test="errorLevel != null and errorLevel != ''">
@@ -57,6 +70,17 @@
         </if>
         <if test="deviceId != null">
             AND e.DEVICE_ID = #{deviceId}
+        </if>
+        <if test="devCodeId != null">
+            AND m.DEV_CODE_ID IN (
+                WITH RECURSIVE dev_code_tree AS (
+                    SELECT DEV_CODE_ID FROM b_dev_code_t WHERE DEV_CODE_ID = #{devCodeId}
+                    UNION ALL
+                    SELECT dc.DEV_CODE_ID FROM b_dev_code_t dc
+                    INNER JOIN dev_code_tree dct ON dc.PARENT_DEV_CODE_ID = dct.DEV_CODE_ID
+                )
+                SELECT DEV_CODE_ID FROM dev_code_tree
+            )
         </if>
         <if test="deviceName != null and deviceName != ''">
             AND d.DEVICE_NAME LIKE CONCAT('%', #{deviceName}, '%')
@@ -119,6 +143,7 @@
             g.GROUP_NAME
         FROM f_error_history_t h
         LEFT JOIN r_device_t d ON h.DEVICE_ID = d.DEVICE_ID
+        LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
         LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
         WHERE 1=1
         <if test="errorLevel != null and errorLevel != ''">
@@ -126,6 +151,17 @@
         </if>
         <if test="deviceId != null">
             AND h.DEVICE_ID = #{deviceId}
+        </if>
+        <if test="devCodeId != null">
+            AND m.DEV_CODE_ID IN (
+                WITH RECURSIVE dev_code_tree AS (
+                    SELECT DEV_CODE_ID FROM b_dev_code_t WHERE DEV_CODE_ID = #{devCodeId}
+                    UNION ALL
+                    SELECT dc.DEV_CODE_ID FROM b_dev_code_t dc
+                    INNER JOIN dev_code_tree dct ON dc.PARENT_DEV_CODE_ID = dct.DEV_CODE_ID
+                )
+                SELECT DEV_CODE_ID FROM dev_code_tree
+            )
         </if>
         <if test="startDate != null and startDate != ''">
             AND h.OCCUR_AT >= #{startDate}
@@ -145,7 +181,20 @@
         <if test="groupName != null and groupName != ''">
             AND g.GROUP_NAME LIKE CONCAT('%', #{groupName}, '%')
         </if>
-        ORDER BY h.CLEAR_AT DESC
+        ORDER BY
+        <choose>
+            <when test="sortKey == 'ERROR_LEVEL'">FIELD(h.ERROR_LEVEL, 'C', 'M', 'N', 'W')</when>
+            <when test="sortKey == 'DEVICE_NAME'">d.DEVICE_NAME</when>
+            <when test="sortKey == 'DEVICE_IP'">h.DEVICE_IP</when>
+            <when test="sortKey == 'GROUP_NAME'">g.GROUP_NAME</when>
+            <when test="sortKey == 'ERROR_MESSAGE'">h.ERROR_MESSAGE</when>
+            <when test="sortKey == 'OCCUR_AT'">h.OCCUR_AT</when>
+            <otherwise>h.CLEAR_AT</otherwise>
+        </choose>
+        <choose>
+            <when test="sortDirection == 'asc'">ASC</when>
+            <otherwise>DESC</otherwise>
+        </choose>
         LIMIT #{size} OFFSET #{offset}
     </select>
 
@@ -154,6 +203,7 @@
         SELECT COUNT(*)
         FROM f_error_history_t h
         LEFT JOIN r_device_t d ON h.DEVICE_ID = d.DEVICE_ID
+        LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
         LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
         WHERE 1=1
         <if test="errorLevel != null and errorLevel != ''">
@@ -161,6 +211,17 @@
         </if>
         <if test="deviceId != null">
             AND h.DEVICE_ID = #{deviceId}
+        </if>
+        <if test="devCodeId != null">
+            AND m.DEV_CODE_ID IN (
+                WITH RECURSIVE dev_code_tree AS (
+                    SELECT DEV_CODE_ID FROM b_dev_code_t WHERE DEV_CODE_ID = #{devCodeId}
+                    UNION ALL
+                    SELECT dc.DEV_CODE_ID FROM b_dev_code_t dc
+                    INNER JOIN dev_code_tree dct ON dc.PARENT_DEV_CODE_ID = dct.DEV_CODE_ID
+                )
+                SELECT DEV_CODE_ID FROM dev_code_tree
+            )
         </if>
         <if test="startDate != null and startDate != ''">
             AND h.OCCUR_AT >= #{startDate}
