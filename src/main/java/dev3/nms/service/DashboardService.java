@@ -3,12 +3,11 @@ package dev3.nms.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev3.nms.mapper.DashboardMapper;
 import dev3.nms.vo.dashboard.DashboardDto;
-import dev3.nms.vo.topo.TopoDto;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.servlet.tags.BindErrorsTag;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -21,6 +20,13 @@ import java.util.concurrent.Executors;
 public class DashboardService {
 
     private final DashboardMapper dashboardMapper;
+    private final ObjectMapper om = new ObjectMapper();
+    private final ExecutorService widgetExecutor = Executors.newFixedThreadPool(10);
+
+    @PreDestroy
+    public void destroy() {
+        widgetExecutor.shutdown();
+    }
 
 
     public List<DashboardDto.WidgetsRes> getWidgets() {
@@ -35,10 +41,7 @@ public class DashboardService {
     public List<DashboardDto.DefaultWidgetRes> getDefaultWidget() {
         try {
             List<DashboardDto.DefaultWidgetRes> defaultWidgetList = dashboardMapper.getDefaultWidget();
-            ObjectMapper om = new ObjectMapper();
-
-            // 병렬 처리를 위한 ExecutorService
-            ExecutorService executor = Executors.newFixedThreadPool(Math.min(defaultWidgetList.size(), 10));
+            if (defaultWidgetList.isEmpty()) return defaultWidgetList;
 
             List<CompletableFuture<Void>> futures = defaultWidgetList.stream()
                     .map(defaultWidget -> CompletableFuture.runAsync(() -> {
@@ -47,13 +50,10 @@ public class DashboardService {
                         } catch (Exception e) {
                             log.warn("기본 위젯 데이터 로드 실패 - widgetId: {}, error: {}", defaultWidget.getWidgetId(), e.getMessage());
                         }
-                    }, executor))
+                    }, widgetExecutor))
                     .toList();
 
-            // 모든 작업 완료 대기
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-            executor.shutdown();
-
             return defaultWidgetList;
         } catch (Exception e) {
             log.warn("대시보드 기본 위젯 조회 실패 - {}", e.getMessage());
@@ -64,10 +64,7 @@ public class DashboardService {
     public List<DashboardDto.UserWidgetRes> getUserWidget(Long userId) {
         try {
             List<DashboardDto.UserWidgetRes> userWidgets = dashboardMapper.getUserWidget(userId);
-            ObjectMapper om = new ObjectMapper();
-
-            // 병렬 처리를 위한 ExecutorService
-            ExecutorService executor = Executors.newFixedThreadPool(Math.min(userWidgets.size(), 10));
+            if (userWidgets.isEmpty()) return userWidgets;
 
             List<CompletableFuture<Void>> futures = userWidgets.stream()
                     .map(userWidget -> CompletableFuture.runAsync(() -> {
@@ -76,13 +73,10 @@ public class DashboardService {
                         } catch (Exception e) {
                             log.warn("위젯 데이터 로드 실패 - widgetId: {}, error: {}", userWidget.getWidgetId(), e.getMessage());
                         }
-                    }, executor))
+                    }, widgetExecutor))
                     .toList();
 
-            // 모든 작업 완료 대기
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-            executor.shutdown();
-
             return userWidgets;
         } catch (Exception e) {
             log.warn("대시보드 사용자 위젯 조회 실패 - {}", e.getMessage());
@@ -99,7 +93,6 @@ public class DashboardService {
             if (defaultWidget == null) {
                 return null;
             }
-            ObjectMapper om = new ObjectMapper();
             loadDefaultWidgetData(defaultWidget, om);
             return defaultWidget;
         } catch (Exception e) {
@@ -117,7 +110,6 @@ public class DashboardService {
             if (userWidget == null) {
                 return null;
             }
-            ObjectMapper om = new ObjectMapper();
             loadWidgetData(userWidget, om);
             return userWidget;
         } catch (Exception e) {
