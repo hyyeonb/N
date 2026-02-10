@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="dev3.nms.mapper.DeviceSshMapper">
+
+    <select id="findByDeviceId" parameterType="int"
+            resultType="dev3.nms.vo.mgmt.DeviceSshVO">
+        SELECT DEVICE_SSH_ID, DEVICE_ID, SSH_USER, SSH_PASS,
+               SSH_PORT, CONNECT_AS, REG_DT, UPT_DT
+        FROM r_device_ssh_t
+        WHERE DEVICE_ID = #{deviceId} AND DEL_DT IS NULL
+    </select>
+
+    <insert id="insertDeviceSsh"
+            parameterType="dev3.nms.vo.mgmt.DeviceSshVO"
+            useGeneratedKeys="true" keyProperty="DEVICE_SSH_ID">
+        INSERT INTO r_device_ssh_t
+            (DEVICE_ID, SSH_USER, SSH_PASS, SSH_PORT, CONNECT_AS, REG_DT)
+        VALUES
+            (#{DEVICE_ID}, #{SSH_USER}, #{SSH_PASS}, #{SSH_PORT},
+             #{CONNECT_AS}, NOW())
+    </insert>
+
+    <update id="updateDeviceSsh"
+            parameterType="dev3.nms.vo.mgmt.DeviceSshVO">
+        UPDATE r_device_ssh_t
+        SET SSH_USER = #{SSH_USER},
+            SSH_PASS = #{SSH_PASS},
+            SSH_PORT = #{SSH_PORT},
+            CONNECT_AS = #{CONNECT_AS},
+            UPT_DT = NOW()
+        WHERE DEVICE_ID = #{DEVICE_ID} AND DEL_DT IS NULL
+    </update>
+
+    <update id="deleteByDeviceId" parameterType="int">
+        UPDATE r_device_ssh_t
+        SET DEL_DT = NOW()
+        WHERE DEVICE_ID = #{deviceId} AND DEL_DT IS NULL
+    </update>
+
+    <select id="existsByDeviceId" parameterType="int"
+            resultType="boolean">
+        SELECT COUNT(*) > 0
+        FROM r_device_ssh_t
+        WHERE DEVICE_ID = #{deviceId} AND DEL_DT IS NULL
+    </select>
+
+</mapper>

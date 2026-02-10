@@ -39,6 +39,12 @@ dependencies {
     // MariaDB Driver
     implementation 'org.mariadb.jdbc:mariadb-java-client:3.3.2'
 
+    // Redis
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+    // Jackson JSR310 (Java 8 Date/Time support)
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+
     // SNMP Library
     implementation 'org.snmp4j:snmp4j:3.8.2'
 

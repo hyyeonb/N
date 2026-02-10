@@ -15,6 +15,7 @@ public interface ErrorMapper {
      */
     List<ErrorVO> selectErrors(@Param("errorLevel") String errorLevel,
                                 @Param("deviceId") Long deviceId,
+                                @Param("devCodeId") Long devCodeId,
                                 @Param("deviceName") String deviceName,
                                 @Param("deviceIp") String deviceIp,
                                 @Param("errorMessage") String errorMessage,
@@ -25,6 +26,7 @@ public interface ErrorMapper {
      */
     int countErrors(@Param("errorLevel") String errorLevel,
                     @Param("deviceId") Long deviceId,
+                    @Param("devCodeId") Long devCodeId,
                     @Param("deviceName") String deviceName,
                     @Param("deviceIp") String deviceIp,
                     @Param("errorMessage") String errorMessage,
@@ -47,12 +49,15 @@ public interface ErrorMapper {
      */
     List<ErrorHistoryVO> selectErrorHistory(@Param("errorLevel") String errorLevel,
                                              @Param("deviceId") Long deviceId,
+                                             @Param("devCodeId") Long devCodeId,
                                              @Param("startDate") String startDate,
                                              @Param("endDate") String endDate,
                                              @Param("deviceName") String deviceName,
                                              @Param("deviceIp") String deviceIp,
                                              @Param("errorMessage") String errorMessage,
                                              @Param("groupName") String groupName,
+                                             @Param("sortKey") String sortKey,
+                                             @Param("sortDirection") String sortDirection,
                                              @Param("offset") int offset,
                                              @Param("size") int size);
 
@@ -61,6 +66,7 @@ public interface ErrorMapper {
      */
     int countErrorHistory(@Param("errorLevel") String errorLevel,
                           @Param("deviceId") Long deviceId,
+                          @Param("devCodeId") Long devCodeId,
                           @Param("startDate") String startDate,
                           @Param("endDate") String endDate,
                           @Param("deviceName") String deviceName,

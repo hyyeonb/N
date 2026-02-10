@@ -72,6 +72,16 @@
         WHERE USER_ID = #{USER_ID}
     </update>
 
+    <!-- 전화번호로 사용자 조회 (전화번호 중복 체크) -->
+    <select id="findByPhone" resultMap="UserResultMap">
+        SELECT *
+        FROM USER
+        WHERE PHONE = #{PHONE}
+          AND PHONE IS NOT NULL
+          AND PHONE != ''
+          AND SOCIAL_TYPE = 'LOCAL'
+    </select>
+
     <!-- 이름과 전화번호로 사용자 조회 (아이디 찾기) -->
     <select id="findByNameAndPhone" resultMap="UserResultMap">
         SELECT *

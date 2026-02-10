@@ -17,6 +17,7 @@ import dev3.nms.vo.common.PageVO;
 import dev3.nms.vo.common.ResVO;
 import dev3.nms.vo.mgmt.DeviceRegistrationResultVO;
 import dev3.nms.vo.mgmt.DeviceScopeVO;
+import dev3.nms.vo.mgmt.DeviceSshVO;
 import dev3.nms.vo.mgmt.DeviceVO;
 import dev3.nms.vo.mgmt.GroupVO;
 import dev3.nms.vo.mgmt.ModelVO;
@@ -706,6 +707,51 @@ public class MgmtController {
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
             return new ResponseEntity<>(new ResVO<>(500, "관제 설정 수정 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    // ==================== Device SSH (접속 정보) 관련 API ====================
+
+    /**
+     * 장비 접속 정보 조회 API
+     */
+    @GetMapping("/devices/{deviceId}/ssh")
+    public ResponseEntity<ResVO<DeviceSshVO>> getDeviceSsh(@PathVariable int deviceId) {
+        try {
+            DeviceSshVO ssh = deviceService.getDeviceSsh(deviceId);
+            return new ResponseEntity<>(new ResVO<>(200, "접속 정보 조회 성공", ssh), HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("접속 정보 조회 실패 - deviceId: {}", deviceId, e);
+            return new ResponseEntity<>(new ResVO<>(500, "접속 정보 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * 장비 접속 정보 저장/수정 API
+     */
+    @PutMapping("/devices/{deviceId}/ssh")
+    public ResponseEntity<ResVO<DeviceSshVO>> saveDeviceSsh(@PathVariable int deviceId, @RequestBody DeviceSshVO ssh) {
+        try {
+            ssh.setDEVICE_ID(deviceId);
+            DeviceSshVO saved = deviceService.saveOrUpdateDeviceSsh(ssh);
+            return new ResponseEntity<>(new ResVO<>(200, "접속 정보 저장 성공", saved), HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("접속 정보 저장 실패 - deviceId: {}", deviceId, e);
+            return new ResponseEntity<>(new ResVO<>(500, "접속 정보 저장 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * 장비 접속 정보 삭제 API
+     */
+    @DeleteMapping("/devices/{deviceId}/ssh")
+    public ResponseEntity<ResVO<Void>> deleteDeviceSsh(@PathVariable int deviceId) {
+        try {
+            deviceService.deleteDeviceSsh(deviceId);
+            return new ResponseEntity<>(new ResVO<>(200, "접속 정보 삭제 성공", null), HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("접속 정보 삭제 실패 - deviceId: {}", deviceId, e);
+            return new ResponseEntity<>(new ResVO<>(500, "접속 정보 삭제 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 

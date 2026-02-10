@@ -2,6 +2,7 @@ package dev3.nms.service;
 
 import dev3.nms.mapper.CpuMemMapper;
 import dev3.nms.mapper.DeviceMapper;
+import dev3.nms.mapper.DeviceSshMapper;
 import dev3.nms.mapper.ModelMapper;
 import dev3.nms.mapper.TempDeviceMapper;
 import dev3.nms.mapper.VendorMapper;
@@ -24,6 +25,7 @@ import java.util.Optional;
 public class DeviceService {
 
     private final DeviceMapper deviceMapper;
+    private final DeviceSshMapper deviceSshMapper;
     private final TempDeviceMapper tempDeviceMapper;
     private final VendorMapper vendorMapper;
     private final ModelMapper modelMapper;
@@ -908,5 +910,35 @@ public class DeviceService {
      */
     public List<CpuMemVO> getCpuCores(int deviceId) {
         return cpuMemMapper.findLatestCoresByDeviceId(deviceId);
+    }
+
+    // ==================== Device SSH (접속 정보) ====================
+
+    /**
+     * 장비 접속 정보 조회
+     */
+    public DeviceSshVO getDeviceSsh(int deviceId) {
+        return deviceSshMapper.findByDeviceId(deviceId);
+    }
+
+    /**
+     * 장비 접속 정보 저장/수정
+     */
+    @Transactional
+    public DeviceSshVO saveOrUpdateDeviceSsh(DeviceSshVO ssh) {
+        if (deviceSshMapper.existsByDeviceId(ssh.getDEVICE_ID())) {
+            deviceSshMapper.updateDeviceSsh(ssh);
+        } else {
+            deviceSshMapper.insertDeviceSsh(ssh);
+        }
+        return deviceSshMapper.findByDeviceId(ssh.getDEVICE_ID());
+    }
+
+    /**
+     * 장비 접속 정보 삭제 (soft delete)
+     */
+    @Transactional
+    public void deleteDeviceSsh(int deviceId) {
+        deviceSshMapper.deleteByDeviceId(deviceId);
     }
 }

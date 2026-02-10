@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="dev3.nms.mapper.WatchMapper">
+
+    <!-- ==================== 관제 그룹 ==================== -->
+
+    <!-- 모든 관제 그룹 조회 -->
+    <select id="findAllGroups" resultType="dev3.nms.vo.watch.WatchGroupVO">
+        SELECT
+            WATCH_GROUP_ID,
+            PARENT_GROUP_ID,
+            GROUP_NAME,
+            INTERVAL_SEC,
+            COALESCE(DEPTH, 0) AS DEPTH,
+            ICON_NAME,
+            CREATE_AT,
+            MODIFY_AT
+        FROM R_WATCH_GROUP_T
+        ORDER BY COALESCE(DEPTH, 0), CREATE_AT
+    </select>
+
+    <!-- 관제 그룹 상세 조회 -->
+    <select id="findGroupById" resultType="dev3.nms.vo.watch.WatchGroupVO">
+        SELECT
+            WATCH_GROUP_ID,
+            PARENT_GROUP_ID,
+            GROUP_NAME,
+            INTERVAL_SEC,
+            COALESCE(DEPTH, 0) AS DEPTH,
+            ICON_NAME,
+            CREATE_AT,
+            MODIFY_AT
+        FROM R_WATCH_GROUP_T
+        WHERE WATCH_GROUP_ID = #{watchGroupId}
+    </select>
+
+    <!-- 관제 그룹 생성 -->
+    <insert id="insertGroup" parameterType="dev3.nms.vo.watch.WatchGroupVO" useGeneratedKeys="true" keyProperty="WATCH_GROUP_ID">
+        INSERT INTO R_WATCH_GROUP_T (
+            PARENT_GROUP_ID,
+            GROUP_NAME,
+            INTERVAL_SEC,
+            DEPTH,
+            CREATE_AT,
+            MODIFY_AT
+        ) VALUES (
+            #{PARENT_GROUP_ID},
+            #{GROUP_NAME},
+            COALESCE(#{INTERVAL_SEC}, 60),
+            COALESCE(#{DEPTH}, 0),
+            NOW(),
+            NOW()
+        )
+    </insert>
+
+    <!-- 관제 그룹 수정 -->
+    <update id="updateGroup" parameterType="dev3.nms.vo.watch.WatchGroupVO">
+        UPDATE R_WATCH_GROUP_T
+        SET
+            PARENT_GROUP_ID = #{PARENT_GROUP_ID},
+            GROUP_NAME = #{GROUP_NAME},
+            INTERVAL_SEC = #{INTERVAL_SEC},
+            DEPTH = COALESCE(#{DEPTH}, 0),
+            MODIFY_AT = NOW()
+        WHERE WATCH_GROUP_ID = #{WATCH_GROUP_ID}
+    </update>
+
+    <!-- 관제 그룹 삭제 -->
+    <delete id="deleteGroup">
+        DELETE FROM R_WATCH_GROUP_T
+        WHERE WATCH_GROUP_ID = #{watchGroupId}
+    </delete>
+
+    <!-- 관제 그룹 이동 (부모 변경) -->
+    <update id="moveGroup">
+        UPDATE R_WATCH_GROUP_T
+        SET
+            PARENT_GROUP_ID = #{parentGroupId},
+            DEPTH = #{depth},
+            MODIFY_AT = NOW()
+        WHERE WATCH_GROUP_ID = #{watchGroupId}
+    </update>
+
+    <!-- 관제 그룹 아이콘 설정 -->
+    <update id="updateGroupIcon">
+        UPDATE R_WATCH_GROUP_T
+        SET
+            ICON_NAME = #{iconName},
+            MODIFY_AT = NOW()
+        WHERE WATCH_GROUP_ID = #{watchGroupId}
+    </update>
+
+    <!-- 하위 그룹 개수 조회 (재귀) -->
+    <select id="countDescendants" resultType="int">
+        WITH RECURSIVE descendants AS (
+            SELECT WATCH_GROUP_ID
+            FROM R_WATCH_GROUP_T
+            WHERE PARENT_GROUP_ID = #{watchGroupId}
+            UNION ALL
+            SELECT t.WATCH_GROUP_ID
+            FROM R_WATCH_GROUP_T t
+            INNER JOIN descendants d ON t.PARENT_GROUP_ID = d.WATCH_GROUP_ID
+        )
+        SELECT COUNT(*) FROM descendants
+    </select>
+
+    <!-- 하위 그룹 목록 조회 (재귀) -->
+    <select id="findDescendants" resultType="dev3.nms.vo.watch.WatchGroupVO">
+        WITH RECURSIVE descendants AS (
+            SELECT WATCH_GROUP_ID, PARENT_GROUP_ID, GROUP_NAME, INTERVAL_SEC, DEPTH, ICON_NAME, CREATE_AT, MODIFY_AT
+            FROM R_WATCH_GROUP_T
+            WHERE PARENT_GROUP_ID = #{watchGroupId}
+            UNION ALL
+            SELECT t.WATCH_GROUP_ID, t.PARENT_GROUP_ID, t.GROUP_NAME, t.INTERVAL_SEC, t.DEPTH, t.ICON_NAME, t.CREATE_AT, t.MODIFY_AT
+            FROM R_WATCH_GROUP_T t
+            INNER JOIN descendants d ON t.PARENT_GROUP_ID = d.WATCH_GROUP_ID
+        )
+        SELECT * FROM descendants
+    </select>
+
+    <!-- ==================== 관제 그룹 장비 ==================== -->
+
+    <!-- 그룹의 장비 목록 조회 -->
+    <select id="findDevicesByGroupId" resultType="dev3.nms.vo.watch.WatchGroupDeviceVO">
+        SELECT
+            gd.WATCH_GROUP_ID,
+            gd.DEVICE_ID,
+            d.DEVICE_NAME,
+            d.DEVICE_IP
+        FROM R_WATCH_GROUP_DEVICE_T gd
+        JOIN R_DEVICE_T d ON gd.DEVICE_ID = d.DEVICE_ID
+        WHERE gd.WATCH_GROUP_ID = #{watchGroupId}
+          AND d.DELETE_AT IS NULL
+        ORDER BY d.DEVICE_NAME
+    </select>
+
+    <!-- 그룹에 장비 추가 -->
+    <insert id="insertGroupDevice" parameterType="dev3.nms.vo.watch.WatchGroupDeviceVO">
+        INSERT INTO R_WATCH_GROUP_DEVICE_T (
+            WATCH_GROUP_ID,
+            DEVICE_ID
+        ) VALUES (
+            #{WATCH_GROUP_ID},
+            #{DEVICE_ID}
+        )
+    </insert>
+
+    <!-- 그룹의 모든 장비 삭제 -->
+    <delete id="deleteGroupDevices">
+        DELETE FROM R_WATCH_GROUP_DEVICE_T
+        WHERE WATCH_GROUP_ID = #{watchGroupId}
+    </delete>
+
+    <!-- ==================== 관제 그룹 인터페이스 ==================== -->
+
+    <!-- 장비의 인터페이스 목록 조회 -->
+    <select id="findInterfacesByDevice" resultType="dev3.nms.vo.watch.WatchGroupIfVO">
+        SELECT
+            gi.WATCH_GROUP_ID,
+            gi.DEVICE_ID,
+            gi.IF_INDEX,
+            p.IF_DESCR,
+            p.IF_DESCRIPTION AS IF_NAME,
+            p.IF_SPEED
+        FROM R_WATCH_GROUP_IF_T gi
+        LEFT JOIN R_PORT_T p ON gi.DEVICE_ID = p.DEVICE_ID AND gi.IF_INDEX = p.IF_INDEX
+        WHERE gi.WATCH_GROUP_ID = #{watchGroupId}
+          AND gi.DEVICE_ID = #{deviceId}
+        ORDER BY gi.IF_INDEX
+    </select>
+
+    <!-- 그룹에 인터페이스 추가 -->
+    <insert id="insertGroupInterface" parameterType="dev3.nms.vo.watch.WatchGroupIfVO">
+        INSERT INTO R_WATCH_GROUP_IF_T (
+            WATCH_GROUP_ID,
+            DEVICE_ID,
+            IF_INDEX
+        ) VALUES (
+            #{WATCH_GROUP_ID},
+            #{DEVICE_ID},
+            #{IF_INDEX}
+        )
+    </insert>
+
+    <!-- 그룹의 모든 인터페이스 삭제 -->
+    <delete id="deleteGroupInterfaces">
+        DELETE FROM R_WATCH_GROUP_IF_T
+        WHERE WATCH_GROUP_ID = #{watchGroupId}
+    </delete>
+
+    <!-- 특정 장비의 인터페이스 삭제 -->
+    <delete id="deleteDeviceInterfaces">
+        DELETE FROM R_WATCH_GROUP_IF_T
+        WHERE WATCH_GROUP_ID = #{watchGroupId}
+          AND DEVICE_ID = #{deviceId}
+    </delete>
+
+</mapper>
