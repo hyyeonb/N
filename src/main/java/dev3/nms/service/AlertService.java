@@ -100,7 +100,7 @@ public class AlertService {
      */
     private String generateCacheKey(AlertVO alert) {
         String ifIndexPart = alert.getIfIndex() != null ? String.valueOf(alert.getIfIndex()) : "device";
-        return String.format("%d:%s :%s",
+        return String.format("%d:%s:%s",
                 alert.getDeviceId(),
                 alert.getAlertType(),
                 ifIndexPart
