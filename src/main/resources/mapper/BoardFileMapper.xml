@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="dev3.nms.mapper.BoardFileMapper">
+
+    <!-- ==================== 게시글 ==================== -->
+
+    <!-- 목록 조회 (페이지네이션) -->
+    <select id="findPostsPaged" resultType="dev3.nms.vo.board.BoardFileDto$PostRes">
+        SELECT
+            P.POST_ID       AS postId,
+            P.CATEGORY       AS category,
+            P.TITLE          AS title,
+            P.VIEW_CNT       AS viewCnt,
+            P.IS_PUBLIC      AS isPublic,
+            P.USER_ID        AS userId,
+            P.CREATED_AT     AS createdAt,
+            P.UPDATED_AT     AS updatedAt,
+            (SELECT COUNT(1) FROM t_board_file_attach A WHERE A.POST_ID = P.POST_ID) AS attachCount
+        FROM r_board_file_post_t P
+        WHERE P.DEL_YN = 'N'
+        AND (P.IS_PUBLIC = 'Y' OR P.USER_ID = #{userId})
+        <if test="search != null and search != ''">
+            AND (P.TITLE LIKE CONCAT('%', #{search}, '%')
+              OR P.CONTENT LIKE CONCAT('%', #{search}, '%'))
+        </if>
+        <if test="category != null and category != ''">
+            AND P.CATEGORY = #{category}
+        </if>
+        <choose>
+            <when test="sort == 'TITLE'">
+                ORDER BY P.TITLE
+            </when>
+            <when test="sort == 'VIEW_CNT'">
+                ORDER BY P.VIEW_CNT
+            </when>
+            <when test="sort == 'CREATED_AT'">
+                ORDER BY P.CREATED_AT
+            </when>
+            <otherwise>
+                ORDER BY P.POST_ID
+            </otherwise>
+        </choose>
+        <if test="order == 'asc'">
+            ASC
+        </if>
+        <if test="order != 'asc'">
+            DESC
+        </if>
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 총 건수 -->
+    <select id="countPosts" resultType="int">
+        SELECT COUNT(1)
+        FROM r_board_file_post_t P
+        WHERE P.DEL_YN = 'N'
+        AND (P.IS_PUBLIC = 'Y' OR P.USER_ID = #{userId})
+        <if test="search != null and search != ''">
+            AND (P.TITLE LIKE CONCAT('%', #{search}, '%')
+              OR P.CONTENT LIKE CONCAT('%', #{search}, '%'))
+        </if>
+        <if test="category != null and category != ''">
+            AND P.CATEGORY = #{category}
+        </if>
+    </select>
+
+    <!-- 단건 조회 -->
+    <select id="findPostById" resultType="dev3.nms.vo.board.BoardFileDto$PostDetailRes">
+        SELECT
+            POST_ID      AS postId,
+            CATEGORY      AS category,
+            TITLE         AS title,
+            CONTENT       AS content,
+            VIEW_CNT      AS viewCnt,
+            IS_PUBLIC     AS isPublic,
+            USER_ID       AS userId,
+            CREATED_AT    AS createdAt,
+            UPDATED_AT    AS updatedAt
+        FROM r_board_file_post_t
+        WHERE POST_ID = #{postId}
+          AND DEL_YN = 'N'
+    </select>
+
+    <!-- 등록 -->
+    <insert id="insertPost" useGeneratedKeys="true" keyProperty="post.postId" keyColumn="POST_ID">
+        INSERT INTO r_board_file_post_t (CATEGORY, TITLE, CONTENT, IS_PUBLIC, USER_ID)
+        VALUES (#{post.category}, #{post.title}, #{post.content}, #{post.isPublic}, #{post.userId})
+    </insert>
+
+    <!-- 수정 -->
+    <update id="updatePost">
+        UPDATE r_board_file_post_t
+        SET
+            CATEGORY   = #{post.category},
+            TITLE      = #{post.title},
+            CONTENT    = #{post.content},
+            IS_PUBLIC  = #{post.isPublic}
+        WHERE POST_ID = #{postId}
+          AND DEL_YN = 'N'
+    </update>
+
+    <!-- 삭제 (소프트) -->
+    <update id="deletePost">
+        UPDATE r_board_file_post_t
+        SET DEL_YN = 'Y'
+        WHERE POST_ID = #{postId}
+    </update>
+
+    <!-- 조회수 증가 -->
+    <update id="incrementViewCnt">
+        UPDATE r_board_file_post_t
+        SET VIEW_CNT = VIEW_CNT + 1
+        WHERE POST_ID = #{postId}
+    </update>
+
+    <!-- ==================== 첨부파일 ==================== -->
+
+    <!-- 게시글의 첨부파일 목록 -->
+    <select id="findAttachByPostId" resultType="dev3.nms.vo.board.BoardFileDto$AttachRes">
+        SELECT
+            ATTACH_ID     AS attachId,
+            POST_ID       AS postId,
+            ORG_FILE_NAME AS orgFileName,
+            FILE_SIZE     AS fileSize,
+            MIME_TYPE     AS mimeType,
+            DOWN_CNT      AS downCnt,
+            CREATED_AT    AS createdAt
+        FROM t_board_file_attach
+        WHERE POST_ID = #{postId}
+        ORDER BY ATTACH_ID
+    </select>
+
+    <!-- 첨부파일 단건 조회 -->
+    <select id="findAttachById" resultType="dev3.nms.vo.board.BoardFileDto$AttachRes">
+        SELECT
+            ATTACH_ID     AS attachId,
+            POST_ID       AS postId,
+            ORG_FILE_NAME AS orgFileName,
+            FILE_SIZE     AS fileSize,
+            MIME_TYPE     AS mimeType,
+            DOWN_CNT      AS downCnt,
+            CREATED_AT    AS createdAt
+        FROM t_board_file_attach
+        WHERE ATTACH_ID = #{attachId}
+    </select>
+
+    <!-- 첨부파일 등록 -->
+    <insert id="insertAttach">
+        INSERT INTO t_board_file_attach
+            (POST_ID, ORG_FILE_NAME, STORED_NAME, FILE_PATH, FILE_SIZE, MIME_TYPE, USER_ID)
+        VALUES
+            (#{attach.postId}, #{attach.orgFileName}, #{attach.storedName}, #{attach.filePath},
+             #{attach.fileSize}, #{attach.mimeType}, #{attach.userId})
+    </insert>
+
+    <!-- 첨부파일 선택 삭제 -->
+    <delete id="deleteAttachByIds">
+        DELETE FROM t_board_file_attach
+        WHERE ATTACH_ID IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <!-- 게시글의 첨부파일 전체 삭제 -->
+    <delete id="deleteAttachByPostId">
+        DELETE FROM t_board_file_attach
+        WHERE POST_ID = #{postId}
+    </delete>
+
+    <!-- 다운로드 수 증가 -->
+    <update id="incrementDownCnt">
+        UPDATE t_board_file_attach
+        SET DOWN_CNT = DOWN_CNT + 1
+        WHERE ATTACH_ID = #{attachId}
+    </update>
+
+    <!-- 다운로드용 파일 정보 조회 -->
+    <select id="findAttachFileInfo" resultType="dev3.nms.vo.board.BoardFileDto$AttachFileInfo">
+        SELECT
+            ATTACH_ID     AS attachId,
+            ORG_FILE_NAME AS orgFileName,
+            STORED_NAME   AS storedName,
+            FILE_PATH     AS filePath,
+            MIME_TYPE     AS mimeType
+        FROM t_board_file_attach
+        WHERE ATTACH_ID = #{attachId}
+    </select>
+
+</mapper>
