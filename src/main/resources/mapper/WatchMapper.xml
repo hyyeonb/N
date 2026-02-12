@@ -13,6 +13,7 @@
             INTERVAL_SEC,
             COALESCE(DEPTH, 0) AS DEPTH,
             ICON_NAME,
+            LINKED_GROUP_ID,
             CREATE_AT,
             MODIFY_AT
         FROM R_WATCH_GROUP_T
@@ -28,6 +29,7 @@
             INTERVAL_SEC,
             COALESCE(DEPTH, 0) AS DEPTH,
             ICON_NAME,
+            LINKED_GROUP_ID,
             CREATE_AT,
             MODIFY_AT
         FROM R_WATCH_GROUP_T
@@ -41,6 +43,7 @@
             GROUP_NAME,
             INTERVAL_SEC,
             DEPTH,
+            LINKED_GROUP_ID,
             CREATE_AT,
             MODIFY_AT
         ) VALUES (
@@ -48,6 +51,7 @@
             #{GROUP_NAME},
             COALESCE(#{INTERVAL_SEC}, 60),
             COALESCE(#{DEPTH}, 0),
+            #{LINKED_GROUP_ID},
             NOW(),
             NOW()
         )
@@ -61,6 +65,7 @@
             GROUP_NAME = #{GROUP_NAME},
             INTERVAL_SEC = #{INTERVAL_SEC},
             DEPTH = COALESCE(#{DEPTH}, 0),
+            LINKED_GROUP_ID = #{LINKED_GROUP_ID},
             MODIFY_AT = NOW()
         WHERE WATCH_GROUP_ID = #{WATCH_GROUP_ID}
     </update>
@@ -107,11 +112,11 @@
     <!-- 하위 그룹 목록 조회 (재귀) -->
     <select id="findDescendants" resultType="dev3.nms.vo.watch.WatchGroupVO">
         WITH RECURSIVE descendants AS (
-            SELECT WATCH_GROUP_ID, PARENT_GROUP_ID, GROUP_NAME, INTERVAL_SEC, DEPTH, ICON_NAME, CREATE_AT, MODIFY_AT
+            SELECT WATCH_GROUP_ID, PARENT_GROUP_ID, GROUP_NAME, INTERVAL_SEC, DEPTH, ICON_NAME, LINKED_GROUP_ID, CREATE_AT, MODIFY_AT
             FROM R_WATCH_GROUP_T
             WHERE PARENT_GROUP_ID = #{watchGroupId}
             UNION ALL
-            SELECT t.WATCH_GROUP_ID, t.PARENT_GROUP_ID, t.GROUP_NAME, t.INTERVAL_SEC, t.DEPTH, t.ICON_NAME, t.CREATE_AT, t.MODIFY_AT
+            SELECT t.WATCH_GROUP_ID, t.PARENT_GROUP_ID, t.GROUP_NAME, t.INTERVAL_SEC, t.DEPTH, t.ICON_NAME, t.LINKED_GROUP_ID, t.CREATE_AT, t.MODIFY_AT
             FROM R_WATCH_GROUP_T t
             INNER JOIN descendants d ON t.PARENT_GROUP_ID = d.WATCH_GROUP_ID
         )
@@ -194,5 +199,22 @@
         WHERE WATCH_GROUP_ID = #{watchGroupId}
           AND DEVICE_ID = #{deviceId}
     </delete>
+
+    <!-- ==================== 장비 그룹 연동 ==================== -->
+
+    <!-- 이미 연동된 GROUP_ID 목록 조회 -->
+    <select id="findAllLinkedGroupIds" resultType="int">
+        SELECT LINKED_GROUP_ID
+        FROM R_WATCH_GROUP_T
+        WHERE LINKED_GROUP_ID IS NOT NULL
+    </select>
+
+    <!-- 특정 LINKED_GROUP_ID로 관제 그룹 조회 -->
+    <select id="findByLinkedGroupId" resultType="dev3.nms.vo.watch.WatchGroupVO">
+        SELECT WATCH_GROUP_ID, PARENT_GROUP_ID, GROUP_NAME, INTERVAL_SEC,
+               COALESCE(DEPTH, 0) AS DEPTH, ICON_NAME, LINKED_GROUP_ID, CREATE_AT, MODIFY_AT
+        FROM R_WATCH_GROUP_T
+        WHERE LINKED_GROUP_ID = #{linkedGroupId}
+    </select>
 
 </mapper>
