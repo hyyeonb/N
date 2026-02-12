@@ -263,6 +263,17 @@
         <if test="groupName != null and groupName != ''">
             AND g.GROUP_NAME LIKE CONCAT('%', #{groupName}, '%')
         </if>
+        <if test="devCodeId != null">
+            AND m.DEV_CODE_ID IN (
+                WITH RECURSIVE dev_code_tree AS (
+                    SELECT DEV_CODE_ID FROM b_dev_code_t WHERE DEV_CODE_ID = #{devCodeId}
+                    UNION ALL
+                    SELECT dc.DEV_CODE_ID FROM b_dev_code_t dc
+                    INNER JOIN dev_code_tree dct ON dc.PARENT_DEV_CODE_ID = dct.DEV_CODE_ID
+                )
+                SELECT DEV_CODE_ID FROM dev_code_tree
+            )
+        </if>
         <choose>
             <when test="sort == 'DEVICE_ID'">
                 ORDER BY d.DEVICE_ID
@@ -306,6 +317,9 @@
         SELECT COUNT(*)
         FROM r_device_t d
         LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
+        <if test="devCodeId != null">
+            LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
+        </if>
         WHERE d.DELETE_AT IS NULL
         <if test="groupIds != null and groupIds.size() > 0">
             AND d.GROUP_ID IN
@@ -324,6 +338,17 @@
         </if>
         <if test="groupName != null and groupName != ''">
             AND g.GROUP_NAME LIKE CONCAT('%', #{groupName}, '%')
+        </if>
+        <if test="devCodeId != null">
+            AND m.DEV_CODE_ID IN (
+                WITH RECURSIVE dev_code_tree AS (
+                    SELECT DEV_CODE_ID FROM b_dev_code_t WHERE DEV_CODE_ID = #{devCodeId}
+                    UNION ALL
+                    SELECT dc.DEV_CODE_ID FROM b_dev_code_t dc
+                    INNER JOIN dev_code_tree dct ON dc.PARENT_DEV_CODE_ID = dct.DEV_CODE_ID
+                )
+                SELECT DEV_CODE_ID FROM dev_code_tree
+            )
         </if>
     </select>
 

@@ -66,6 +66,18 @@ public interface WatchMapper {
      */
     List<WatchGroupVO> findDescendants(@Param("watchGroupId") Integer watchGroupId);
 
+    // ==================== 장비 그룹 연동 ====================
+
+    /**
+     * 이미 연동된 GROUP_ID 목록 조회
+     */
+    List<Integer> findAllLinkedGroupIds();
+
+    /**
+     * 특정 LINKED_GROUP_ID로 관제 그룹 조회
+     */
+    WatchGroupVO findByLinkedGroupId(@Param("linkedGroupId") Integer linkedGroupId);
+
     // ==================== 관제 그룹 장비 ====================
 
     /**

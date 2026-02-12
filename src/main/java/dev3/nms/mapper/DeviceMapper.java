@@ -34,13 +34,15 @@ public interface DeviceMapper {
                                                          @Param("order") String order,
                                                          @Param("deviceName") String deviceName,
                                                          @Param("deviceIp") String deviceIp,
-                                                         @Param("groupName") String groupName);
+                                                         @Param("groupName") String groupName,
+                                                         @Param("devCodeId") Integer devCodeId);
 
     // 검색 조건 포함 총 개수 조회
     int countDevicesByGroupIdsWithSearch(@Param("groupIds") List<Integer> groupIds,
                                           @Param("deviceName") String deviceName,
                                           @Param("deviceIp") String deviceIp,
-                                          @Param("groupName") String groupName);
+                                          @Param("groupName") String groupName,
+                                          @Param("devCodeId") Integer devCodeId);
 
     int insertDevice(DeviceVO device);
 
