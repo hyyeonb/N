@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="dev3.nms.mapper.SshSessionMapper">
+
+    <!-- 목록 조회 (페이지네이션) -->
+    <select id="findSessionsPaged" resultType="dev3.nms.vo.ssh.SshSessionDto$SessionRes">
+        SELECT
+            S.SESSION_ID      AS sessionId,
+            S.USER_ID         AS userId,
+            U.NAME            AS userName,
+            S.HOST            AS host,
+            S.SSH_USER        AS sshUser,
+            S.REMOTE_ADDR     AS remoteAddr,
+            S.CONNECTED_AT    AS connectedAt,
+            S.DISCONNECTED_AT AS disconnectedAt
+        FROM r_user_ssh_sessions S
+        LEFT JOIN USER U ON S.USER_ID = U.USER_ID
+        WHERE 1=1
+        <if test="search != null and search != ''">
+            AND (U.NAME LIKE CONCAT('%', #{search}, '%')
+              OR S.HOST LIKE CONCAT('%', #{search}, '%')
+              OR S.SSH_USER LIKE CONCAT('%', #{search}, '%')
+              OR S.REMOTE_ADDR LIKE CONCAT('%', #{search}, '%'))
+        </if>
+        <choose>
+            <when test="sort == 'USER_NAME'">
+                ORDER BY U.NAME
+            </when>
+            <when test="sort == 'HOST'">
+                ORDER BY S.HOST
+            </when>
+            <when test="sort == 'SSH_USER'">
+                ORDER BY S.SSH_USER
+            </when>
+            <when test="sort == 'CONNECTED_AT'">
+                ORDER BY S.CONNECTED_AT
+            </when>
+            <otherwise>
+                ORDER BY S.SESSION_ID
+            </otherwise>
+        </choose>
+        <if test="order == 'asc'">
+            ASC
+        </if>
+        <if test="order != 'asc'">
+            DESC
+        </if>
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 총 건수 -->
+    <select id="countSessions" resultType="int">
+        SELECT COUNT(1)
+        FROM r_user_ssh_sessions S
+        LEFT JOIN USER U ON S.USER_ID = U.USER_ID
+        WHERE 1=1
+        <if test="search != null and search != ''">
+            AND (U.NAME LIKE CONCAT('%', #{search}, '%')
+              OR S.HOST LIKE CONCAT('%', #{search}, '%')
+              OR S.SSH_USER LIKE CONCAT('%', #{search}, '%')
+              OR S.REMOTE_ADDR LIKE CONCAT('%', #{search}, '%'))
+        </if>
+    </select>
+
+    <!-- 세션별 명령어 목록 조회 -->
+    <select id="findCommandsBySessionId" resultType="dev3.nms.vo.ssh.SshSessionDto$CommandRes">
+        SELECT
+            CMMANDS_ID   AS commandsId,
+            SESSION_ID   AS sessionId,
+            COMMAND      AS command,
+            EXECUTED_AT  AS executedAt
+        FROM r_user_ssh_commands
+        WHERE SESSION_ID = #{sessionId}
+        ORDER BY EXECUTED_AT ASC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 세션별 명령어 총 건수 -->
+    <select id="countCommandsBySessionId" resultType="int">
+        SELECT COUNT(1)
+        FROM r_user_ssh_commands
+        WHERE SESSION_ID = #{sessionId}
+    </select>
+
+    <!-- 세션별 SFTP 로그 목록 조회 -->
+    <select id="findSftpLogsBySessionId" resultType="dev3.nms.vo.ssh.SshSessionDto$SftpLogRes">
+        SELECT
+            S.LOG_ID       AS logId,
+            S.SESSION_ID   AS sessionId,
+            S.USER_ID      AS userId,
+            U.NAME         AS userName,
+            S.OPERATION    AS operation,
+            S.FILE_PATH    AS filePath,
+            S.FILE_SIZE    AS fileSize,
+            S.EXECUTED_AT  AS executedAt
+        FROM r_user_sftp_logs S
+        LEFT JOIN USER U ON S.USER_ID = U.USER_ID
+        WHERE S.SESSION_ID = #{sessionId}
+        ORDER BY S.EXECUTED_AT ASC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 세션별 SFTP 로그 총 건수 -->
+    <select id="countSftpLogsBySessionId" resultType="int">
+        SELECT COUNT(1)
+        FROM r_user_sftp_logs
+        WHERE SESSION_ID = #{sessionId}
+    </select>
+
+</mapper>
