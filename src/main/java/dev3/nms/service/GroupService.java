@@ -139,38 +139,19 @@ public class GroupService {
     }
 
     /**
-     * 그룹의 전체 하위 그룹 개수 조회 (재귀적)
+     * 그룹의 전체 하위 그룹 개수 조회 (WITH RECURSIVE CTE - 단일 쿼리)
      */
     @Transactional(readOnly = true)
     public int countAllDescendants(Integer groupId) {
-        return countDescendantsRecursive(groupId);
-    }
-
-    private int countDescendantsRecursive(Integer groupId) {
-        List<GroupVO> children = groupMapper.findChildrenByParentId(groupId);
-        int count = children.size();
-        for (GroupVO child : children) {
-            count += countDescendantsRecursive(child.getGROUP_ID());
-        }
-        return count;
+        return groupMapper.countDescendants(groupId);
     }
 
     /**
-     * 그룹의 전체 하위 그룹 목록 조회 (재귀적)
+     * 그룹의 전체 하위 그룹 목록 조회 (WITH RECURSIVE CTE - 단일 쿼리)
      */
     @Transactional(readOnly = true)
     public List<GroupVO> getAllDescendants(Integer groupId) {
-        List<GroupVO> result = new ArrayList<>();
-        collectDescendantsRecursive(groupId, result);
-        return result;
-    }
-
-    private void collectDescendantsRecursive(Integer groupId, List<GroupVO> result) {
-        List<GroupVO> children = groupMapper.findChildrenByParentId(groupId);
-        for (GroupVO child : children) {
-            result.add(child);
-            collectDescendantsRecursive(child.getGROUP_ID(), result);
-        }
+        return groupMapper.findDescendants(groupId);
     }
 
     /**

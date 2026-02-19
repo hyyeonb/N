@@ -38,4 +38,14 @@ public interface GroupMapper {
      * 특정 그룹 및 모든 하위 그룹 ID 목록 조회 (재귀)
      */
     List<Integer> findGroupIdWithDescendants(Integer groupId);
+
+    /**
+     * 하위 그룹 개수 조회 (WITH RECURSIVE, 자기 자신 제외)
+     */
+    int countDescendants(Integer groupId);
+
+    /**
+     * 모든 하위 그룹 조회 (WITH RECURSIVE, 자기 자신 제외)
+     */
+    List<GroupVO> findDescendants(Integer groupId);
 }
