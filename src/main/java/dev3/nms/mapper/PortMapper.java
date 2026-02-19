@@ -71,4 +71,11 @@ public interface PortMapper {
      * 특정 장비의 포트 개수 조회
      */
     int countByDeviceId(Integer deviceId);
+
+    /**
+     * 포트 일괄 UPSERT (INSERT ... ON DUPLICATE KEY UPDATE)
+     * 신규: 기본 감시 설정(ON)으로 INSERT
+     * 기존: 감시 설정(IF_OPER_FLAG, IF_PERF_FLAG) 유지하고 나머지 업데이트
+     */
+    int upsertPorts(List<PortVO> ports);
 }

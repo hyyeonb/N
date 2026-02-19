@@ -374,7 +374,8 @@ public class MgmtController {
             @RequestParam(defaultValue = "asc") String order,
             @RequestParam(required = false) String deviceName,
             @RequestParam(required = false) String deviceIp,
-            @RequestParam(required = false) String groupName) {
+            @RequestParam(required = false) String groupName,
+            @RequestParam(required = false) Integer devCodeId) {
         try {
             List<Integer> groupIds;
             if (includeChildren) {
@@ -386,7 +387,7 @@ public class MgmtController {
             }
 
             PageVO<DeviceVO> pagedDevices = deviceService.getDevicesByGroupIdsPaged(
-                    groupIds, page, size, sort, order, deviceName, deviceIp, groupName);
+                    groupIds, page, size, sort, order, deviceName, deviceIp, groupName, devCodeId);
             ResVO<PageVO<DeviceVO>> response = new ResVO<>(200, "장비 목록 조회 성공", pagedDevices);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {

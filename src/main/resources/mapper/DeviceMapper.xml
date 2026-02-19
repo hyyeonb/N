@@ -13,7 +13,7 @@
             d.DEVICE_IP,
             d.DEVICE_DESC,
             d.MODEL_ID,
-            (SELECT COUNT(*) FROM r_port_t p WHERE p.DEVICE_ID = d.DEVICE_ID AND p.DELETE_AT IS NULL) AS PORT_COUNT,
+            COALESCE(pc.PORT_COUNT, 0) AS PORT_COUNT,
             m.MODEL_NAME,
             m.MODEL_OID,
             v.VENDOR_NAME,
@@ -36,6 +36,7 @@
         LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
         LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
         LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
+        LEFT JOIN (SELECT DEVICE_ID, COUNT(*) AS PORT_COUNT FROM r_port_t WHERE DELETE_AT IS NULL GROUP BY DEVICE_ID) pc ON d.DEVICE_ID = pc.DEVICE_ID
         WHERE d.DELETE_AT IS NULL
     </select>
 
@@ -50,7 +51,7 @@
             d.DEVICE_IP,
             d.DEVICE_DESC,
             d.MODEL_ID,
-            (SELECT COUNT(*) FROM r_port_t p WHERE p.DEVICE_ID = d.DEVICE_ID AND p.DELETE_AT IS NULL) AS PORT_COUNT,
+            COALESCE(pc.PORT_COUNT, 0) AS PORT_COUNT,
             m.MODEL_NAME,
             m.MODEL_OID,
             v.VENDOR_NAME,
@@ -73,6 +74,7 @@
         LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
         LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
         LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
+        LEFT JOIN (SELECT DEVICE_ID, COUNT(*) AS PORT_COUNT FROM r_port_t WHERE DELETE_AT IS NULL GROUP BY DEVICE_ID) pc ON d.DEVICE_ID = pc.DEVICE_ID
         WHERE d.DEVICE_ID = #{deviceId}
           AND d.DELETE_AT IS NULL
     </select>
@@ -88,7 +90,7 @@
             d.DEVICE_IP,
             d.DEVICE_DESC,
             d.MODEL_ID,
-            (SELECT COUNT(*) FROM r_port_t p WHERE p.DEVICE_ID = d.DEVICE_ID AND p.DELETE_AT IS NULL) AS PORT_COUNT,
+            COALESCE(pc.PORT_COUNT, 0) AS PORT_COUNT,
             m.MODEL_NAME,
             m.MODEL_OID,
             v.VENDOR_NAME,
@@ -110,6 +112,8 @@
         LEFT JOIN r_device_snmp_t s ON d.DEVICE_ID = s.DEVICE_ID
         LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
         LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
+        LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
+        LEFT JOIN (SELECT DEVICE_ID, COUNT(*) AS PORT_COUNT FROM r_port_t WHERE DELETE_AT IS NULL GROUP BY DEVICE_ID) pc ON d.DEVICE_ID = pc.DEVICE_ID
         WHERE d.DELETE_AT IS NULL
         <if test="list != null and list.size() > 0">
             AND d.GROUP_ID IN
@@ -133,7 +137,7 @@
             d.DEVICE_IP,
             d.DEVICE_DESC,
             d.MODEL_ID,
-            (SELECT COUNT(*) FROM r_port_t p WHERE p.DEVICE_ID = d.DEVICE_ID AND p.DELETE_AT IS NULL) AS PORT_COUNT,
+            COALESCE(pc.PORT_COUNT, 0) AS PORT_COUNT,
             m.MODEL_NAME,
             m.MODEL_OID,
             v.VENDOR_NAME,
@@ -156,6 +160,7 @@
         LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
         LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
         LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
+        LEFT JOIN (SELECT DEVICE_ID, COUNT(*) AS PORT_COUNT FROM r_port_t WHERE DELETE_AT IS NULL GROUP BY DEVICE_ID) pc ON d.DEVICE_ID = pc.DEVICE_ID
         WHERE d.GROUP_ID IN
         <foreach collection="groupIds" item="item" open="(" separator="," close=")">
             #{item}
@@ -181,7 +186,7 @@
                 ORDER BY v.VENDOR_NAME
             </when>
             <when test="sort == 'PORT_COUNT'">
-                ORDER BY d.PORT_COUNT
+                ORDER BY PORT_COUNT
             </when>
             <when test="sort == 'CREATE_AT'">
                 ORDER BY d.CREATE_AT
@@ -226,7 +231,7 @@
             d.DEVICE_IP,
             d.DEVICE_DESC,
             d.MODEL_ID,
-            (SELECT COUNT(IF_INDEX) FROM r_port_t p WHERE p.DEVICE_ID = d.DEVICE_ID AND p.DELETE_AT IS NULL AND p.IF_TYPE = 6) AS PORT_COUNT,
+            COALESCE(pc.PORT_COUNT, 0) AS PORT_COUNT,
             m.MODEL_NAME,
             m.MODEL_OID,
             v.VENDOR_NAME,
@@ -249,6 +254,7 @@
         LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
         LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
         LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
+        LEFT JOIN (SELECT DEVICE_ID, COUNT(IF_INDEX) AS PORT_COUNT FROM r_port_t WHERE DELETE_AT IS NULL AND IF_TYPE = 6 GROUP BY DEVICE_ID) pc ON d.DEVICE_ID = pc.DEVICE_ID
         WHERE d.GROUP_ID IN
         <foreach collection="groupIds" item="item" open="(" separator="," close=")">
             #{item}
@@ -262,6 +268,17 @@
         </if>
         <if test="groupName != null and groupName != ''">
             AND g.GROUP_NAME LIKE CONCAT('%', #{groupName}, '%')
+        </if>
+        <if test="devCodeId != null">
+            AND m.DEV_CODE_ID IN (
+                WITH RECURSIVE dev_code_tree AS (
+                    SELECT DEV_CODE_ID FROM b_dev_code_t WHERE DEV_CODE_ID = #{devCodeId}
+                    UNION ALL
+                    SELECT dc.DEV_CODE_ID FROM b_dev_code_t dc
+                    INNER JOIN dev_code_tree dct ON dc.PARENT_DEV_CODE_ID = dct.DEV_CODE_ID
+                )
+                SELECT DEV_CODE_ID FROM dev_code_tree
+            )
         </if>
         <choose>
             <when test="sort == 'DEVICE_ID'">
@@ -306,6 +323,9 @@
         SELECT COUNT(*)
         FROM r_device_t d
         LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
+        <if test="devCodeId != null">
+            LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
+        </if>
         WHERE d.DELETE_AT IS NULL
         <if test="groupIds != null and groupIds.size() > 0">
             AND d.GROUP_ID IN
@@ -324,6 +344,17 @@
         </if>
         <if test="groupName != null and groupName != ''">
             AND g.GROUP_NAME LIKE CONCAT('%', #{groupName}, '%')
+        </if>
+        <if test="devCodeId != null">
+            AND m.DEV_CODE_ID IN (
+                WITH RECURSIVE dev_code_tree AS (
+                    SELECT DEV_CODE_ID FROM b_dev_code_t WHERE DEV_CODE_ID = #{devCodeId}
+                    UNION ALL
+                    SELECT dc.DEV_CODE_ID FROM b_dev_code_t dc
+                    INNER JOIN dev_code_tree dct ON dc.PARENT_DEV_CODE_ID = dct.DEV_CODE_ID
+                )
+                SELECT DEV_CODE_ID FROM dev_code_tree
+            )
         </if>
     </select>
 

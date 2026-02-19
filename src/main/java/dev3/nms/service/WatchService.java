@@ -2,7 +2,9 @@ package dev3.nms.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev3.nms.mapper.GroupMapper;
 import dev3.nms.mapper.WatchMapper;
+import dev3.nms.vo.mgmt.GroupVO;
 import dev3.nms.vo.watch.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +34,7 @@ import java.util.Map;
 public class WatchService {
 
     private final WatchMapper watchMapper;
+    private final GroupMapper groupMapper;
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
 
@@ -214,6 +217,116 @@ public class WatchService {
      */
     public Integer getDescendantsCount(Integer watchGroupId) {
         return watchMapper.countDescendants(watchGroupId);
+    }
+
+    // ==================== 장비 그룹 연동 ====================
+
+    /**
+     * R_GROUP_T 그룹을 관제 그룹으로 가져오기
+     * - 선택된 그룹 + 하위 그룹을 R_WATCH_GROUP_T에 LINKED 상태로 생성
+     * - 이미 연동된 그룹은 건너뜀
+     * - R_GROUP_T의 부모-자식 관계를 PARENT_GROUP_ID로 매핑
+     */
+    @Transactional
+    public List<WatchGroupVO> importFromGroups(List<Integer> groupIds) {
+        // 1. 이미 연동된 GROUP_ID 목록 조회
+        List<Integer> existingLinkedIds = watchMapper.findAllLinkedGroupIds();
+
+        // 2. 대상 그룹 조회 (이미 연동된 것 제외)
+        List<GroupVO> allGroups = groupMapper.findAllGroups();
+        Map<Integer, GroupVO> groupMap = new java.util.HashMap<>();
+        for (GroupVO g : allGroups) {
+            groupMap.put(g.getGROUP_ID(), g);
+        }
+
+        // 3. 선택된 그룹 중 미연동 그룹만 필터
+        List<Integer> targetIds = new ArrayList<>();
+        for (Integer gid : groupIds) {
+            if (!existingLinkedIds.contains(gid)) {
+                targetIds.add(gid);
+            }
+        }
+
+        if (targetIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // 4. R_GROUP_T의 부모 -> WATCH_GROUP_T 매핑 (부모-자식 관계 유지)
+        // linkedGroupId -> watchGroupId 매핑
+        Map<Integer, Integer> linkedToWatchMap = new java.util.HashMap<>();
+        // 기존 연동된 그룹의 매핑도 추가
+        for (Integer linkedId : existingLinkedIds) {
+            WatchGroupVO existing = watchMapper.findByLinkedGroupId(linkedId);
+            if (existing != null) {
+                linkedToWatchMap.put(linkedId, existing.getWATCH_GROUP_ID());
+            }
+        }
+
+        // 5. depth 순으로 정렬하여 부모 먼저 생성
+        targetIds.sort((a, b) -> {
+            GroupVO ga = groupMap.get(a);
+            GroupVO gb = groupMap.get(b);
+            int depthA = ga != null && ga.getDEPTH() != null ? ga.getDEPTH() : 0;
+            int depthB = gb != null && gb.getDEPTH() != null ? gb.getDEPTH() : 0;
+            return Integer.compare(depthA, depthB);
+        });
+
+        List<WatchGroupVO> created = new ArrayList<>();
+        for (Integer gid : targetIds) {
+            GroupVO srcGroup = groupMap.get(gid);
+            if (srcGroup == null) continue;
+
+            WatchGroupVO watchGroup = new WatchGroupVO();
+            watchGroup.setGROUP_NAME(srcGroup.getGROUP_NAME());
+            watchGroup.setLINKED_GROUP_ID(gid);
+            watchGroup.setINTERVAL_SEC(5);
+
+            // 부모 그룹 매핑
+            Integer srcParentId = srcGroup.getPARENT_GROUP_ID();
+            if (srcParentId != null && linkedToWatchMap.containsKey(srcParentId)) {
+                watchGroup.setPARENT_GROUP_ID(linkedToWatchMap.get(srcParentId));
+                // 부모의 depth + 1
+                WatchGroupVO parentWatch = watchMapper.findGroupById(linkedToWatchMap.get(srcParentId));
+                watchGroup.setDEPTH(parentWatch != null ? (parentWatch.getDEPTH() != null ? parentWatch.getDEPTH() + 1 : 1) : 0);
+            } else {
+                watchGroup.setPARENT_GROUP_ID(null);
+                watchGroup.setDEPTH(0);
+            }
+
+            watchMapper.insertGroup(watchGroup);
+            linkedToWatchMap.put(gid, watchGroup.getWATCH_GROUP_ID());
+            created.add(watchGroup);
+        }
+
+        return created;
+    }
+
+    /**
+     * 연동 해제 (linked watch group 및 하위 연동 그룹 삭제)
+     */
+    @Transactional
+    public void deleteLinkedGroup(Integer linkedGroupId) {
+        WatchGroupVO group = watchMapper.findByLinkedGroupId(linkedGroupId);
+        if (group != null) {
+            // 하위 그룹도 재귀 삭제
+            List<WatchGroupVO> descendants = watchMapper.findDescendants(group.getWATCH_GROUP_ID());
+            for (WatchGroupVO desc : descendants) {
+                watchMapper.deleteGroupInterfaces(desc.getWATCH_GROUP_ID());
+                watchMapper.deleteGroupDevices(desc.getWATCH_GROUP_ID());
+                watchMapper.deleteGroup(desc.getWATCH_GROUP_ID());
+            }
+            // 자기 자신 삭제
+            watchMapper.deleteGroupInterfaces(group.getWATCH_GROUP_ID());
+            watchMapper.deleteGroupDevices(group.getWATCH_GROUP_ID());
+            watchMapper.deleteGroup(group.getWATCH_GROUP_ID());
+        }
+    }
+
+    /**
+     * 이미 연동된 GROUP_ID 목록 조회
+     */
+    public List<Integer> getLinkedGroupIds() {
+        return watchMapper.findAllLinkedGroupIds();
     }
 
     // ==================== Go Middleware 프록시 ====================

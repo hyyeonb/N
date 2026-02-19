@@ -227,6 +227,59 @@ public class WatchController {
         }
     }
 
+    // ==================== 장비 그룹 연동 ====================
+
+    /**
+     * 장비 그룹 가져오기 (R_GROUP_T → R_WATCH_GROUP_T 연동)
+     */
+    @SuppressWarnings("unchecked")
+    @PostMapping("/groups/import")
+    public ResponseEntity<ResVO<List<WatchGroupVO>>> importFromGroups(@RequestBody Map<String, Object> requestBody) {
+        try {
+            List<Integer> groupIds = (List<Integer>) requestBody.get("groupIds");
+            if (groupIds == null || groupIds.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(new ResVO<>(400, "groupIds가 필요합니다", null));
+            }
+            List<WatchGroupVO> imported = watchService.importFromGroups(groupIds);
+            return ResponseEntity.ok(new ResVO<>(200, "그룹 가져오기 성공", imported));
+        } catch (Exception e) {
+            log.error("그룹 가져오기 실패: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ResVO<>(500, "가져오기 실패: " + e.getMessage(), null));
+        }
+    }
+
+    /**
+     * 이미 연동된 GROUP_ID 목록 조회
+     */
+    @GetMapping("/groups/linked-ids")
+    public ResponseEntity<ResVO<List<Integer>>> getLinkedGroupIds() {
+        try {
+            List<Integer> ids = watchService.getLinkedGroupIds();
+            return ResponseEntity.ok(new ResVO<>(200, "조회 성공", ids));
+        } catch (Exception e) {
+            log.error("연동 그룹 목록 조회 실패: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ResVO<>(500, "조회 실패: " + e.getMessage(), null));
+        }
+    }
+
+    /**
+     * 연동 해제 (linked watch group 삭제)
+     */
+    @DeleteMapping("/groups/linked/{linkedGroupId}")
+    public ResponseEntity<ResVO<Void>> deleteLinkedGroup(@PathVariable Integer linkedGroupId) {
+        try {
+            watchService.deleteLinkedGroup(linkedGroupId);
+            return ResponseEntity.ok(new ResVO<>(200, "연동 해제 성공", null));
+        } catch (Exception e) {
+            log.error("연동 해제 실패: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ResVO<>(500, "연동 해제 실패: " + e.getMessage(), null));
+        }
+    }
+
     // ==================== 관제 시작/중지/Heartbeat ====================
 
     /**

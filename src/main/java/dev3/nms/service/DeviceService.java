@@ -51,18 +51,18 @@ public class DeviceService {
      * 특정 그룹의 장비 목록 페이지네이션 + 정렬 조회 (LIMIT OFFSET)
      */
     public PageVO<DeviceVO> getDevicesByGroupIdsPaged(List<Integer> groupIds, int page, int size, String sort, String order) {
-        return getDevicesByGroupIdsPaged(groupIds, page, size, sort, order, null, null, null);
+        return getDevicesByGroupIdsPaged(groupIds, page, size, sort, order, null, null, null, null);
     }
 
     /**
      * 특정 그룹의 장비 목록 페이지네이션 + 정렬 + 검색 조회
      */
     public PageVO<DeviceVO> getDevicesByGroupIdsPaged(List<Integer> groupIds, int page, int size, String sort, String order,
-                                                       String deviceName, String deviceIp, String groupName) {
+                                                       String deviceName, String deviceIp, String groupName, Integer devCodeId) {
         int offset = (page - 1) * size;
         List<DeviceVO> devices = deviceMapper.findDevicesByGroupIdsPagedWithSearch(
-                groupIds, size, offset, sort, order, deviceName, deviceIp, groupName);
-        int totalCount = deviceMapper.countDevicesByGroupIdsWithSearch(groupIds, deviceName, deviceIp, groupName);
+                groupIds, size, offset, sort, order, deviceName, deviceIp, groupName, devCodeId);
+        int totalCount = deviceMapper.countDevicesByGroupIdsWithSearch(groupIds, deviceName, deviceIp, groupName, devCodeId);
         return PageVO.of(devices, page, size, totalCount);
     }
 

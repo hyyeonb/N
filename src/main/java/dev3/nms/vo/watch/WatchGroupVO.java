@@ -16,6 +16,7 @@ public class WatchGroupVO {
     private Integer INTERVAL_SEC;
     private Integer DEPTH;  // 깊이 (0 = 최상위)
     private String ICON_NAME;  // 아이콘 이름
+    private Integer LINKED_GROUP_ID;  // 연동된 장비 그룹 ID (NULL=순수 관제 그룹)
     private LocalDateTime CREATE_AT;
     private LocalDateTime MODIFY_AT;
 

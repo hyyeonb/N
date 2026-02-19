@@ -118,7 +118,9 @@ public class PortService {
 
     /**
      * 포트 정보 저장 또는 업데이트 (SNMP 수집 후)
-     * 기존 포트가 있으면 업데이트, 없으면 새로 생성
+     * INSERT ... ON DUPLICATE KEY UPDATE 사용 (1개 쿼리로 처리)
+     * - 신규 포트: 기본 감시 설정(ON)으로 INSERT
+     * - 기존 포트: 감시 설정(IF_OPER_FLAG, IF_PERF_FLAG) 유지, 나머지 업데이트
      */
     @Transactional
     public void saveOrUpdatePorts(Integer deviceId, List<PortVO> ports) {
@@ -128,21 +130,9 @@ public class PortService {
 
         for (PortVO port : ports) {
             port.setDEVICE_ID(deviceId);
-            PortVO existingPort = portMapper.findByDeviceIdAndIfIndex(deviceId, port.getIF_INDEX());
-
-            if (existingPort != null) {
-                // 기존 포트 업데이트 (감시 설정은 유지)
-                port.setIF_OPER_FLAG(existingPort.getIF_OPER_FLAG());
-                port.setIF_PERF_FLAG(existingPort.getIF_PERF_FLAG());
-                portMapper.updatePort(port);
-            } else {
-                // 새 포트 등록 (기본 감시 설정: ON)
-                port.setIF_OPER_FLAG(true);
-                port.setIF_PERF_FLAG(true);
-                portMapper.insertPort(port);
-            }
         }
 
+        portMapper.upsertPorts(ports);
         log.info("포트 저장/업데이트 완료 - DeviceId: {}, 포트 수: {}", deviceId, ports.size());
     }
 

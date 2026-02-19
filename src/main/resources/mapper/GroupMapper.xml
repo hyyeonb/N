@@ -138,4 +138,35 @@
         WHERE g.DELETE_AT IS NULL
     </update>
 
+    <!-- 하위 그룹 개수 조회 (WITH RECURSIVE, 자기 자신 제외) -->
+    <select id="countDescendants" parameterType="int" resultType="int">
+        WITH RECURSIVE group_tree AS (
+            SELECT GROUP_ID FROM R_GROUP_T
+            WHERE PARENT_GROUP_ID = #{groupId} AND DELETE_AT IS NULL
+            UNION ALL
+            SELECT g.GROUP_ID FROM R_GROUP_T g
+            INNER JOIN group_tree gt ON g.PARENT_GROUP_ID = gt.GROUP_ID
+            WHERE g.DELETE_AT IS NULL
+        )
+        SELECT COUNT(*) FROM group_tree
+    </select>
+
+    <!-- 모든 하위 그룹 조회 (WITH RECURSIVE, 자기 자신 제외) -->
+    <select id="findDescendants" parameterType="int" resultMap="GroupResultMap">
+        WITH RECURSIVE group_tree AS (
+            SELECT GROUP_ID FROM R_GROUP_T
+            WHERE PARENT_GROUP_ID = #{groupId} AND DELETE_AT IS NULL
+            UNION ALL
+            SELECT g.GROUP_ID FROM R_GROUP_T g
+            INNER JOIN group_tree gt ON g.PARENT_GROUP_ID = gt.GROUP_ID
+            WHERE g.DELETE_AT IS NULL
+        )
+        SELECT g.GROUP_ID, g.PARENT_GROUP_ID, g.GROUP_NAME, g.ADDRESS, g.PHONE, g.ICON_NAME,
+               g.DEPTH, g.CREATE_USER_ID, g.CREATE_AT, g.MODIFY_USER_ID, g.MODIFY_AT,
+               g.DELETE_USER_ID, g.DELETE_AT
+        FROM R_GROUP_T g
+        INNER JOIN group_tree gt ON g.GROUP_ID = gt.GROUP_ID
+        WHERE g.DELETE_AT IS NULL
+    </select>
+
 </mapper>
