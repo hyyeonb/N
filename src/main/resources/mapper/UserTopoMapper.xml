@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="dev3.nms.mapper.UserTopoMapper">
+
+    <!-- ==================== 뷰 ==================== -->
+
+    <select id="findViewId" resultType="long">
+        SELECT VIEW_ID
+        FROM r_user_tpo_view_t
+        WHERE USER_ID = #{userId} AND GROUP_ID = #{groupId}
+        LIMIT 1
+    </select>
+
+    <select id="findView" resultType="dev3.nms.vo.topo.UserTopoDto$ViewRes">
+        SELECT
+            VIEW_ID        AS viewId,
+            USER_ID        AS userId,
+            GROUP_ID       AS groupId,
+            ZOOM           AS zoom,
+            CENTER_X       AS centerX,
+            CENTER_Y       AS centerY,
+            BACK_ICON_DATA AS backIconData
+        FROM r_user_tpo_view_t
+        WHERE USER_ID = #{userId} AND GROUP_ID = #{groupId}
+        LIMIT 1
+    </select>
+
+    <insert id="insertView" useGeneratedKeys="true" keyProperty="req.viewId" keyColumn="VIEW_ID">
+        INSERT INTO r_user_tpo_view_t (USER_ID, GROUP_ID, ZOOM, CENTER_X, CENTER_Y)
+        VALUES (#{userId}, #{groupId}, #{req.zoom}, #{req.centerX}, #{req.centerY})
+    </insert>
+
+    <update id="updateView">
+        UPDATE r_user_tpo_view_t
+        SET ZOOM = #{req.zoom}, CENTER_X = #{req.centerX}, CENTER_Y = #{req.centerY}
+        WHERE VIEW_ID = #{viewId}
+    </update>
+
+    <!-- ==================== 노드 ==================== -->
+
+    <select id="findNodesByViewId" parameterType="long"
+            resultType="dev3.nms.vo.topo.UserTopoDto$NodeRes">
+        SELECT
+            n.NODE_KEY AS id,
+            LOWER(n.NODE_TYPE) AS nodeType,
+            CASE WHEN UPPER(n.NODE_TYPE) = 'GROUP'  THEN n.GROUP_ID  ELSE NULL END AS groupId,
+            CASE WHEN UPPER(n.NODE_TYPE) = 'DEVICE' THEN n.DEVICE_ID ELSE NULL END AS deviceId,
+            CASE
+                WHEN n.ICON_DATA IS NOT NULL THEN n.ICON_DATA
+                WHEN UPPER(n.NODE_TYPE) = 'DEVICE' THEN m.ICON_DATA
+                ELSE g.ICON_DATA
+            END AS iconData,
+            CASE
+                WHEN UPPER(n.NODE_TYPE) = 'DEVICE' THEN COALESCE(d.DEVICE_NAME, d.DEVICE_SYSTEM_NAME, n.NODE_KEY)
+                WHEN UPPER(n.NODE_TYPE) = 'GROUP'  THEN COALESCE(g.GROUP_NAME, n.NODE_KEY)
+                ELSE n.NODE_KEY
+            END AS name,
+            CASE
+                WHEN UPPER(n.NODE_TYPE) = 'DEVICE' THEN COALESCE(m.MODEL_NAME, 'Unknown')
+                WHEN UPPER(n.NODE_TYPE) = 'GROUP'  THEN 'group'
+                ELSE 'unknown'
+            END AS type,
+            CASE WHEN UPPER(n.NODE_TYPE) = 'DEVICE' THEN d.DEVICE_IP ELSE '' END AS ip,
+            CASE
+                WHEN UPPER(n.NODE_TYPE) = 'GROUP'  THEN g.ADDRESS
+                WHEN UPPER(n.NODE_TYPE) = 'DEVICE' THEN gd.ADDRESS
+                ELSE ''
+            END AS location,
+            CASE WHEN UPPER(n.NODE_TYPE) = 'DEVICE' THEN d.DEVICE_DESC ELSE '' END AS note,
+            n.X  AS x,
+            n.Y  AS y,
+            COALESCE(n.FX, n.X) AS fx,
+            COALESCE(n.FY, n.Y) AS fy
+        FROM r_user_tpo_node_t n
+            LEFT JOIN r_device_t d  ON n.DEVICE_ID = d.DEVICE_ID
+            LEFT JOIN r_group_t  g  ON n.GROUP_ID  = g.GROUP_ID
+            LEFT JOIN r_group_t  gd ON d.GROUP_ID  = gd.GROUP_ID
+            LEFT JOIN r_model_t  m  ON d.MODEL_ID  = m.MODEL_ID
+        WHERE n.VIEW_ID = #{viewId}
+        ORDER BY n.NODE_KEY
+    </select>
+
+    <insert id="insertNodes" parameterType="map">
+        INSERT INTO r_user_tpo_node_t (VIEW_ID, NODE_KEY, NODE_TYPE, DEVICE_ID, GROUP_ID, X, Y, FX, FY, ICON_DATA)
+        VALUES
+        <foreach collection="nodes" item="n" separator=",">
+            (#{viewId}, #{n.id}, #{n.nodeType},
+             #{n.deviceId,jdbcType=BIGINT}, #{n.groupId,jdbcType=BIGINT},
+             #{n.x}, #{n.y}, #{n.fx}, #{n.fy}, #{n.iconData,jdbcType=CLOB})
+        </foreach>
+    </insert>
+
+    <delete id="deleteNodesByViewId" parameterType="long">
+        DELETE FROM r_user_tpo_node_t WHERE VIEW_ID = #{viewId}
+    </delete>
+
+    <!-- ==================== 링크 ==================== -->
+
+    <select id="findLinksByViewId" parameterType="long"
+            resultType="dev3.nms.vo.topo.UserTopoDto$LinkRes">
+        SELECT
+            l.SRC_NODE_KEY AS source,
+            l.DST_NODE_KEY AS target,
+            l.SRC_IF_KEY   AS srcIfIndex,
+            l.DST_IF_KEY   AS dstIfIndex,
+            l.SRC_TYPE     AS srcType,
+            l.DST_TYPE     AS dstType,
+            sp.IF_NAME     AS srcIfName,
+            dp.IF_NAME     AS dstIfName,
+            l.STATUS       AS status
+        FROM r_user_tpo_link_t l
+            LEFT JOIN r_port_t sp ON l.SRC_NODE_KEY = sp.DEVICE_ID AND l.SRC_IF_KEY = sp.IF_INDEX
+            LEFT JOIN r_port_t dp ON l.DST_NODE_KEY = dp.DEVICE_ID AND l.DST_IF_KEY = dp.IF_INDEX
+        WHERE l.VIEW_ID = #{viewId}
+    </select>
+
+    <insert id="insertLinks" parameterType="map">
+        INSERT INTO r_user_tpo_link_t (VIEW_ID, SRC_NODE_KEY, SRC_IF_KEY, SRC_TYPE, DST_NODE_KEY, DST_IF_KEY, DST_TYPE, STATUS)
+        VALUES
+        <foreach collection="links" item="l" separator=",">
+            (#{viewId}, #{l.source}, #{l.srcIfIndex}, #{l.srcType},
+             #{l.target}, #{l.dstIfIndex}, #{l.dstType}, #{l.status})
+        </foreach>
+    </insert>
+
+    <delete id="deleteLinksByViewId" parameterType="long">
+        DELETE FROM r_user_tpo_link_t WHERE VIEW_ID = #{viewId}
+    </delete>
+
+    <!-- ==================== 배경 이미지 ==================== -->
+
+    <update id="updateBackIconData">
+        UPDATE r_user_tpo_view_t
+        SET BACK_ICON_DATA = #{imgSrc}
+        WHERE VIEW_ID = #{viewId}
+    </update>
+
+    <!-- ==================== 노드 커스텀 아이콘 ==================== -->
+
+    <update id="updateNodeIconData">
+        UPDATE r_user_tpo_node_t
+        SET ICON_DATA = #{imgSrc}
+        WHERE VIEW_ID = #{viewId} AND NODE_KEY = #{nodeKey}
+    </update>
+
+</mapper>
