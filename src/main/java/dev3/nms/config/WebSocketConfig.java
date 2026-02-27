@@ -19,6 +19,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
             "/topic/alerts/performance",// 성능 장애
             "/topic/alerts/port",       // 포트 장애
             "/topic/alerts/system",     // 시스템 장애
+            "/topic/notice/urgent",     // 긴급공지
             "/user/queue/alerts"        // 개인 알림
         );
         config.setApplicationDestinationPrefixes("/app");
