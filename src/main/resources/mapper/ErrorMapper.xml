@@ -263,4 +263,335 @@
         WHERE h.ERROR_HISTORY_ID = #{errorHistoryId}
     </select>
 
+    <!-- 포트 비관리 전환 시 PORT 장애 이력 이관 (CLEAR_AT 설정) -->
+    <insert id="insertPortErrorHistory">
+        INSERT INTO f_error_history_t (ERROR_ID, DEVICE_ID, ERROR_CODE_ID, ERROR_MESSAGE, ERROR_LEVEL, OCCUR_AT, CLEAR_AT, USER_MESSAGE, UPDATE_AT, DEVICE_IP)
+        SELECT ERROR_ID, DEVICE_ID, ERROR_CODE_ID, ERROR_MESSAGE, ERROR_LEVEL, OCCUR_AT, NOW(), '포트 비관리 설정으로 인한 자동 해소', NOW(), DEVICE_IP
+        FROM f_error_t
+        WHERE DEVICE_ID = #{deviceId}
+          AND IF_INDEX = #{ifIndex}
+    </insert>
+
+    <!-- 포트 비관리 전환 시 PORT 장애 삭제 -->
+    <delete id="deletePortError">
+        DELETE FROM f_error_t
+        WHERE DEVICE_ID = #{deviceId}
+          AND IF_INDEX = #{ifIndex}
+    </delete>
+
+    <!-- ==================== 장애 통계 ==================== -->
+
+    <!-- 장비 필터 공통 조건 (d 별칭 = r_device_t JOIN 필수) -->
+    <sql id="deviceFilter">
+        AND d.DELETE_AT IS NULL
+        <if test="groupIds != null and groupIds.size() > 0">
+            AND d.GROUP_ID IN
+            <foreach collection="groupIds" item="gid" open="(" separator="," close=")">
+                #{gid}
+            </foreach>
+        </if>
+        <if test="deviceIds != null and deviceIds.size() > 0">
+            AND d.DEVICE_ID IN
+            <foreach collection="deviceIds" item="did" open="(" separator="," close=")">
+                #{did}
+            </foreach>
+        </if>
+    </sql>
+
+    <!-- 등급별 현재 장애 수 -->
+    <select id="selectErrorCountByLevel" resultType="java.util.Map">
+        SELECT
+            COALESCE(e.ERROR_LEVEL, 'UNKNOWN') AS LEVEL_CODE,
+            COUNT(*) AS CNT
+        FROM f_error_t e
+        JOIN r_device_t d ON e.DEVICE_ID = d.DEVICE_ID
+        WHERE 1=1
+        <include refid="deviceFilter"/>
+        GROUP BY e.ERROR_LEVEL
+    </select>
+
+    <!-- 유형별 현재 장애 수 -->
+    <select id="selectErrorCountByType" resultType="java.util.Map">
+        SELECT
+            ec.ERROR_CODE_NM AS ERROR_TYPE,
+            COUNT(*) AS CNT
+        FROM f_error_t e
+        JOIN b_error_code_t ec ON e.ERROR_CODE_ID = ec.ERROR_CODE_ID
+        JOIN r_device_t d ON e.DEVICE_ID = d.DEVICE_ID
+        WHERE 1=1
+        <include refid="deviceFilter"/>
+        GROUP BY ec.ERROR_CODE_NM
+        ORDER BY CNT DESC
+    </select>
+
+    <!-- 일별 장애 발생 추이 (발생 + 해소 통합) -->
+    <select id="selectErrorTrendDaily" resultType="java.util.Map">
+        SELECT
+            DATE_FORMAT(dt.OCCUR_DATE, '%Y-%m-%d') AS STAT_DATE,
+            COALESCE(SUM(dt.OCCURRED), 0) AS OCCURRED,
+            COALESCE(SUM(dt.CLEARED), 0) AS CLEARED
+        FROM (
+            SELECT DATE(h.OCCUR_AT) AS OCCUR_DATE, 1 AS OCCURRED, 0 AS CLEARED
+            FROM f_error_history_t h
+            JOIN r_device_t d ON h.DEVICE_ID = d.DEVICE_ID
+            WHERE h.OCCUR_AT >= #{startDate}
+              AND h.OCCUR_AT &lt;= CONCAT(#{endDate}, ' 23:59:59')
+            <include refid="deviceFilter"/>
+            UNION ALL
+            SELECT DATE(e.OCCUR_AT) AS OCCUR_DATE, 1 AS OCCURRED, 0 AS CLEARED
+            FROM f_error_t e
+            JOIN r_device_t d ON e.DEVICE_ID = d.DEVICE_ID
+            WHERE e.OCCUR_AT >= #{startDate}
+              AND e.OCCUR_AT &lt;= CONCAT(#{endDate}, ' 23:59:59')
+            <include refid="deviceFilter"/>
+            UNION ALL
+            SELECT DATE(h2.CLEAR_AT) AS OCCUR_DATE, 0 AS OCCURRED, 1 AS CLEARED
+            FROM f_error_history_t h2
+            JOIN r_device_t d ON h2.DEVICE_ID = d.DEVICE_ID
+            WHERE h2.CLEAR_AT >= #{startDate}
+              AND h2.CLEAR_AT &lt;= CONCAT(#{endDate}, ' 23:59:59')
+            <include refid="deviceFilter"/>
+        ) dt
+        GROUP BY dt.OCCUR_DATE
+        ORDER BY dt.OCCUR_DATE
+    </select>
+
+    <!-- 유형별 장애 발생 추이 (일별) -->
+    <select id="selectErrorTrendByType" resultType="java.util.Map">
+        SELECT
+            DATE_FORMAT(dt.OCCUR_DATE, '%Y-%m-%d') AS STAT_DATE,
+            dt.ERROR_TYPE,
+            COUNT(*) AS CNT
+        FROM (
+            SELECT DATE(h.OCCUR_AT) AS OCCUR_DATE, ec.ERROR_CODE_NM AS ERROR_TYPE
+            FROM f_error_history_t h
+            JOIN b_error_code_t ec ON h.ERROR_CODE_ID = ec.ERROR_CODE_ID
+            JOIN r_device_t d ON h.DEVICE_ID = d.DEVICE_ID
+            WHERE h.OCCUR_AT >= #{startDate}
+              AND h.OCCUR_AT &lt;= CONCAT(#{endDate}, ' 23:59:59')
+            <include refid="deviceFilter"/>
+            UNION ALL
+            SELECT DATE(e.OCCUR_AT) AS OCCUR_DATE, ec.ERROR_CODE_NM AS ERROR_TYPE
+            FROM f_error_t e
+            JOIN b_error_code_t ec ON e.ERROR_CODE_ID = ec.ERROR_CODE_ID
+            JOIN r_device_t d ON e.DEVICE_ID = d.DEVICE_ID
+            WHERE e.OCCUR_AT >= #{startDate}
+              AND e.OCCUR_AT &lt;= CONCAT(#{endDate}, ' 23:59:59')
+            <include refid="deviceFilter"/>
+        ) dt
+        GROUP BY dt.OCCUR_DATE, dt.ERROR_TYPE
+        ORDER BY dt.OCCUR_DATE
+    </select>
+
+    <!-- 시간대별 장애 발생 추이 (당일용, 0~23시) -->
+    <select id="selectErrorTrendHourly" resultType="java.util.Map">
+        SELECT
+            dt.HOUR_VAL AS STAT_HOUR,
+            COALESCE(SUM(dt.OCCURRED), 0) AS OCCURRED,
+            COALESCE(SUM(dt.CLEARED), 0) AS CLEARED
+        FROM (
+            SELECT HOUR(h.OCCUR_AT) AS HOUR_VAL, 1 AS OCCURRED, 0 AS CLEARED
+            FROM f_error_history_t h
+            JOIN r_device_t d ON h.DEVICE_ID = d.DEVICE_ID
+            WHERE h.OCCUR_AT >= #{startDate}
+              AND h.OCCUR_AT &lt;= CONCAT(#{endDate}, ' 23:59:59')
+            <include refid="deviceFilter"/>
+            UNION ALL
+            SELECT HOUR(e.OCCUR_AT) AS HOUR_VAL, 1 AS OCCURRED, 0 AS CLEARED
+            FROM f_error_t e
+            JOIN r_device_t d ON e.DEVICE_ID = d.DEVICE_ID
+            WHERE e.OCCUR_AT >= #{startDate}
+              AND e.OCCUR_AT &lt;= CONCAT(#{endDate}, ' 23:59:59')
+            <include refid="deviceFilter"/>
+            UNION ALL
+            SELECT HOUR(h2.CLEAR_AT) AS HOUR_VAL, 0 AS OCCURRED, 1 AS CLEARED
+            FROM f_error_history_t h2
+            JOIN r_device_t d ON h2.DEVICE_ID = d.DEVICE_ID
+            WHERE h2.CLEAR_AT >= #{startDate}
+              AND h2.CLEAR_AT &lt;= CONCAT(#{endDate}, ' 23:59:59')
+            <include refid="deviceFilter"/>
+        ) dt
+        GROUP BY dt.HOUR_VAL
+        ORDER BY dt.HOUR_VAL
+    </select>
+
+    <!-- 시간대별 유형별 장애 발생 추이 (당일용) -->
+    <select id="selectErrorTrendByTypeHourly" resultType="java.util.Map">
+        SELECT
+            dt.HOUR_VAL AS STAT_HOUR,
+            dt.ERROR_TYPE,
+            COUNT(*) AS CNT
+        FROM (
+            SELECT HOUR(h.OCCUR_AT) AS HOUR_VAL, ec.ERROR_CODE_NM AS ERROR_TYPE
+            FROM f_error_history_t h
+            JOIN b_error_code_t ec ON h.ERROR_CODE_ID = ec.ERROR_CODE_ID
+            JOIN r_device_t d ON h.DEVICE_ID = d.DEVICE_ID
+            WHERE h.OCCUR_AT >= #{startDate}
+              AND h.OCCUR_AT &lt;= CONCAT(#{endDate}, ' 23:59:59')
+            <include refid="deviceFilter"/>
+            UNION ALL
+            SELECT HOUR(e.OCCUR_AT) AS HOUR_VAL, ec.ERROR_CODE_NM AS ERROR_TYPE
+            FROM f_error_t e
+            JOIN b_error_code_t ec ON e.ERROR_CODE_ID = ec.ERROR_CODE_ID
+            JOIN r_device_t d ON e.DEVICE_ID = d.DEVICE_ID
+            WHERE e.OCCUR_AT >= #{startDate}
+              AND e.OCCUR_AT &lt;= CONCAT(#{endDate}, ' 23:59:59')
+            <include refid="deviceFilter"/>
+        ) dt
+        GROUP BY dt.HOUR_VAL, dt.ERROR_TYPE
+        ORDER BY dt.HOUR_VAL
+    </select>
+
+    <!-- 유형별 MTTR (평균 장애 처리 시간, 초 단위) -->
+    <select id="selectMttrByType" resultType="java.util.Map">
+        SELECT
+            ec.ERROR_CODE_NM AS ERROR_TYPE,
+            ROUND(AVG(TIMESTAMPDIFF(SECOND, h.OCCUR_AT, h.CLEAR_AT))) AS AVG_SECONDS,
+            MIN(TIMESTAMPDIFF(SECOND, h.OCCUR_AT, h.CLEAR_AT)) AS MIN_SECONDS,
+            MAX(TIMESTAMPDIFF(SECOND, h.OCCUR_AT, h.CLEAR_AT)) AS MAX_SECONDS,
+            COUNT(*) AS CNT
+        FROM f_error_history_t h
+        JOIN b_error_code_t ec ON h.ERROR_CODE_ID = ec.ERROR_CODE_ID
+        JOIN r_device_t d ON h.DEVICE_ID = d.DEVICE_ID
+        WHERE h.CLEAR_AT IS NOT NULL
+        <if test="startDate != null and startDate != ''">
+            AND h.OCCUR_AT >= #{startDate}
+        </if>
+        <if test="endDate != null and endDate != ''">
+            AND h.OCCUR_AT &lt;= CONCAT(#{endDate}, ' 23:59:59')
+        </if>
+        <include refid="deviceFilter"/>
+        GROUP BY ec.ERROR_CODE_NM
+        ORDER BY AVG_SECONDS DESC
+    </select>
+
+    <!-- 상습 장애 장비 Top N -->
+    <select id="selectTopErrorDevices" resultType="java.util.Map">
+        SELECT
+            dt.DEVICE_ID,
+            d.DEVICE_NAME,
+            d.DEVICE_IP,
+            g.GROUP_NAME,
+            SUM(dt.TOTAL_CNT) AS TOTAL_CNT,
+            SUM(dt.ACTIVE_CNT) AS ACTIVE_CNT
+        FROM (
+            SELECT DEVICE_ID, COUNT(*) AS TOTAL_CNT, 0 AS ACTIVE_CNT
+            FROM f_error_history_t
+            WHERE OCCUR_AT >= #{startDate}
+              AND OCCUR_AT &lt;= CONCAT(#{endDate}, ' 23:59:59')
+            GROUP BY DEVICE_ID
+            UNION ALL
+            SELECT DEVICE_ID, COUNT(*) AS TOTAL_CNT, COUNT(*) AS ACTIVE_CNT
+            FROM f_error_t
+            GROUP BY DEVICE_ID
+        ) dt
+        JOIN r_device_t d ON dt.DEVICE_ID = d.DEVICE_ID
+        LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
+        WHERE 1=1
+        <include refid="deviceFilter"/>
+        GROUP BY dt.DEVICE_ID, d.DEVICE_NAME, d.DEVICE_IP, g.GROUP_NAME
+        ORDER BY TOTAL_CNT DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 시간대별 장애 패턴 (0~23시) -->
+    <select id="selectErrorPatternByHour" resultType="java.util.Map">
+        SELECT
+            dt.HOUR_VAL AS HOUR_OF_DAY,
+            COUNT(*) AS CNT
+        FROM (
+            SELECT HOUR(h.OCCUR_AT) AS HOUR_VAL
+            FROM f_error_history_t h
+            JOIN r_device_t d ON h.DEVICE_ID = d.DEVICE_ID
+            WHERE h.OCCUR_AT >= #{startDate}
+              AND h.OCCUR_AT &lt;= CONCAT(#{endDate}, ' 23:59:59')
+            <include refid="deviceFilter"/>
+            UNION ALL
+            SELECT HOUR(e.OCCUR_AT) AS HOUR_VAL
+            FROM f_error_t e
+            JOIN r_device_t d ON e.DEVICE_ID = d.DEVICE_ID
+            WHERE e.OCCUR_AT >= #{startDate}
+              AND e.OCCUR_AT &lt;= CONCAT(#{endDate}, ' 23:59:59')
+            <include refid="deviceFilter"/>
+        ) dt
+        GROUP BY dt.HOUR_VAL
+        ORDER BY dt.HOUR_VAL
+    </select>
+
+    <!-- 요일별 장애 패턴 (1=일, 2=월, ..., 7=토) -->
+    <select id="selectErrorPatternByDow" resultType="java.util.Map">
+        SELECT
+            dt.DOW_VAL AS DAY_OF_WEEK,
+            COUNT(*) AS CNT
+        FROM (
+            SELECT DAYOFWEEK(h.OCCUR_AT) AS DOW_VAL
+            FROM f_error_history_t h
+            JOIN r_device_t d ON h.DEVICE_ID = d.DEVICE_ID
+            WHERE h.OCCUR_AT >= #{startDate}
+              AND h.OCCUR_AT &lt;= CONCAT(#{endDate}, ' 23:59:59')
+            <include refid="deviceFilter"/>
+            UNION ALL
+            SELECT DAYOFWEEK(e.OCCUR_AT) AS DOW_VAL
+            FROM f_error_t e
+            JOIN r_device_t d ON e.DEVICE_ID = d.DEVICE_ID
+            WHERE e.OCCUR_AT >= #{startDate}
+              AND e.OCCUR_AT &lt;= CONCAT(#{endDate}, ' 23:59:59')
+            <include refid="deviceFilter"/>
+        ) dt
+        GROUP BY dt.DOW_VAL
+        ORDER BY dt.DOW_VAL
+    </select>
+
+    <!-- 미해소 장애 Aging 분포 -->
+    <select id="selectErrorAging" resultType="java.util.Map">
+        SELECT
+            CASE
+                WHEN TIMESTAMPDIFF(HOUR, e.OCCUR_AT, NOW()) &lt; 1 THEN '1h_under'
+                WHEN TIMESTAMPDIFF(HOUR, e.OCCUR_AT, NOW()) &lt; 6 THEN '1h_6h'
+                WHEN TIMESTAMPDIFF(HOUR, e.OCCUR_AT, NOW()) &lt; 24 THEN '6h_24h'
+                ELSE '24h_over'
+            END AS AGE_GROUP,
+            COUNT(*) AS CNT
+        FROM f_error_t e
+        JOIN r_device_t d ON e.DEVICE_ID = d.DEVICE_ID
+        WHERE 1=1
+        <include refid="deviceFilter"/>
+        GROUP BY AGE_GROUP
+        ORDER BY FIELD(AGE_GROUP, '1h_under', '1h_6h', '6h_24h', '24h_over')
+    </select>
+
+    <!-- ==================== 장비 삭제 시 장애 정리 ==================== -->
+
+    <!-- 장비의 모든 활성 장애 → 이력 이관 (장비 삭제용) -->
+    <insert id="moveDeviceErrorsToHistory" parameterType="int">
+        INSERT INTO f_error_history_t (ERROR_ID, DEVICE_ID, ERROR_CODE_ID, ERROR_MESSAGE, ERROR_LEVEL, OCCUR_AT, CLEAR_AT, USER_MESSAGE, UPDATE_AT, DEVICE_IP)
+        SELECT ERROR_ID, DEVICE_ID, ERROR_CODE_ID, ERROR_MESSAGE, ERROR_LEVEL, OCCUR_AT, NOW(), '장비 삭제로 인한 자동 해소', NOW(), DEVICE_IP
+        FROM f_error_t
+        WHERE DEVICE_ID = #{deviceId}
+    </insert>
+
+    <!-- 장비의 모든 활성 장애 삭제 (장비 삭제용) -->
+    <delete id="deleteDeviceErrors" parameterType="int">
+        DELETE FROM f_error_t
+        WHERE DEVICE_ID = #{deviceId}
+    </delete>
+
+    <!-- 삭제된 포트의 잔존 Oper 장애 → 이력 이관 -->
+    <insert id="moveDeletedPortErrorsToHistory" parameterType="int">
+        INSERT INTO f_error_history_t (ERROR_ID, DEVICE_ID, ERROR_CODE_ID, ERROR_MESSAGE, ERROR_LEVEL, OCCUR_AT, CLEAR_AT, USER_MESSAGE, UPDATE_AT, DEVICE_IP)
+        SELECT e.ERROR_ID, e.DEVICE_ID, e.ERROR_CODE_ID, e.ERROR_MESSAGE, e.ERROR_LEVEL, e.OCCUR_AT, NOW(), '포트 삭제로 인한 자동 해소', NOW(), e.DEVICE_IP
+        FROM f_error_t e
+        INNER JOIN r_port_t p ON e.DEVICE_ID = p.DEVICE_ID AND e.IF_INDEX = p.IF_INDEX
+        WHERE e.DEVICE_ID = #{deviceId}
+          AND p.DELETE_AT IS NOT NULL
+    </insert>
+
+    <!-- 삭제된 포트의 잔존 Oper 장애 삭제 -->
+    <delete id="deleteDeletedPortErrors" parameterType="int">
+        DELETE e FROM f_error_t e
+        INNER JOIN r_port_t p ON e.DEVICE_ID = p.DEVICE_ID AND e.IF_INDEX = p.IF_INDEX
+        WHERE e.DEVICE_ID = #{deviceId}
+          AND p.DELETE_AT IS NOT NULL
+    </delete>
+
 </mapper>

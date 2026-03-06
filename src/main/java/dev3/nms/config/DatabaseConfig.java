@@ -35,11 +35,11 @@ public class DatabaseConfig {
         config.setJdbcUrl(jdbcUrl);
         config.setUsername(username);
         config.setPassword(password);
-        config.setMaximumPoolSize(10);
-        config.setMinimumIdle(5);
-        config.setConnectionTimeout(30000);
-        config.setIdleTimeout(600000);
-        config.setMaxLifetime(1800000);
+        config.setMaximumPoolSize(20);
+        config.setMinimumIdle(10);
+        config.setConnectionTimeout(5000);
+        config.setIdleTimeout(300000);
+        config.setMaxLifetime(600000);
 
         return new HikariDataSource(config);
     }

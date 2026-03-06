@@ -58,11 +58,13 @@ public class MiddlewareClient {
                 return objectMapper.readValue(response.body(), SystemInfoResponse.class);
             } else {
                 log.error("Middleware API 오류 - status: {}, body: {}", response.statusCode(), response.body());
-                throw new RuntimeException("Middleware API 오류: " + response.statusCode());
+                throw new RuntimeException("SNMP 실패: 미들웨어 통신 오류 (" + response.statusCode() + ")");
             }
+        } catch (RuntimeException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Middleware API 호출 실패: {}", e.getMessage());
-            throw new RuntimeException("Middleware API 호출 실패: " + e.getMessage(), e);
+            throw new RuntimeException("SNMP 실패: 미들웨어 연결 실패 (에이전트가 실행 중인지 확인하세요)", e);
         }
     }
 
@@ -87,11 +89,13 @@ public class MiddlewareClient {
                 return objectMapper.readValue(response.body(), PortsResponse.class);
             } else {
                 log.error("Middleware API 오류 - status: {}, body: {}", response.statusCode(), response.body());
-                throw new RuntimeException("Middleware API 오류: " + response.statusCode());
+                throw new RuntimeException("SNMP 실패: 미들웨어 통신 오류 (" + response.statusCode() + ")");
             }
+        } catch (RuntimeException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Middleware API 호출 실패: {}", e.getMessage());
-            throw new RuntimeException("Middleware API 호출 실패: " + e.getMessage(), e);
+            throw new RuntimeException("SNMP 실패: 미들웨어 연결 실패 (에이전트가 실행 중인지 확인하세요)", e);
         }
     }
 
@@ -115,7 +119,7 @@ public class MiddlewareClient {
         PortsResponse response = getPorts(request);
 
         if (!response.isSuccess()) {
-            throw new RuntimeException("포트 정보 조회 실패: " + response.getMessage());
+            throw new RuntimeException(toSnmpUserMessage(response.getMessage()));
         }
 
         // PortInfo -> PortVO 변환
@@ -165,7 +169,7 @@ public class MiddlewareClient {
         SystemInfoResponse response = getSystemInfo(request);
 
         if (!response.isSuccess()) {
-            throw new RuntimeException("SNMP 조회 실패: " + response.getMessage());
+            throw new RuntimeException(toSnmpUserMessage(response.getMessage()));
         }
 
         Map<String, String> result = new HashMap<>();
@@ -173,6 +177,142 @@ public class MiddlewareClient {
         result.put("sysObjectId", dev3.nms.util.CommonUtil.normalizeOid(response.getSysObjectId()));
         result.put("sysName", response.getSysName());
         return result;
+    }
+
+    /**
+     * PING 체크 (Go Middleware /api/check/ping)
+     */
+    public PingResponse pingCheck(String ipAddress) {
+        try {
+            String url = middlewareUrl + "/api/check/ping";
+            Map<String, String> body = Map.of("ipAddress", ipAddress);
+            String requestBody = objectMapper.writeValueAsString(body);
+
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Content-Type", "application/json")
+                    .timeout(Duration.ofSeconds(3))
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+            return objectMapper.readValue(response.body(), PingResponse.class);
+        } catch (Exception e) {
+            log.error("PING 체크 실패 - IP: {}, error: {}", ipAddress, e.getMessage());
+            PingResponse fail = new PingResponse();
+            fail.setSuccess(false);
+            fail.setMessage("Middleware 호출 실패: " + e.getMessage());
+            return fail;
+        }
+    }
+
+    /**
+     * SSH 포트 체크 (Go Middleware /api/check/ssh)
+     */
+    public SshCheckResponse sshCheck(String ipAddress, int port) {
+        try {
+            String url = middlewareUrl + "/api/check/ssh";
+            Map<String, Object> body = Map.of("ipAddress", ipAddress, "port", port);
+            String requestBody = objectMapper.writeValueAsString(body);
+
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Content-Type", "application/json")
+                    .timeout(Duration.ofSeconds(10))
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+            return objectMapper.readValue(response.body(), SshCheckResponse.class);
+        } catch (Exception e) {
+            log.error("SSH 체크 실패 - IP: {}:{}, error: {}", ipAddress, port, e.getMessage());
+            SshCheckResponse fail = new SshCheckResponse();
+            fail.setSuccess(false);
+            fail.setPort(port);
+            fail.setMessage("Middleware 호출 실패: " + e.getMessage());
+            return fail;
+        }
+    }
+
+    /**
+     * 특정 포트 상태 체크 (AdminStatus / OperStatus 실시간 SNMP 조회)
+     */
+    public PortStatusResponse getPortStatus(SnmpRequest snmpRequest, int ifIndex) {
+        try {
+            String url = middlewareUrl + "/api/snmp/port-status";
+            Map<String, Object> body = new HashMap<>();
+            body.put("ipAddress", snmpRequest.getIpAddress());
+            body.put("snmpVersion", snmpRequest.getSnmpVersion());
+            body.put("snmpPort", snmpRequest.getSnmpPort());
+            body.put("community", snmpRequest.getCommunity());
+            body.put("user", snmpRequest.getUser());
+            body.put("authProtocol", snmpRequest.getAuthProtocol());
+            body.put("authPassword", snmpRequest.getAuthPassword());
+            body.put("privProtocol", snmpRequest.getPrivProtocol());
+            body.put("privPassword", snmpRequest.getPrivPassword());
+            body.put("ifIndex", ifIndex);
+
+            String requestBody = objectMapper.writeValueAsString(body);
+
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Content-Type", "application/json")
+                    .timeout(Duration.ofSeconds(10))
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+            return objectMapper.readValue(response.body(), PortStatusResponse.class);
+        } catch (Exception e) {
+            log.error("포트 상태 체크 실패 - ifIndex: {}, error: {}", ifIndex, e.getMessage());
+            PortStatusResponse fail = new PortStatusResponse();
+            fail.setSuccess(false);
+            fail.setIfIndex(ifIndex);
+            fail.setMessage("Middleware 호출 실패: " + e.getMessage());
+            return fail;
+        }
+    }
+
+    /**
+     * SNMP 원문 에러를 사용자 친화적 한국어 메시지로 변환 (Go Middleware 방어 레이어)
+     */
+    private String toSnmpUserMessage(String msg) {
+        if (msg == null || msg.isEmpty()) return "SNMP 통신 실패";
+        // 이미 한글 번역된 메시지면 그대로 반환
+        if (msg.startsWith("SNMP 실패")) return msg;
+
+        String low = msg.toLowerCase();
+
+        if (low.contains("timeout") || low.contains("request timeout") || low.contains("i/o timeout")) {
+            return "SNMP 실패 (타임아웃): 장비가 응답하지 않습니다";
+        }
+        if (low.contains("connection refused")) {
+            return "SNMP 실패 (연결 거부): SNMP 포트가 열려 있는지 확인하세요";
+        }
+        if (low.contains("no route to host") || low.contains("network is unreachable")) {
+            return "SNMP 실패 (네트워크 도달 불가): 장비 IP 또는 네트워크 경로를 확인하세요";
+        }
+        if (low.contains("unknown user name") || low.contains("usmstatsunknownusernames")) {
+            return "SNMP 실패 (인증 오류): SNMPv3 사용자명이 올바르지 않습니다";
+        }
+        if (low.contains("wrong digest") || low.contains("authentication failure") || low.contains("usmstatswrongdigests")) {
+            return "SNMP 실패 (인증 오류): SNMPv3 인증 비밀번호 또는 프로토콜이 올바르지 않습니다";
+        }
+        if (low.contains("decryption error") || low.contains("usmstatsdecryptionerrors")) {
+            return "SNMP 실패 (암호화 오류): SNMPv3 암호화 비밀번호 또는 프로토콜이 올바르지 않습니다";
+        }
+        if (low.contains("no such object") || low.contains("no such instance")) {
+            return "SNMP 실패 (OID 오류): 요청한 OID를 장비에서 지원하지 않습니다";
+        }
+        if (low.contains("community") || low.contains("authorization error")) {
+            return "SNMP 실패 (인증 오류): Community 문자열이 올바르지 않습니다";
+        }
+        // 미들웨어 연결 자체 실패
+        if (low.contains("미들웨어") || low.contains("middleware")) {
+            return msg; // 이미 한글이거나 미들웨어 관련 메시지는 그대로
+        }
+
+        return "SNMP 실패: " + msg;
     }
 
     // ========== Request/Response DTOs ==========
@@ -223,5 +363,116 @@ public class MiddlewareClient {
         private String ifAlias;
         private String ifIpAddress;
         private String ifIpNetmask;
+    }
+
+    @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class PingResponse {
+        private boolean success;
+        private String message;
+        private double responseTimeMs;
+        private double minTimeMs;
+        private double maxTimeMs;
+        private double packetLoss;
+    }
+
+    @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class SshCheckResponse {
+        private boolean success;
+        private String message;
+        private int port;
+    }
+
+    @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class PortStatusResponse {
+        private boolean success;
+        private String message;
+        private int ifIndex;
+        private int adminStatus;
+        private int operStatus;
+        private String adminStatusText;
+        private String operStatusText;
+    }
+
+    /**
+     * Traceroute 실행 - 로컬 (Middleware 서버에서 직접)
+     */
+    public TracerouteResponse traceroute(String targetIp, int maxHops, int timeoutMs) {
+        try {
+            String url = middlewareUrl + "/api/check/traceroute";
+            Map<String, Object> body = Map.of("targetIp", targetIp, "maxHops", maxHops, "timeout", timeoutMs);
+            String requestBody = objectMapper.writeValueAsString(body);
+
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Content-Type", "application/json")
+                    .timeout(Duration.ofSeconds(120))  // traceroute는 최대 2분 허용
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+            return objectMapper.readValue(response.body(), TracerouteResponse.class);
+        } catch (Exception e) {
+            log.error("Traceroute 실패 - target: {}, error: {}", targetIp, e.getMessage());
+            TracerouteResponse fail = new TracerouteResponse();
+            fail.setSuccess(false);
+            fail.setMessage("Middleware 호출 실패: " + e.getMessage());
+            return fail;
+        }
+    }
+
+    /**
+     * Traceroute 실행 - SSH 원격 (출발 장비에서 traceroute 수행)
+     */
+    public TracerouteResponse tracerouteFromDevice(String sourceIp, int sshPort,
+                                                    String sshUser, String sshPass,
+                                                    String targetIp, int maxHops, int timeoutMs) {
+        try {
+            String url = middlewareUrl + "/api/check/traceroute";
+            Map<String, Object> body = new HashMap<>();
+            body.put("targetIp", targetIp);
+            body.put("sourceIp", sourceIp);
+            body.put("sshPort", sshPort);
+            body.put("sshUser", sshUser);
+            body.put("sshPass", sshPass);
+            body.put("maxHops", maxHops);
+            body.put("timeout", timeoutMs);
+
+            String requestBody = objectMapper.writeValueAsString(body);
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Content-Type", "application/json")
+                    .timeout(Duration.ofSeconds(120))
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+            return objectMapper.readValue(response.body(), TracerouteResponse.class);
+        } catch (Exception e) {
+            log.error("Traceroute (SSH) 실패 - source: {}, target: {}, error: {}", sourceIp, targetIp, e.getMessage());
+            TracerouteResponse fail = new TracerouteResponse();
+            fail.setSuccess(false);
+            fail.setMessage("Middleware 호출 실패: " + e.getMessage());
+            return fail;
+        }
+    }
+
+    @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class HopInfo {
+        private int hopNumber;
+        private String ip;
+        private List<String> rtts;
+    }
+
+    @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class TracerouteResponse {
+        private boolean success;
+        private String message;
+        private String targetIp;
+        private List<HopInfo> hops;
     }
 }

@@ -13,7 +13,7 @@
             d.DEVICE_IP,
             d.DEVICE_DESC,
             d.MODEL_ID,
-            COALESCE(pc.PORT_COUNT, 0) AS PORT_COUNT,
+            COALESCE(d.PORT_COUNT, 0) AS PORT_COUNT,
             m.MODEL_NAME,
             m.MODEL_OID,
             v.VENDOR_NAME,
@@ -36,7 +36,6 @@
         LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
         LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
         LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
-        LEFT JOIN (SELECT DEVICE_ID, COUNT(*) AS PORT_COUNT FROM r_port_t WHERE DELETE_AT IS NULL GROUP BY DEVICE_ID) pc ON d.DEVICE_ID = pc.DEVICE_ID
         WHERE d.DELETE_AT IS NULL
     </select>
 
@@ -51,7 +50,7 @@
             d.DEVICE_IP,
             d.DEVICE_DESC,
             d.MODEL_ID,
-            COALESCE(pc.PORT_COUNT, 0) AS PORT_COUNT,
+            COALESCE(d.PORT_COUNT, 0) AS PORT_COUNT,
             m.MODEL_NAME,
             m.MODEL_OID,
             v.VENDOR_NAME,
@@ -74,7 +73,6 @@
         LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
         LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
         LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
-        LEFT JOIN (SELECT DEVICE_ID, COUNT(*) AS PORT_COUNT FROM r_port_t WHERE DELETE_AT IS NULL GROUP BY DEVICE_ID) pc ON d.DEVICE_ID = pc.DEVICE_ID
         WHERE d.DEVICE_ID = #{deviceId}
           AND d.DELETE_AT IS NULL
     </select>
@@ -90,7 +88,7 @@
             d.DEVICE_IP,
             d.DEVICE_DESC,
             d.MODEL_ID,
-            COALESCE(pc.PORT_COUNT, 0) AS PORT_COUNT,
+            COALESCE(d.PORT_COUNT, 0) AS PORT_COUNT,
             m.MODEL_NAME,
             m.MODEL_OID,
             v.VENDOR_NAME,
@@ -113,7 +111,6 @@
         LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
         LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
         LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
-        LEFT JOIN (SELECT DEVICE_ID, COUNT(*) AS PORT_COUNT FROM r_port_t WHERE DELETE_AT IS NULL GROUP BY DEVICE_ID) pc ON d.DEVICE_ID = pc.DEVICE_ID
         WHERE d.DELETE_AT IS NULL
         <if test="list != null and list.size() > 0">
             AND d.GROUP_ID IN
@@ -137,7 +134,7 @@
             d.DEVICE_IP,
             d.DEVICE_DESC,
             d.MODEL_ID,
-            COALESCE(pc.PORT_COUNT, 0) AS PORT_COUNT,
+            COALESCE(d.PORT_COUNT, 0) AS PORT_COUNT,
             m.MODEL_NAME,
             m.MODEL_OID,
             v.VENDOR_NAME,
@@ -160,7 +157,6 @@
         LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
         LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
         LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
-        LEFT JOIN (SELECT DEVICE_ID, COUNT(*) AS PORT_COUNT FROM r_port_t WHERE DELETE_AT IS NULL GROUP BY DEVICE_ID) pc ON d.DEVICE_ID = pc.DEVICE_ID
         WHERE d.GROUP_ID IN
         <foreach collection="groupIds" item="item" open="(" separator="," close=")">
             #{item}
@@ -231,7 +227,7 @@
             d.DEVICE_IP,
             d.DEVICE_DESC,
             d.MODEL_ID,
-            COALESCE(pc.PORT_COUNT, 0) AS PORT_COUNT,
+            COALESCE(d.PORT_COUNT, 0) AS PORT_COUNT,
             m.MODEL_NAME,
             m.MODEL_OID,
             v.VENDOR_NAME,
@@ -254,7 +250,6 @@
         LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
         LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
         LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
-        LEFT JOIN (SELECT DEVICE_ID, COUNT(IF_INDEX) AS PORT_COUNT FROM r_port_t WHERE DELETE_AT IS NULL AND IF_TYPE = 6 GROUP BY DEVICE_ID) pc ON d.DEVICE_ID = pc.DEVICE_ID
         WHERE d.GROUP_ID IN
         <foreach collection="groupIds" item="item" open="(" separator="," close=")">
             #{item}
@@ -475,5 +470,17 @@
     <select id="existsDeviceScope" parameterType="int" resultType="boolean">
         SELECT COUNT(*) > 0 FROM r_device_scope_t WHERE DEVICE_ID = #{deviceId}
     </select>
+
+    <!-- ==================== 장비 삭제 시 연관 데이터 정리 ==================== -->
+
+    <!-- 장비 SNMP 설정 삭제 -->
+    <delete id="deleteDeviceSnmp" parameterType="int">
+        DELETE FROM r_device_snmp_t WHERE DEVICE_ID = #{deviceId}
+    </delete>
+
+    <!-- 장비 관제 설정(Scope) 삭제 -->
+    <delete id="deleteDeviceScope" parameterType="int">
+        DELETE FROM r_device_scope_t WHERE DEVICE_ID = #{deviceId}
+    </delete>
 
 </mapper>

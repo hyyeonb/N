@@ -38,11 +38,11 @@ public class TrafficService {
      * @param minutes 최근 N분 (기본 60분)
      * @return 트래픽 데이터 목록
      */
-    public List<TrafficVO> getRecentTraffic(Integer deviceId, Integer minutes) {
+    public List<TrafficVO> getRecentTraffic(Integer deviceId, Integer minutes, String startDate, String endDate) {
         if (minutes == null || minutes <= 0) {
             minutes = 60;
         }
-        List<TrafficVO> rawData = trafficMapper.findRecentByDeviceId(deviceId, minutes);
+        List<TrafficVO> rawData = trafficMapper.findRecentByDeviceId(deviceId, minutes, startDate, endDate);
         return rawData.stream()
             .filter(vo -> !isVirtualInterface(vo))
             .collect(Collectors.toList());
@@ -94,7 +94,7 @@ public class TrafficService {
             minutes = 60;
         }
 
-        List<TrafficVO> rawData = trafficMapper.findRecentByDeviceId(deviceId, minutes);
+        List<TrafficVO> rawData = trafficMapper.findRecentByDeviceId(deviceId, minutes, null, null);
 
         // 가상 인터페이스 필터링
         rawData = rawData.stream()

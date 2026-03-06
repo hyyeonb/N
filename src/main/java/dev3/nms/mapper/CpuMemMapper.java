@@ -24,7 +24,9 @@ public interface CpuMemMapper {
      * @return CPU/MEM 데이터 목록
      */
     List<CpuMemVO> findRecentByDeviceId(@Param("deviceId") Integer deviceId,
-                                         @Param("minutes") Integer minutes);
+                                         @Param("minutes") Integer minutes,
+                                         @Param("startDate") String startDate,
+                                         @Param("endDate") String endDate);
 
     /**
      * 특정 장비의 코어별 CPU 데이터 조회 (가장 최신)

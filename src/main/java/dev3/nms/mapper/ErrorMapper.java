@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
+import java.util.Map;
 
 @Mapper
 public interface ErrorMapper {
@@ -78,4 +79,88 @@ public interface ErrorMapper {
      * 장애 이력 상세 조회
      */
     ErrorHistoryVO selectErrorHistoryById(@Param("errorHistoryId") Long errorHistoryId);
+
+    /**
+     * 포트 비관리 전환 시 장애 이력 이관 (CLEAR_AT 설정)
+     */
+    int insertPortErrorHistory(@Param("deviceId") Integer deviceId, @Param("ifIndex") Integer ifIndex);
+
+    /**
+     * 포트 비관리 전환 시 장애 삭제
+     */
+    int deletePortError(@Param("deviceId") Integer deviceId, @Param("ifIndex") Integer ifIndex);
+
+    // ========== 장비 삭제 시 장애 정리 ==========
+
+    /**
+     * 장비의 모든 활성 장애 → 이력 이관
+     */
+    int moveDeviceErrorsToHistory(@Param("deviceId") Integer deviceId);
+
+    /**
+     * 장비의 모든 활성 장애 삭제
+     */
+    int deleteDeviceErrors(@Param("deviceId") Integer deviceId);
+
+    /**
+     * 삭제된 포트(DELETE_AT NOT NULL)의 잔존 Oper 장애 → 이력 이관
+     */
+    int moveDeletedPortErrorsToHistory(@Param("deviceId") Integer deviceId);
+
+    /**
+     * 삭제된 포트의 잔존 Oper 장애 삭제
+     */
+    int deleteDeletedPortErrors(@Param("deviceId") Integer deviceId);
+
+    // ========== 장애 통계 ==========
+
+    List<Map<String, Object>> selectErrorCountByLevel(@Param("groupIds") List<Long> groupIds,
+                                                       @Param("deviceIds") List<Long> deviceIds);
+
+    List<Map<String, Object>> selectErrorCountByType(@Param("groupIds") List<Long> groupIds,
+                                                      @Param("deviceIds") List<Long> deviceIds);
+
+    List<Map<String, Object>> selectErrorTrendDaily(@Param("startDate") String startDate,
+                                                     @Param("endDate") String endDate,
+                                                     @Param("groupIds") List<Long> groupIds,
+                                                     @Param("deviceIds") List<Long> deviceIds);
+
+    List<Map<String, Object>> selectErrorTrendByType(@Param("startDate") String startDate,
+                                                      @Param("endDate") String endDate,
+                                                      @Param("groupIds") List<Long> groupIds,
+                                                      @Param("deviceIds") List<Long> deviceIds);
+
+    List<Map<String, Object>> selectErrorTrendHourly(@Param("startDate") String startDate,
+                                                      @Param("endDate") String endDate,
+                                                      @Param("groupIds") List<Long> groupIds,
+                                                      @Param("deviceIds") List<Long> deviceIds);
+
+    List<Map<String, Object>> selectErrorTrendByTypeHourly(@Param("startDate") String startDate,
+                                                            @Param("endDate") String endDate,
+                                                            @Param("groupIds") List<Long> groupIds,
+                                                            @Param("deviceIds") List<Long> deviceIds);
+
+    List<Map<String, Object>> selectMttrByType(@Param("startDate") String startDate,
+                                                @Param("endDate") String endDate,
+                                                @Param("groupIds") List<Long> groupIds,
+                                                @Param("deviceIds") List<Long> deviceIds);
+
+    List<Map<String, Object>> selectTopErrorDevices(@Param("startDate") String startDate,
+                                                     @Param("endDate") String endDate,
+                                                     @Param("limit") int limit,
+                                                     @Param("groupIds") List<Long> groupIds,
+                                                     @Param("deviceIds") List<Long> deviceIds);
+
+    List<Map<String, Object>> selectErrorPatternByHour(@Param("startDate") String startDate,
+                                                        @Param("endDate") String endDate,
+                                                        @Param("groupIds") List<Long> groupIds,
+                                                        @Param("deviceIds") List<Long> deviceIds);
+
+    List<Map<String, Object>> selectErrorPatternByDow(@Param("startDate") String startDate,
+                                                       @Param("endDate") String endDate,
+                                                       @Param("groupIds") List<Long> groupIds,
+                                                       @Param("deviceIds") List<Long> deviceIds);
+
+    List<Map<String, Object>> selectErrorAging(@Param("groupIds") List<Long> groupIds,
+                                                @Param("deviceIds") List<Long> deviceIds);
 }

@@ -17,7 +17,9 @@ public interface TrafficMapper {
      * @return 트래픽 데이터 목록
      */
     List<TrafficVO> findRecentByDeviceId(@Param("deviceId") Integer deviceId,
-                                          @Param("minutes") Integer minutes);
+                                          @Param("minutes") Integer minutes,
+                                          @Param("startDate") String startDate,
+                                          @Param("endDate") String endDate);
 
     /**
      * 특정 장비/포트의 최근 트래픽 데이터 조회

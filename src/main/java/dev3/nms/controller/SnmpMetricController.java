@@ -34,7 +34,7 @@ public class SnmpMetricController {
         } catch (Exception e) {
             log.error("메트릭 조회 실패: {}", e.getMessage());
             response.put("success", false);
-            response.put("message", e.getMessage());
+            response.put("message", "처리 중 오류가 발생했습니다.");
             return ResponseEntity.internalServerError().body(response);
         }
     }
@@ -53,7 +53,7 @@ public class SnmpMetricController {
         } catch (Exception e) {
             log.error("모델 OID 조회 실패: {}", e.getMessage());
             response.put("success", false);
-            response.put("message", e.getMessage());
+            response.put("message", "처리 중 오류가 발생했습니다.");
             return ResponseEntity.internalServerError().body(response);
         }
     }
@@ -75,7 +75,7 @@ public class SnmpMetricController {
         } catch (Exception e) {
             log.error("OID 저장 실패: {}", e.getMessage());
             response.put("success", false);
-            response.put("message", e.getMessage());
+            response.put("message", "처리 중 오류가 발생했습니다.");
             return ResponseEntity.internalServerError().body(response);
         }
     }
@@ -96,7 +96,7 @@ public class SnmpMetricController {
         } catch (Exception e) {
             log.error("OID 일괄 저장 실패: {}", e.getMessage());
             response.put("success", false);
-            response.put("message", e.getMessage());
+            response.put("message", "처리 중 오류가 발생했습니다.");
             return ResponseEntity.internalServerError().body(response);
         }
     }
@@ -115,7 +115,7 @@ public class SnmpMetricController {
         } catch (Exception e) {
             log.error("OID 삭제 실패: {}", e.getMessage());
             response.put("success", false);
-            response.put("message", e.getMessage());
+            response.put("message", "처리 중 오류가 발생했습니다.");
             return ResponseEntity.internalServerError().body(response);
         }
     }

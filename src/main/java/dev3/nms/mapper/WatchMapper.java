@@ -104,6 +104,9 @@ public interface WatchMapper {
             @Param("watchGroupId") Integer watchGroupId,
             @Param("deviceId") Integer deviceId);
 
+    // 그룹 전체 인터페이스 일괄 조회 (N+1 제거)
+    List<WatchGroupIfVO> findInterfacesByGroupId(@Param("watchGroupId") Integer watchGroupId);
+
     /**
      * 그룹에 인터페이스 추가
      */
@@ -120,4 +123,23 @@ public interface WatchMapper {
     void deleteDeviceInterfaces(
             @Param("watchGroupId") Integer watchGroupId,
             @Param("deviceId") Integer deviceId);
+
+    /**
+     * 특정 그룹에서 특정 장비 삭제
+     */
+    void deleteGroupDeviceById(
+            @Param("watchGroupId") Integer watchGroupId,
+            @Param("deviceId") Integer deviceId);
+
+    // ==================== 장비 삭제 시 관제 그룹 정리 ====================
+
+    /**
+     * 모든 관제 그룹에서 특정 장비 제거
+     */
+    void deleteDeviceFromAllWatchGroups(@Param("deviceId") Integer deviceId);
+
+    /**
+     * 모든 관제 그룹에서 특정 장비의 인터페이스 제거
+     */
+    void deleteDeviceInterfacesFromAllGroups(@Param("deviceId") Integer deviceId);
 }

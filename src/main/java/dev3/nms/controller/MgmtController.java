@@ -7,6 +7,7 @@ import dev3.nms.service.AuthService;
 import dev3.nms.service.DevCodeService;
 import dev3.nms.service.DeviceService;
 import dev3.nms.service.GroupService;
+import dev3.nms.service.MiddlewareClient;
 import dev3.nms.service.PortService;
 import dev3.nms.service.TempDeviceService;
 import dev3.nms.service.TrafficService;
@@ -23,6 +24,7 @@ import dev3.nms.vo.mgmt.GroupVO;
 import dev3.nms.vo.mgmt.ModelVO;
 import dev3.nms.vo.mgmt.PortVO;
 import dev3.nms.vo.mgmt.TempDeviceVO;
+import dev3.nms.vo.mgmt.ConnectivityCheckVO;
 import dev3.nms.vo.mgmt.DevCodeVO;
 import dev3.nms.vo.mgmt.VendorVO;
 import jakarta.servlet.http.HttpSession;
@@ -32,8 +34,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -51,6 +56,8 @@ public class MgmtController {
     private final GroupMapper groupMapper;
     private final VendorMapper vendorMapper;
     private final ModelMapper modelMapper;
+    private final MiddlewareClient middlewareClient;
+    private final dev3.nms.mapper.DeviceSshMapper deviceSshMapper;
 
     /**
      * 그룹 계층 구조 전체 조회 API
@@ -204,7 +211,7 @@ public class MgmtController {
             ResVO<List<TempDeviceVO>> response = new ResVO<>(200, "임시 장비 목록 조회 성공", devices);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "임시 장비 목록 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "임시 장비 목록 조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -218,7 +225,7 @@ public class MgmtController {
             ResVO<List<TempDeviceVO>> response = new ResVO<>(200, "모든 임시 장비 목록 조회 성공", devices);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "모든 임시 장비 목록 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "모든 임시 장비 목록 조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -240,7 +247,7 @@ public class MgmtController {
             ResVO<TempDeviceVO> response = new ResVO<>(201, "임시 장비 생성 성공", createdDevice);
             return new ResponseEntity<>(response, HttpStatus.CREATED);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "임시 장비 생성 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "임시 장비 생성 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -255,7 +262,7 @@ public class MgmtController {
             ResVO<List<TempDeviceVO>> response = new ResVO<>(200, "장비 검증 완료", validDevices);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "장비 검증 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "장비 검증 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -279,7 +286,7 @@ public class MgmtController {
             ResVO<List<TempDeviceVO>> response = new ResVO<>(201, "임시 장비 대량 생성 성공", devices);
             return new ResponseEntity<>(response, HttpStatus.CREATED);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "임시 장비 대량 생성 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "임시 장비 대량 생성 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -293,7 +300,7 @@ public class MgmtController {
             ResVO<TempDeviceVO> response = new ResVO<>(200, "임시 장비 수정 성공", updatedDevice);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "임시 장비 수정 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "임시 장비 수정 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -307,7 +314,7 @@ public class MgmtController {
             ResVO<Void> response = new ResVO<>(200, "임시 장비 삭제 성공", null);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "임시 장비 삭제 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "임시 장비 삭제 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -323,7 +330,7 @@ public class MgmtController {
             ResVO<List<DeviceVO>> response = new ResVO<>(200, "장비 목록 조회 성공", devices);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "장비 목록 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "장비 목록 조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -337,7 +344,7 @@ public class MgmtController {
             ResVO<List<DeviceVO>> response = new ResVO<>(200, "장비 목록 조회 성공", devices);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "장비 목록 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "장비 목록 조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -356,7 +363,7 @@ public class MgmtController {
             ResVO<PageVO<DeviceVO>> response = new ResVO<>(200, "장비 목록 조회 성공", pagedDevices);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "장비 목록 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "장비 목록 조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -392,7 +399,7 @@ public class MgmtController {
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
             log.error("장비 목록 조회 실패: {}", e.getMessage(), e);
-            return new ResponseEntity<>(new ResVO<>(500, "장비 목록 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "장비 목록 조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -409,7 +416,7 @@ public class MgmtController {
             ResVO<DeviceVO> response = new ResVO<>(200, "장비 조회 성공", device);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "장비 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "장비 조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -435,7 +442,7 @@ public class MgmtController {
             ResVO<DeviceRegistrationResultVO> response = new ResVO<>(201, message, result);
             return new ResponseEntity<>(response, HttpStatus.CREATED);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "장비 등록 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "장비 등록 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -461,7 +468,7 @@ public class MgmtController {
             ResVO<DeviceRegistrationResultVO> response = new ResVO<>(201, message, result);
             return new ResponseEntity<>(response, HttpStatus.CREATED);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "장비 일괄 등록 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "장비 일괄 등록 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -478,7 +485,7 @@ public class MgmtController {
         } catch (IllegalArgumentException e) {
             return new ResponseEntity<>(new ResVO<>(404, e.getMessage(), null), HttpStatus.NOT_FOUND);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "장비 등록 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "장비 등록 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -506,7 +513,7 @@ public class MgmtController {
             ResVO<DeviceRegistrationResultVO> response = new ResVO<>(201, message, result);
             return new ResponseEntity<>(response, HttpStatus.CREATED);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "장비 일괄 등록 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "장비 일괄 등록 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -522,7 +529,7 @@ public class MgmtController {
         } catch (IllegalArgumentException e) {
             return new ResponseEntity<>(new ResVO<>(404, e.getMessage(), null), HttpStatus.NOT_FOUND);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "장비 수정 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "장비 수정 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -538,7 +545,7 @@ public class MgmtController {
         } catch (IllegalArgumentException e) {
             return new ResponseEntity<>(new ResVO<>(404, e.getMessage(), null), HttpStatus.NOT_FOUND);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "장비 삭제 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "장비 삭제 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -558,7 +565,7 @@ public class MgmtController {
         } catch (IllegalArgumentException e) {
             return new ResponseEntity<>(new ResVO<>(400, e.getMessage(), null), HttpStatus.BAD_REQUEST);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "장비 삭제 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "장비 삭제 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -574,7 +581,7 @@ public class MgmtController {
             ResVO<List<PortVO>> response = new ResVO<>(200, "포트 목록 조회 성공", ports);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "포트 목록 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "포트 목록 조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -593,7 +600,7 @@ public class MgmtController {
             ResVO<List<PortVO>> response = new ResVO<>(200, "포트 목록 조회 성공", ports);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "포트 목록 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "포트 목록 조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -610,7 +617,7 @@ public class MgmtController {
             ResVO<PortVO> response = new ResVO<>(200, "포트 조회 성공", port);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "포트 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "포트 조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -624,7 +631,7 @@ public class MgmtController {
             ResVO<List<PortVO>> response = new ResVO<>(200, "감시 대상 포트 목록 조회 성공", ports);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "감시 대상 포트 목록 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "감시 대상 포트 목록 조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -643,7 +650,7 @@ public class MgmtController {
             ResVO<Void> response = new ResVO<>(200, "포트 감시 설정 수정 성공", null);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "포트 감시 설정 수정 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "포트 감시 설정 수정 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -662,7 +669,7 @@ public class MgmtController {
             ResVO<Void> response = new ResVO<>(200, "포트 정보 수정 성공", null);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "포트 정보 수정 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "포트 정보 수정 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -692,7 +699,7 @@ public class MgmtController {
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
             log.error("관제 설정 조회 실패 - deviceId: {}", deviceId, e);
-            return new ResponseEntity<>(new ResVO<>(500, "관제 설정 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "관제 설정 조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -707,7 +714,7 @@ public class MgmtController {
             ResVO<DeviceScopeVO> response = new ResVO<>(200, "관제 설정 수정 성공", updatedScope);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "관제 설정 수정 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "관제 설정 수정 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -723,7 +730,7 @@ public class MgmtController {
             return new ResponseEntity<>(new ResVO<>(200, "접속 정보 조회 성공", ssh), HttpStatus.OK);
         } catch (Exception e) {
             log.error("접속 정보 조회 실패 - deviceId: {}", deviceId, e);
-            return new ResponseEntity<>(new ResVO<>(500, "접속 정보 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "접속 정보 조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -738,7 +745,7 @@ public class MgmtController {
             return new ResponseEntity<>(new ResVO<>(200, "접속 정보 저장 성공", saved), HttpStatus.OK);
         } catch (Exception e) {
             log.error("접속 정보 저장 실패 - deviceId: {}", deviceId, e);
-            return new ResponseEntity<>(new ResVO<>(500, "접속 정보 저장 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "접속 정보 저장 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -752,7 +759,7 @@ public class MgmtController {
             return new ResponseEntity<>(new ResVO<>(200, "접속 정보 삭제 성공", null), HttpStatus.OK);
         } catch (Exception e) {
             log.error("접속 정보 삭제 실패 - deviceId: {}", deviceId, e);
-            return new ResponseEntity<>(new ResVO<>(500, "접속 정보 삭제 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "접속 정보 삭제 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -773,7 +780,7 @@ public class MgmtController {
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
             log.error("트래픽 데이터 조회 실패 - deviceId: {}", deviceId, e);
-            return new ResponseEntity<>(new ResVO<>(500, "트래픽 데이터 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "트래픽 데이터 조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -785,14 +792,16 @@ public class MgmtController {
     @GetMapping("/devices/{deviceId}/traffic/raw")
     public ResponseEntity<ResVO<List<TrafficVO>>> getDeviceTrafficRaw(
             @PathVariable int deviceId,
-            @RequestParam(required = false, defaultValue = "60") Integer minutes) {
+            @RequestParam(required = false, defaultValue = "60") Integer minutes,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
         try {
-            List<TrafficVO> trafficData = trafficService.getRecentTraffic(deviceId, minutes);
+            List<TrafficVO> trafficData = trafficService.getRecentTraffic(deviceId, minutes, startDate, endDate);
             ResVO<List<TrafficVO>> response = new ResVO<>(200, "트래픽 데이터 조회 성공", trafficData);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
             log.error("트래픽 원시 데이터 조회 실패 - deviceId: {}", deviceId, e);
-            return new ResponseEntity<>(new ResVO<>(500, "트래픽 데이터 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "트래픽 데이터 조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -808,7 +817,7 @@ public class MgmtController {
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
             log.error("CPU/MEM 데이터 조회 실패 - deviceId: {}", deviceId, e);
-            return new ResponseEntity<>(new ResVO<>(500, "CPU/MEM 데이터 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "CPU/MEM 데이터 조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -820,14 +829,16 @@ public class MgmtController {
     @GetMapping("/devices/{deviceId}/cpu-mem/history")
     public ResponseEntity<ResVO<List<CpuMemVO>>> getDeviceCpuMemHistory(
             @PathVariable int deviceId,
-            @RequestParam(required = false, defaultValue = "60") Integer minutes) {
+            @RequestParam(required = false, defaultValue = "60") Integer minutes,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
         try {
-            List<CpuMemVO> cpuMemData = deviceService.getRecentCpuMem(deviceId, minutes);
+            List<CpuMemVO> cpuMemData = deviceService.getRecentCpuMem(deviceId, minutes, startDate, endDate);
             ResVO<List<CpuMemVO>> response = new ResVO<>(200, "CPU/MEM 시계열 데이터 조회 성공", cpuMemData);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
             log.error("CPU/MEM 시계열 데이터 조회 실패 - deviceId: {}", deviceId, e);
-            return new ResponseEntity<>(new ResVO<>(500, "CPU/MEM 시계열 데이터 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "CPU/MEM 시계열 데이터 조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -848,7 +859,7 @@ public class MgmtController {
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
             log.error("포트 트래픽 데이터 조회 실패 - deviceId: {}, ifIndex: {}", deviceId, ifIndex, e);
-            return new ResponseEntity<>(new ResVO<>(500, "트래픽 데이터 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "트래픽 데이터 조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -883,10 +894,58 @@ public class MgmtController {
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (RuntimeException e) {
             log.error("SNMP 수집 실패 - deviceId: {}, error: {}", deviceId, e.getMessage());
-            return new ResponseEntity<>(new ResVO<>(500, "SNMP 수집 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "SNMP 수집 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         } catch (Exception e) {
             log.error("SNMP 수집 중 오류 - deviceId: {}", deviceId, e);
-            return new ResponseEntity<>(new ResVO<>(500, "SNMP 수집 중 오류: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "SNMP 수집 중 오류", null), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * 포트 상태 실시간 체크 (SNMP GET - AdminStatus / OperStatus)
+     */
+    @GetMapping("/devices/{deviceId}/ports/{ifIndex}/check")
+    public ResponseEntity<ResVO<MiddlewareClient.PortStatusResponse>> checkPortStatus(
+            @PathVariable Integer deviceId,
+            @PathVariable Integer ifIndex) {
+        try {
+            DeviceVO device = deviceService.getDeviceById(deviceId);
+            if (device == null) {
+                return new ResponseEntity<>(new ResVO<>(404, "장비를 찾을 수 없습니다", null), HttpStatus.NOT_FOUND);
+            }
+
+            MiddlewareClient.SnmpRequest snmpReq = new MiddlewareClient.SnmpRequest();
+            snmpReq.setIpAddress(device.getDEVICE_IP());
+            snmpReq.setSnmpVersion(device.getSNMP_VERSION() != null ? device.getSNMP_VERSION() : 2);
+            snmpReq.setSnmpPort(device.getSNMP_PORT() != null ? device.getSNMP_PORT() : 161);
+            snmpReq.setCommunity(device.getSNMP_COMMUNITY());
+            snmpReq.setUser(device.getSNMP_USER());
+            snmpReq.setAuthProtocol(device.getSNMP_AUTH_PROTOCOL());
+            snmpReq.setAuthPassword(device.getSNMP_AUTH_PASSWORD());
+            snmpReq.setPrivProtocol(device.getSNMP_PRIV_PROTOCOL());
+            snmpReq.setPrivPassword(device.getSNMP_PRIV_PASSWORD());
+
+            MiddlewareClient.PortStatusResponse result = middlewareClient.getPortStatus(snmpReq, ifIndex);
+            return new ResponseEntity<>(new ResVO<>(200, "포트 상태 조회 완료", result), HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("포트 상태 체크 실패 - deviceId: {}, ifIndex: {}", deviceId, ifIndex, e);
+            return new ResponseEntity<>(new ResVO<>(500, "포트 상태 체크 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * 연결성 체크 API (PING → SNMP → SSH 순차 체크)
+     */
+    @PostMapping("/devices/{deviceId}/connectivity-check")
+    public ResponseEntity<ResVO<ConnectivityCheckVO>> connectivityCheck(@PathVariable int deviceId) {
+        try {
+            ConnectivityCheckVO result = deviceService.connectivityCheck(deviceId);
+            return new ResponseEntity<>(new ResVO<>(200, "연결성 체크 완료", result), HttpStatus.OK);
+        } catch (IllegalArgumentException e) {
+            return new ResponseEntity<>(new ResVO<>(404, e.getMessage(), null), HttpStatus.NOT_FOUND);
+        } catch (Exception e) {
+            log.error("연결성 체크 실패 - deviceId: {}", deviceId, e);
+            return new ResponseEntity<>(new ResVO<>(500, "연결성 체크 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -902,7 +961,7 @@ public class MgmtController {
             ResVO<List<VendorVO>> response = new ResVO<>(200, "벤더 목록 조회 성공", vendors);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "벤더 목록 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "벤더 목록 조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -919,7 +978,7 @@ public class MgmtController {
             ResVO<VendorVO> response = new ResVO<>(200, "벤더 조회 성공", vendor);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "벤더 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "벤더 조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -963,7 +1022,7 @@ public class MgmtController {
             ResVO<List<ModelVO>> response = new ResVO<>(200, "모델 목록 조회 성공", models);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "모델 목록 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "모델 목록 조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -980,7 +1039,7 @@ public class MgmtController {
             ResVO<ModelVO> response = new ResVO<>(200, "모델 조회 성공", model);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "모델 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "모델 조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -1028,7 +1087,7 @@ public class MgmtController {
             ResVO<ModelVO> response = new ResVO<>(201, "모델 생성 성공", createdModel);
             return new ResponseEntity<>(response, HttpStatus.CREATED);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "모델 생성 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "모델 생성 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -1050,7 +1109,7 @@ public class MgmtController {
             ResVO<ModelVO> response = new ResVO<>(200, "모델 수정 성공", updatedModel);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "모델 수정 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "모델 수정 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -1068,7 +1127,7 @@ public class MgmtController {
             ResVO<Void> response = new ResVO<>(200, "모델 삭제 성공", null);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "모델 삭제 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "모델 삭제 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -1084,7 +1143,7 @@ public class MgmtController {
             ResVO<List<DevCodeVO>> response = new ResVO<>(200, "장비군 트리 조회 성공", tree);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "장비군 트리 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "장비군 트리 조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -1098,7 +1157,7 @@ public class MgmtController {
             ResVO<List<DevCodeVO>> response = new ResVO<>(200, "장비군 목록 조회 성공", codes);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "장비군 목록 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "장비군 목록 조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -1115,7 +1174,7 @@ public class MgmtController {
             ResVO<DevCodeVO> response = new ResVO<>(200, "장비군 조회 성공", code);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "장비군 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "장비군 조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -1129,7 +1188,7 @@ public class MgmtController {
             ResVO<DevCodeVO> response = new ResVO<>(201, "장비군 생성 성공", created);
             return new ResponseEntity<>(response, HttpStatus.CREATED);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "장비군 생성 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "장비군 생성 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -1149,7 +1208,7 @@ public class MgmtController {
             ResVO<DevCodeVO> response = new ResVO<>(200, "장비군 수정 성공", updated);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "장비군 수정 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "장비군 수정 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -1167,7 +1226,137 @@ public class MgmtController {
             ResVO<Void> response = new ResVO<>(200, "장비군 삭제 성공", null);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
-            return new ResponseEntity<>(new ResVO<>(500, "장비군 삭제 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "장비군 삭제 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    // ==================== 네트워크 도구 API ====================
+
+    /**
+     * SSH 정보가 등록된 장비 목록 조회 (Traceroute 트리용)
+     */
+    @GetMapping("/devices/ssh-enabled")
+    public ResponseEntity<ResVO<List<DeviceVO>>> getSshEnabledDevices() {
+        try {
+            List<DeviceVO> devices = deviceSshMapper.findDevicesWithSsh();
+            return new ResponseEntity<>(new ResVO<>(200, "SSH 장비 목록 조회 성공", devices), HttpStatus.OK);
+        } catch (Exception e) {
+            return new ResponseEntity<>(new ResVO<>(500, "조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Traceroute API
+     * - sourceDeviceId: 출발 장비 (SSH로 해당 장비에서 traceroute 실행)
+     * - targetDeviceId: 목적지 장비
+     * - 각 홉 IP를 DB 등록 장비와 매핑하여 장비 정보 포함 반환
+     */
+    @PostMapping("/tools/traceroute")
+    public ResponseEntity<ResVO<Map<String, Object>>> traceroute(@RequestBody Map<String, Object> params) {
+        try {
+            Integer sourceDeviceId = params.get("sourceDeviceId") instanceof Number n ? n.intValue() : null;
+            Integer targetDeviceId = params.get("targetDeviceId") instanceof Number n2 ? n2.intValue() : null;
+            String targetIpDirect = (String) params.get("targetIp"); // 직접 IP 입력 폴백
+
+            if (targetDeviceId == null && (targetIpDirect == null || targetIpDirect.isBlank())) {
+                return new ResponseEntity<>(new ResVO<>(400, "목적지(targetDeviceId 또는 targetIp) 필수", null), HttpStatus.BAD_REQUEST);
+            }
+
+            int maxHops = params.containsKey("maxHops") ? ((Number) params.get("maxHops")).intValue() : 30;
+            int timeout = params.containsKey("timeout") ? ((Number) params.get("timeout")).intValue() : 1000;
+
+            // 목적지 IP 결정
+            String targetIp = targetIpDirect;
+            DeviceVO targetDevice = null;
+            if (targetDeviceId != null) {
+                targetDevice = deviceService.getDeviceById(targetDeviceId);
+                if (targetDevice == null) {
+                    return new ResponseEntity<>(new ResVO<>(404, "목적지 장비를 찾을 수 없습니다", null), HttpStatus.NOT_FOUND);
+                }
+                targetIp = targetDevice.getDEVICE_IP();
+            }
+
+            // 출발 장비 결정
+            DeviceVO sourceDevice = null;
+            MiddlewareClient.TracerouteResponse trResult;
+
+            if (sourceDeviceId != null) {
+                sourceDevice = deviceService.getDeviceById(sourceDeviceId);
+                if (sourceDevice == null) {
+                    return new ResponseEntity<>(new ResVO<>(404, "출발 장비를 찾을 수 없습니다", null), HttpStatus.NOT_FOUND);
+                }
+                // SSH 자격증명 조회
+                DeviceSshVO ssh = deviceService.getDeviceSsh(sourceDeviceId);
+                if (ssh == null) {
+                    return new ResponseEntity<>(new ResVO<>(400, "출발 장비에 SSH 접속 정보가 없습니다", null), HttpStatus.BAD_REQUEST);
+                }
+                int sshPort = ssh.getSSH_PORT() != null ? ssh.getSSH_PORT() : 22;
+                // SSH 원격 traceroute
+                trResult = middlewareClient.tracerouteFromDevice(
+                        sourceDevice.getDEVICE_IP(), sshPort,
+                        ssh.getSSH_USER(), ssh.getSSH_PASS(),
+                        targetIp, maxHops, timeout);
+            } else {
+                // 출발지 미선택: Middleware 서버에서 직접 실행
+                trResult = middlewareClient.traceroute(targetIp, maxHops, timeout);
+            }
+
+            if (!trResult.isSuccess()) {
+                return new ResponseEntity<>(new ResVO<>(500, trResult.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            }
+
+            // 전체 장비 목록 → IP 기준 맵
+            List<DeviceVO> allDevices = deviceService.getAllDevices();
+            Map<String, DeviceVO> ipToDevice = allDevices.stream()
+                    .collect(Collectors.toMap(DeviceVO::getDEVICE_IP, d -> d,
+                            (existing, replacement) -> existing));
+
+            // 홉 보강 (IP → 장비 정보)
+            List<Map<String, Object>> enrichedHops = new ArrayList<>();
+            List<MiddlewareClient.HopInfo> hops = trResult.getHops();
+            if (hops == null) hops = java.util.Collections.emptyList();
+            for (MiddlewareClient.HopInfo hop : hops) {
+                Map<String, Object> enriched = new HashMap<>();
+                enriched.put("hopNumber", hop.getHopNumber());
+                enriched.put("ip", hop.getIp());
+                enriched.put("rtts", hop.getRtts());
+
+                if (!"*".equals(hop.getIp())) {
+                    DeviceVO device = ipToDevice.get(hop.getIp());
+                    if (device != null) {
+                        Map<String, Object> di = new HashMap<>();
+                        di.put("deviceId", device.getDEVICE_ID());
+                        di.put("deviceName", device.getDEVICE_NAME());
+                        di.put("deviceIp", device.getDEVICE_IP());
+                        enriched.put("device", di);
+                    }
+                }
+                enrichedHops.add(enriched);
+            }
+
+            // 출발/목적지 장비 정보
+            Map<String, Object> data = new HashMap<>();
+            data.put("targetIp", targetIp);
+            data.put("hops", enrichedHops);
+            if (sourceDevice != null) {
+                Map<String, Object> sd = new HashMap<>();
+                sd.put("deviceId", sourceDevice.getDEVICE_ID());
+                sd.put("deviceName", sourceDevice.getDEVICE_NAME());
+                sd.put("deviceIp", sourceDevice.getDEVICE_IP());
+                data.put("sourceDevice", sd);
+            }
+            if (targetDevice != null) {
+                Map<String, Object> td = new HashMap<>();
+                td.put("deviceId", targetDevice.getDEVICE_ID());
+                td.put("deviceName", targetDevice.getDEVICE_NAME());
+                td.put("deviceIp", targetDevice.getDEVICE_IP());
+                data.put("targetDevice", td);
+            }
+
+            return new ResponseEntity<>(new ResVO<>(200, "Traceroute 완료", data), HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("Traceroute API 오류", e);
+            return new ResponseEntity<>(new ResVO<>(500, "Traceroute 실행 중 오류가 발생했습니다.", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 }

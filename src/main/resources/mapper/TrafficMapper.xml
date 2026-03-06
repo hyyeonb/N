@@ -39,7 +39,14 @@
         FROM P_TRAFFIC_T t
         INNER JOIN r_port_t p ON t.DEVICE_ID = p.DEVICE_ID AND t.IF_INDEX = p.IF_INDEX
         WHERE t.DEVICE_ID = #{deviceId}
-          AND t.COLLECTED_AT >= DATE_SUB(NOW(), INTERVAL #{minutes} MINUTE)
+          <choose>
+              <when test="startDate != null and endDate != null">
+                  AND t.COLLECTED_AT BETWEEN #{startDate} AND #{endDate}
+              </when>
+              <otherwise>
+                  AND t.COLLECTED_AT >= DATE_SUB(NOW(), INTERVAL #{minutes} MINUTE)
+              </otherwise>
+          </choose>
           AND p.IF_OPER_STATUS = 1
           AND p.DELETE_AT IS NULL
         ORDER BY t.IF_INDEX, t.COLLECTED_AT ASC

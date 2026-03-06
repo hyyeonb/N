@@ -68,4 +68,9 @@ public interface DeviceMapper {
 
     DeviceScopeVO findDeviceScopeById(int deviceId);
 
+    // 장비 삭제 시 연관 데이터 정리
+    int deleteDeviceSnmp(int deviceId);
+
+    int deleteDeviceScope(int deviceId);
+
 }

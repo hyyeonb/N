@@ -3,9 +3,12 @@ package dev3.nms.service;
 import dev3.nms.mapper.CpuMemMapper;
 import dev3.nms.mapper.DeviceMapper;
 import dev3.nms.mapper.DeviceSshMapper;
+import dev3.nms.mapper.ErrorMapper;
 import dev3.nms.mapper.ModelMapper;
+import dev3.nms.mapper.PortMapper;
 import dev3.nms.mapper.TempDeviceMapper;
 import dev3.nms.mapper.VendorMapper;
+import dev3.nms.mapper.WatchMapper;
 import dev3.nms.vo.common.PageVO;
 import dev3.nms.vo.mgmt.*;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +35,9 @@ public class DeviceService {
     private final CpuMemMapper cpuMemMapper;
     private final MiddlewareClient middlewareClient;
     private final PortService portService;
+    private final ErrorMapper errorMapper;
+    private final PortMapper portMapper;
+    private final WatchMapper watchMapper;
 
     /**
      * 모든 장비 조회
@@ -192,7 +198,7 @@ public class DeviceService {
         DeviceRegistrationResultVO result = new DeviceRegistrationResultVO();
 
         // Ping 테스트 먼저 수행
-        boolean pingSuccess = pingTest(deviceInput.getDEVICE_IP(), 3000);
+        boolean pingSuccess = pingTest(deviceInput.getDEVICE_IP(), 1000);
 
         try {
             // SNMP로 장비 시스템 정보 조회 (Middleware API 호출)
@@ -356,7 +362,7 @@ public class DeviceService {
 
         try {
             // Ping 테스트 (3초 타임아웃)
-            boolean pingSuccess = pingTest(deviceInput.getDEVICE_IP(), 3000);
+            boolean pingSuccess = pingTest(deviceInput.getDEVICE_IP(), 1000);
 
             if (!pingSuccess) {
                 throw new RuntimeException("Ping 테스트 실패 - 장비 응답 없음");
@@ -476,7 +482,7 @@ public class DeviceService {
             );
         } catch (Exception e) {
             log.error("SNMP 요청 실패: {}", e.getMessage());
-            throw new RuntimeException("SNMP 요청 실패: " + e.getMessage());
+            throw new RuntimeException(e.getMessage());
         }
 
         String sysDescr = sysInfo.get("sysDescr");
@@ -598,7 +604,7 @@ public class DeviceService {
                 DeviceVO device = registerDeviceFromTemp(tempDeviceId, userId);
 
                 // Ping 테스트 수행
-                boolean pingSuccess = pingTest(device.getDEVICE_IP(), 3000);
+                boolean pingSuccess = pingTest(device.getDEVICE_IP(), 1000);
 
                 result.getSuccessList().add(new DeviceRegistrationResultVO.DeviceRegistrationSuccess(
                         tempDeviceId,
@@ -695,7 +701,16 @@ public class DeviceService {
     }
 
     /**
-     * 장비 삭제 (논리 삭제)
+     * 장비 삭제 (논리 삭제 + 연관 데이터 캐스케이드 정리)
+     *
+     * 정리 순서:
+     * 1. 활성 장애 → 이력 이관 후 삭제
+     * 2. 관제 그룹에서 장비/인터페이스 제거
+     * 3. 포트 소프트 삭제
+     * 4. SSH 크리덴셜 삭제 (보안)
+     * 5. SNMP 설정 삭제
+     * 6. 수집 설정(Scope) 삭제
+     * 7. 장비 본체 소프트 삭제
      */
     @Transactional
     public void deleteDevice(int deviceId) {
@@ -704,19 +719,53 @@ public class DeviceService {
             throw new IllegalArgumentException("장비를 찾을 수 없습니다: " + deviceId);
         }
 
-        deviceMapper.deleteDevice(deviceId);
+        cascadeDeleteDevice(deviceId);
+        log.info("장비 삭제 완료 (cascade): deviceId={}", deviceId);
     }
 
     /**
-     * 장비 일괄 삭제 (논리 삭제)
+     * 장비 일괄 삭제 (논리 삭제 + 연관 데이터 캐스케이드 정리)
      */
     @Transactional
     public void deleteDevices(List<Integer> deviceIds) {
         if (deviceIds == null || deviceIds.isEmpty()) {
             throw new IllegalArgumentException("삭제할 장비 ID가 없습니다.");
         }
-        deviceMapper.deleteDevices(deviceIds);
-        log.info("장비 일괄 삭제 완료: {} 개", deviceIds.size());
+        for (int deviceId : deviceIds) {
+            cascadeDeleteDevice(deviceId);
+        }
+        log.info("장비 일괄 삭제 완료 (cascade): {} 개", deviceIds.size());
+    }
+
+    /**
+     * 단일 장비에 대한 캐스케이드 삭제 처리 (내부용)
+     */
+    private void cascadeDeleteDevice(int deviceId) {
+        // 1. 활성 장애 → 이력 이관 후 삭제
+        int movedErrors = errorMapper.moveDeviceErrorsToHistory(deviceId);
+        int deletedErrors = errorMapper.deleteDeviceErrors(deviceId);
+        if (movedErrors > 0) {
+            log.info("  장비 {} 장애 이관: {}건 → 이력, {}건 삭제", deviceId, movedErrors, deletedErrors);
+        }
+
+        // 2. 관제 그룹에서 제거 (인터페이스 먼저, 장비 후)
+        watchMapper.deleteDeviceInterfacesFromAllGroups(deviceId);
+        watchMapper.deleteDeviceFromAllWatchGroups(deviceId);
+
+        // 3. 포트 소프트 삭제
+        portMapper.deletePortsByDeviceId(deviceId);
+
+        // 4. SSH 크리덴셜 삭제
+        deviceSshMapper.deleteByDeviceId(deviceId);
+
+        // 5. SNMP 설정 삭제
+        deviceMapper.deleteDeviceSnmp(deviceId);
+
+        // 6. 수집 설정(Scope) 삭제
+        deviceMapper.deleteDeviceScope(deviceId);
+
+        // 7. 장비 본체 소프트 삭제
+        deviceMapper.deleteDevice(deviceId);
     }
 
     /**
@@ -901,8 +950,8 @@ public class DeviceService {
     /**
      * 특정 장비의 최근 CPU/MEM 데이터 조회 (시계열)
      */
-    public List<CpuMemVO> getRecentCpuMem(int deviceId, int minutes) {
-        return cpuMemMapper.findRecentByDeviceId(deviceId, minutes);
+    public List<CpuMemVO> getRecentCpuMem(int deviceId, int minutes, String startDate, String endDate) {
+        return cpuMemMapper.findRecentByDeviceId(deviceId, minutes, startDate, endDate);
     }
 
     /**
@@ -940,5 +989,70 @@ public class DeviceService {
     @Transactional
     public void deleteDeviceSsh(int deviceId) {
         deviceSshMapper.deleteByDeviceId(deviceId);
+    }
+
+    // ==================== 연결성 체크 ====================
+
+    /**
+     * PING → SNMP → SSH 순차 연결성 체크 (Go Middleware API 활용)
+     */
+    public ConnectivityCheckVO connectivityCheck(int deviceId) {
+        DeviceVO device = deviceMapper.findDeviceById(deviceId);
+        if (device == null) {
+            throw new IllegalArgumentException("장비를 찾을 수 없습니다: " + deviceId);
+        }
+
+        ConnectivityCheckVO result = new ConnectivityCheckVO();
+
+        // 1. PING 체크 — Middleware /api/check/ping
+        MiddlewareClient.PingResponse pingResp = middlewareClient.pingCheck(device.getDEVICE_IP());
+        result.setPingSuccess(pingResp.isSuccess());
+        result.setPingResponseTimeMs(Math.round(pingResp.getResponseTimeMs()));
+        result.setPingMessage(pingResp.getMessage());
+
+        // 2. SNMP 체크 — Middleware /api/snmp/system-info (설정이 있는 경우만)
+        if (device.getSNMP_VERSION() != null && device.getSNMP_PORT() != null) {
+            result.setSnmpConfigured(true);
+            try {
+                Map<String, String> sysInfo = middlewareClient.getDeviceSystemInfo(
+                        device.getDEVICE_IP(),
+                        device.getSNMP_VERSION(),
+                        device.getSNMP_PORT(),
+                        device.getSNMP_COMMUNITY(),
+                        device.getSNMP_USER(),
+                        device.getSNMP_AUTH_PROTOCOL(),
+                        device.getSNMP_AUTH_PASSWORD(),
+                        device.getSNMP_PRIV_PROTOCOL(),
+                        device.getSNMP_PRIV_PASSWORD()
+                );
+                result.setSnmpSuccess(true);
+                result.setSysName(sysInfo.get("sysName"));
+                result.setSysDescr(sysInfo.get("sysDescr"));
+                result.setSnmpMessage("SNMP 응답 성공 (v" + device.getSNMP_VERSION() + ", port " + device.getSNMP_PORT() + ")");
+            } catch (Exception e) {
+                result.setSnmpSuccess(false);
+                result.setSnmpMessage(e.getMessage());
+                log.warn("SNMP 체크 실패 - deviceId: {}, IP: {}, error: {}", deviceId, device.getDEVICE_IP(), e.getMessage());
+            }
+        } else {
+            result.setSnmpConfigured(false);
+            result.setSnmpMessage("SNMP 설정 없음");
+        }
+
+        // 3. SSH 포트 체크 — Middleware /api/check/ssh (설정이 있는 경우만)
+        DeviceSshVO ssh = deviceSshMapper.findByDeviceId(deviceId);
+        if (ssh != null) {
+            result.setSshConfigured(true);
+            int sshPort = ssh.getSSH_PORT() != null ? ssh.getSSH_PORT() : 22;
+            result.setSshPort(sshPort);
+            MiddlewareClient.SshCheckResponse sshResp = middlewareClient.sshCheck(device.getDEVICE_IP(), sshPort);
+            result.setSshSuccess(sshResp.isSuccess());
+            result.setSshMessage(sshResp.getMessage());
+        } else {
+            result.setSshConfigured(false);
+            result.setSshMessage("SSH 접속 정보 없음");
+        }
+
+        return result;
     }
 }

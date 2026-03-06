@@ -8,6 +8,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 
@@ -46,10 +48,10 @@ public class NoticeService {
     @Transactional
     public NoticeDto.PostDetailRes createPost(NoticeDto.PostCreateReq req) {
         noticeMapper.insertPost(req);
+        NoticeDto.PostDetailRes saved = noticeMapper.findPostById(req.getNoticeId());
 
-        // 긴급공지면 WebSocket 브로드캐스트
+        // 긴급공지면 트랜잭션 커밋 후 WebSocket 브로드캐스트 (트랜잭션 블로킹 방지)
         if ("Y".equals(req.getIsUrgent())) {
-            NoticeDto.PostDetailRes saved = noticeMapper.findPostById(req.getNoticeId());
             NoticeDto.UrgentNoticeMsg msg = NoticeDto.UrgentNoticeMsg.builder()
                     .noticeId(saved.getNoticeId())
                     .title(saved.getTitle())
@@ -57,11 +59,18 @@ public class NoticeService {
                     .userName(saved.getUserName())
                     .createdAt(saved.getCreatedAt())
                     .build();
-            messagingTemplate.convertAndSend("/topic/notice/urgent", msg);
-            log.info("긴급공지 브로드캐스트 - noticeId: {}", saved.getNoticeId());
+            TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        messagingTemplate.convertAndSend("/topic/notice/urgent", msg);
+                        log.info("긴급공지 브로드캐스트 - noticeId: {}", saved.getNoticeId());
+                    }
+                }
+            );
         }
 
-        return noticeMapper.findPostById(req.getNoticeId());
+        return saved;
     }
 
     /**

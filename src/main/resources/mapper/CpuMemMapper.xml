@@ -36,7 +36,14 @@
         FROM P_CPU_MEM_T
         WHERE DEVICE_ID = #{deviceId}
           AND CORE_INDEX IS NULL
-          AND COLLECTED_AT >= DATE_SUB(NOW(), INTERVAL #{minutes} MINUTE)
+          <choose>
+              <when test="startDate != null and endDate != null">
+                  AND COLLECTED_AT BETWEEN #{startDate} AND #{endDate}
+              </when>
+              <otherwise>
+                  AND COLLECTED_AT >= DATE_SUB(NOW(), INTERVAL #{minutes} MINUTE)
+              </otherwise>
+          </choose>
         ORDER BY COLLECTED_AT ASC
     </select>
 

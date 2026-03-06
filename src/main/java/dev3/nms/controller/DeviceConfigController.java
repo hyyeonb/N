@@ -68,7 +68,7 @@ public class DeviceConfigController {
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
             log.error("장비 목록 조회 실패: {}", e.getMessage(), e);
-            return new ResponseEntity<>(new ResVO<>(500, "장비 목록 조회 실패: " + e.getMessage(), null), HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>(new ResVO<>(500, "장비 목록 조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 }

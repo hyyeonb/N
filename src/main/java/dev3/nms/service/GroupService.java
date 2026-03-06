@@ -210,13 +210,8 @@ public class GroupService {
      * 특정 그룹이 다른 그룹의 하위인지 확인
      */
     private boolean isDescendant(Integer ancestorId, Integer descendantId) {
-        GroupVO current = groupMapper.findGroupById(descendantId).orElse(null);
-        while (current != null && current.getPARENT_GROUP_ID() != null) {
-            if (current.getPARENT_GROUP_ID().equals(ancestorId)) {
-                return true;
-            }
-            current = groupMapper.findGroupById(current.getPARENT_GROUP_ID()).orElse(null);
-        }
-        return false;
+        // WITH RECURSIVE 단일 쿼리로 모든 하위 그룹 ID 조회 (루프 쿼리 제거)
+        List<Integer> descendantIds = groupMapper.findGroupIdWithDescendants(ancestorId);
+        return descendantIds.contains(descendantId);
     }
 }

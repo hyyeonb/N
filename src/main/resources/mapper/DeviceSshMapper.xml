@@ -45,4 +45,14 @@
         WHERE DEVICE_ID = #{deviceId} AND DEL_DT IS NULL
     </select>
 
+    <!-- SSH 정보가 등록된 장비 목록 (Traceroute 트리용) -->
+    <select id="findDevicesWithSsh" resultType="dev3.nms.vo.mgmt.DeviceVO">
+        SELECT d.DEVICE_ID, d.DEVICE_NAME, d.DEVICE_IP, d.GROUP_ID
+        FROM r_device_t d
+        INNER JOIN r_device_ssh_t s
+            ON d.DEVICE_ID = s.DEVICE_ID AND s.DEL_DT IS NULL
+        WHERE d.DELETE_AT IS NULL
+        ORDER BY d.GROUP_ID, d.DEVICE_NAME
+    </select>
+
 </mapper>

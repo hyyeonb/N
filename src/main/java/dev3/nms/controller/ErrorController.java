@@ -127,4 +127,72 @@ public class ErrorController {
         }
         return new ResVO<>(200, "조회 성공", history);
     }
+
+    // ========== 장애 통계 ==========
+
+    /**
+     * 장애 통계 요약 (등급별/유형별 현재 장애 수 + Aging)
+     * GET /api/fault/stats/summary?groupIds=1&groupIds=2
+     */
+    @GetMapping("/stats/summary")
+    public ResVO<Map<String, Object>> getStatsSummary(
+            @RequestParam(required = false) List<Long> groupIds,
+            @RequestParam(required = false) List<Long> deviceIds) {
+        return new ResVO<>(200, "조회 성공", errorService.getErrorStatsSummary(groupIds, deviceIds));
+    }
+
+    /**
+     * 장애 발생 추이
+     * GET /api/fault/stats/trend?startDate=2026-01-01&endDate=2026-02-19&period=daily&deviceIds=1&deviceIds=2
+     * period: daily(기본) / hourly(당일용 시간대별)
+     */
+    @GetMapping("/stats/trend")
+    public ResVO<Map<String, Object>> getStatsTrend(
+            @RequestParam String startDate,
+            @RequestParam String endDate,
+            @RequestParam(defaultValue = "daily") String period,
+            @RequestParam(required = false) List<Long> groupIds,
+            @RequestParam(required = false) List<Long> deviceIds) {
+        return new ResVO<>(200, "조회 성공", errorService.getErrorTrend(startDate, endDate, period, groupIds, deviceIds));
+    }
+
+    /**
+     * MTTR 통계
+     * GET /api/fault/stats/mttr?startDate=2026-01-01&endDate=2026-02-19&deviceIds=1&deviceIds=2
+     */
+    @GetMapping("/stats/mttr")
+    public ResVO<List<Map<String, Object>>> getStatsMttr(
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) List<Long> groupIds,
+            @RequestParam(required = false) List<Long> deviceIds) {
+        return new ResVO<>(200, "조회 성공", errorService.getMttr(startDate, endDate, groupIds, deviceIds));
+    }
+
+    /**
+     * 상습 장애 장비 Top N
+     * GET /api/fault/stats/top-devices?startDate=2026-01-01&endDate=2026-02-19&limit=10&deviceIds=1&deviceIds=2
+     */
+    @GetMapping("/stats/top-devices")
+    public ResVO<List<Map<String, Object>>> getStatsTopDevices(
+            @RequestParam String startDate,
+            @RequestParam String endDate,
+            @RequestParam(defaultValue = "10") int limit,
+            @RequestParam(required = false) List<Long> groupIds,
+            @RequestParam(required = false) List<Long> deviceIds) {
+        return new ResVO<>(200, "조회 성공", errorService.getTopErrorDevices(startDate, endDate, limit, groupIds, deviceIds));
+    }
+
+    /**
+     * 시간대/요일별 장애 패턴
+     * GET /api/fault/stats/pattern?startDate=2026-01-01&endDate=2026-02-19&deviceIds=1&deviceIds=2
+     */
+    @GetMapping("/stats/pattern")
+    public ResVO<Map<String, Object>> getStatsPattern(
+            @RequestParam String startDate,
+            @RequestParam String endDate,
+            @RequestParam(required = false) List<Long> groupIds,
+            @RequestParam(required = false) List<Long> deviceIds) {
+        return new ResVO<>(200, "조회 성공", errorService.getErrorPattern(startDate, endDate, groupIds, deviceIds));
+    }
 }

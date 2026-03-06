@@ -24,5 +24,6 @@ public class GroupVO {
     private LocalDateTime MODIFY_AT;
     private Integer DELETE_USER_ID;
     private LocalDateTime DELETE_AT;
+    private Integer DEVICE_COUNT;
     private List<GroupVO> children;
 }

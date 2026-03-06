@@ -156,6 +156,13 @@
         WHERE WATCH_GROUP_ID = #{watchGroupId}
     </delete>
 
+    <!-- 특정 그룹에서 특정 장비 삭제 -->
+    <delete id="deleteGroupDeviceById">
+        DELETE FROM R_WATCH_GROUP_DEVICE_T
+        WHERE WATCH_GROUP_ID = #{watchGroupId}
+          AND DEVICE_ID = #{deviceId}
+    </delete>
+
     <!-- ==================== 관제 그룹 인터페이스 ==================== -->
 
     <!-- 장비의 인터페이스 목록 조회 -->
@@ -173,6 +180,22 @@
           AND gi.DEVICE_ID = #{deviceId}
         ORDER BY gi.IF_INDEX
     </select>
+
+    <!-- 그룹 전체 인터페이스 일괄 조회 (N+1 제거) -->
+    <select id="findInterfacesByGroupId" resultType="dev3.nms.vo.watch.WatchGroupIfVO">
+        SELECT
+            gi.WATCH_GROUP_ID,
+            gi.DEVICE_ID,
+            gi.IF_INDEX,
+            p.IF_DESCR,
+            p.IF_DESCRIPTION AS IF_NAME,
+            p.IF_SPEED
+        FROM R_WATCH_GROUP_IF_T gi
+        LEFT JOIN R_PORT_T p ON gi.DEVICE_ID = p.DEVICE_ID AND gi.IF_INDEX = p.IF_INDEX
+        WHERE gi.WATCH_GROUP_ID = #{watchGroupId}
+        ORDER BY gi.DEVICE_ID, gi.IF_INDEX
+    </select>
+
 
     <!-- 그룹에 인터페이스 추가 -->
     <insert id="insertGroupInterface" parameterType="dev3.nms.vo.watch.WatchGroupIfVO">
@@ -216,5 +239,19 @@
         FROM R_WATCH_GROUP_T
         WHERE LINKED_GROUP_ID = #{linkedGroupId}
     </select>
+
+    <!-- ==================== 장비 삭제 시 관제 그룹 정리 ==================== -->
+
+    <!-- 모든 관제 그룹에서 특정 장비 제거 -->
+    <delete id="deleteDeviceFromAllWatchGroups" parameterType="int">
+        DELETE FROM R_WATCH_GROUP_DEVICE_T
+        WHERE DEVICE_ID = #{deviceId}
+    </delete>
+
+    <!-- 모든 관제 그룹에서 특정 장비의 인터페이스 제거 -->
+    <delete id="deleteDeviceInterfacesFromAllGroups" parameterType="int">
+        DELETE FROM R_WATCH_GROUP_IF_T
+        WHERE DEVICE_ID = #{deviceId}
+    </delete>
 
 </mapper>

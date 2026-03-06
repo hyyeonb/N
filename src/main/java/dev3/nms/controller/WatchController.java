@@ -39,7 +39,7 @@ public class WatchController {
         } catch (Exception e) {
             log.error("관제 그룹 목록 조회 실패: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ResVO<>(500, "조회 실패: " + e.getMessage(), null));
+                    .body(new ResVO<>(500, "조회 실패", null));
         }
     }
 
@@ -57,7 +57,7 @@ public class WatchController {
         } catch (Exception e) {
             log.error("관제 그룹 상세 조회 실패: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ResVO<>(500, "조회 실패: " + e.getMessage(), null));
+                    .body(new ResVO<>(500, "조회 실패", null));
         }
     }
 
@@ -103,7 +103,7 @@ public class WatchController {
         } catch (Exception e) {
             log.error("관제 그룹 생성 실패: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ResVO<>(500, "생성 실패: " + e.getMessage(), null));
+                    .body(new ResVO<>(500, "생성 실패", null));
         }
     }
 
@@ -146,7 +146,7 @@ public class WatchController {
         } catch (Exception e) {
             log.error("관제 그룹 수정 실패: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ResVO<>(500, "수정 실패: " + e.getMessage(), null));
+                    .body(new ResVO<>(500, "수정 실패", null));
         }
     }
 
@@ -164,7 +164,7 @@ public class WatchController {
         } catch (Exception e) {
             log.error("관제 그룹 삭제 실패: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ResVO<>(500, "삭제 실패: " + e.getMessage(), null));
+                    .body(new ResVO<>(500, "삭제 실패", null));
         }
     }
 
@@ -187,7 +187,7 @@ public class WatchController {
         } catch (Exception e) {
             log.error("관제 그룹 이동 실패: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ResVO<>(500, "이동 실패: " + e.getMessage(), null));
+                    .body(new ResVO<>(500, "이동 실패", null));
         }
     }
 
@@ -208,7 +208,7 @@ public class WatchController {
         } catch (Exception e) {
             log.error("아이콘 설정 실패: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ResVO<>(500, "아이콘 설정 실패: " + e.getMessage(), null));
+                    .body(new ResVO<>(500, "아이콘 설정 실패", null));
         }
     }
 
@@ -223,7 +223,7 @@ public class WatchController {
         } catch (Exception e) {
             log.error("하위 그룹 개수 조회 실패: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ResVO<>(500, "조회 실패: " + e.getMessage(), null));
+                    .body(new ResVO<>(500, "조회 실패", null));
         }
     }
 
@@ -246,7 +246,7 @@ public class WatchController {
         } catch (Exception e) {
             log.error("그룹 가져오기 실패: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ResVO<>(500, "가져오기 실패: " + e.getMessage(), null));
+                    .body(new ResVO<>(500, "가져오기 실패", null));
         }
     }
 
@@ -261,7 +261,7 @@ public class WatchController {
         } catch (Exception e) {
             log.error("연동 그룹 목록 조회 실패: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ResVO<>(500, "조회 실패: " + e.getMessage(), null));
+                    .body(new ResVO<>(500, "조회 실패", null));
         }
     }
 
@@ -276,7 +276,47 @@ public class WatchController {
         } catch (Exception e) {
             log.error("연동 해제 실패: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ResVO<>(500, "연동 해제 실패: " + e.getMessage(), null));
+                    .body(new ResVO<>(500, "연동 해제 실패", null));
+        }
+    }
+
+    // ==================== 일반 그룹 동기화 ====================
+
+    /**
+     * 연동된 관제 그룹 조회 (read-only, 동기화 없이 조회만)
+     */
+    @GetMapping("/groups/by-linked/{groupId}")
+    public ResponseEntity<ResVO<WatchGroupVO>> getByLinkedGroup(@PathVariable Integer groupId) {
+        try {
+            WatchGroupVO result = watchService.getByLinkedGroupId(groupId);
+            if (result == null) {
+                return ResponseEntity.ok(new ResVO<>(404, "연동된 관제 그룹 없음", null));
+            }
+            return ResponseEntity.ok(new ResVO<>(200, "조회 성공", result));
+        } catch (Exception e) {
+            log.error("연동 관제 그룹 조회 실패: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ResVO<>(500, "조회 실패", null));
+        }
+    }
+
+    /**
+     * 일반 그룹(R_GROUP_T)에서 관제 그룹 동기화
+     * - 연결된 관제 그룹이 없으면 자동 생성
+     * - 장비/인터페이스를 매핑 테이블에 동기화
+     */
+    @PostMapping("/groups/sync-from-group/{groupId}")
+    public ResponseEntity<ResVO<WatchGroupVO>> syncFromRegularGroup(@PathVariable Integer groupId) {
+        try {
+            WatchGroupVO result = watchService.syncFromRegularGroup(groupId);
+            return ResponseEntity.ok(new ResVO<>(200, "동기화 완료", result));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ResVO<>(404, e.getMessage(), null));
+        } catch (Exception e) {
+            log.error("일반 그룹 동기화 실패: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ResVO<>(500, "동기화 실패", null));
         }
     }
 
@@ -296,7 +336,7 @@ public class WatchController {
         } catch (Exception e) {
             log.error("관제 시작 실패: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ResVO<>(500, "관제 시작 실패: " + e.getMessage(), null));
+                    .body(new ResVO<>(500, "관제 시작 실패", null));
         }
     }
 
@@ -311,7 +351,7 @@ public class WatchController {
         } catch (Exception e) {
             log.error("관제 중지 실패: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ResVO<>(500, "관제 중지 실패: " + e.getMessage(), null));
+                    .body(new ResVO<>(500, "관제 중지 실패", null));
         }
     }
 
@@ -326,7 +366,7 @@ public class WatchController {
         } catch (Exception e) {
             log.error("Heartbeat 실패: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ResVO<>(500, "Heartbeat 실패: " + e.getMessage(), null));
+                    .body(new ResVO<>(500, "Heartbeat 실패", null));
         }
     }
 
@@ -346,7 +386,7 @@ public class WatchController {
         } catch (Exception e) {
             log.error("메트릭 조회 실패: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ResVO<>(500, "조회 실패: " + e.getMessage(), null));
+                    .body(new ResVO<>(500, "조회 실패", null));
         }
     }
 
@@ -363,7 +403,7 @@ public class WatchController {
         } catch (Exception e) {
             log.error("히스토리 조회 실패: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ResVO<>(500, "조회 실패: " + e.getMessage(), null));
+                    .body(new ResVO<>(500, "조회 실패", null));
         }
     }
 

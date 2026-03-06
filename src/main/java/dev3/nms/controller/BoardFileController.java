@@ -76,7 +76,7 @@ public class BoardFileController {
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
             log.error("게시글 등록 실패 - {}", e.getMessage());
-            ResVO<BoardFileDto.PostDetailRes> response = new ResVO<>(500, "등록 실패: " + e.getMessage(), null);
+            ResVO<BoardFileDto.PostDetailRes> response = new ResVO<>(500, "등록 실패", null);
             return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -96,7 +96,7 @@ public class BoardFileController {
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
             log.error("게시글 수정 실패 - {}", e.getMessage());
-            ResVO<BoardFileDto.PostDetailRes> response = new ResVO<>(500, "수정 실패: " + e.getMessage(), null);
+            ResVO<BoardFileDto.PostDetailRes> response = new ResVO<>(500, "수정 실패", null);
             return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -139,7 +139,7 @@ public class BoardFileController {
                     .body(resource);
         } catch (Exception e) {
             log.error("파일 다운로드 실패 - attachId: {}, error: {}", attachId, e.getMessage());
-            ResVO<Void> response = new ResVO<>(500, "다운로드 실패: " + e.getMessage(), null);
+            ResVO<Void> response = new ResVO<>(500, "다운로드 실패", null);
             return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }

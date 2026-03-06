@@ -2,9 +2,12 @@ package dev3.nms.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev3.nms.mapper.DeviceMapper;
 import dev3.nms.mapper.GroupMapper;
+import dev3.nms.mapper.PortMapper;
 import dev3.nms.mapper.WatchMapper;
 import dev3.nms.vo.mgmt.GroupVO;
+import dev3.nms.vo.mgmt.PortVO;
 import dev3.nms.vo.watch.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +38,8 @@ public class WatchService {
 
     private final WatchMapper watchMapper;
     private final GroupMapper groupMapper;
+    private final DeviceMapper deviceMapper;
+    private final PortMapper portMapper;
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
 
@@ -66,10 +71,12 @@ public class WatchService {
         // 장비 목록 조회
         List<WatchGroupDeviceVO> devices = watchMapper.findDevicesByGroupId(watchGroupId);
 
-        // 각 장비별 인터페이스 목록 조회
+        // 그룹 전체 인터페이스 일괄 조회 (N+1 제거)
+        List<WatchGroupIfVO> allInterfaces = watchMapper.findInterfacesByGroupId(watchGroupId);
+        Map<Integer, List<WatchGroupIfVO>> ifMap = allInterfaces.stream()
+                .collect(java.util.stream.Collectors.groupingBy(WatchGroupIfVO::getDEVICE_ID));
         for (WatchGroupDeviceVO device : devices) {
-            List<WatchGroupIfVO> interfaces = watchMapper.findInterfacesByDevice(watchGroupId, device.getDEVICE_ID());
-            device.setInterfaces(interfaces);
+            device.setInterfaces(ifMap.getOrDefault(device.getDEVICE_ID(), java.util.Collections.emptyList()));
         }
 
         group.setDevices(devices);
@@ -159,6 +166,82 @@ public class WatchService {
         watchMapper.deleteGroupInterfaces(watchGroupId);
         watchMapper.deleteGroupDevices(watchGroupId);
         watchMapper.deleteGroup(watchGroupId);
+    }
+
+    /**
+     * 연동된 관제 그룹 조회 (read-only, 동기화 없음)
+     */
+    public WatchGroupVO getByLinkedGroupId(Integer groupId) {
+        WatchGroupVO watchGroup = watchMapper.findByLinkedGroupId(groupId);
+        if (watchGroup == null) return null;
+        return getGroupDetail(watchGroup.getWATCH_GROUP_ID());
+    }
+
+    /**
+     * 일반 그룹(R_GROUP_T)에서 관제 그룹 동기화
+     * - LINKED_GROUP_ID로 연결된 관제 그룹이 있으면 장비 동기화
+     * - 없으면 새로 생성 후 장비/인터페이스 매핑
+     */
+    @Transactional
+    public WatchGroupVO syncFromRegularGroup(Integer groupId) {
+        // 1. 일반 그룹 정보 확인
+        GroupVO regularGroup = groupMapper.findGroupById(groupId)
+                .orElseThrow(() -> new IllegalArgumentException("그룹을 찾을 수 없습니다: " + groupId));
+
+        // 2. 기존 연결된 관제 그룹 조회
+        WatchGroupVO watchGroup = watchMapper.findByLinkedGroupId(groupId);
+
+        boolean isNewGroup = (watchGroup == null);
+        if (isNewGroup) {
+            // 3. 없으면 새로 생성
+            watchGroup = new WatchGroupVO();
+            watchGroup.setGROUP_NAME(regularGroup.getGROUP_NAME());
+            watchGroup.setLINKED_GROUP_ID(groupId);
+            watchGroup.setINTERVAL_SEC(5);
+            watchGroup.setDEPTH(0);
+            watchMapper.insertGroup(watchGroup);
+            log.info("[WATCH] 일반 그룹 연동 생성 - GroupID: {}, WatchGroupID: {}", groupId, watchGroup.getWATCH_GROUP_ID());
+        }
+
+        Integer watchGroupId = watchGroup.getWATCH_GROUP_ID();
+
+        // 4. 일반 그룹의 장비 조회 (하위 그룹 포함)
+        List<Integer> groupIds = groupMapper.findGroupIdWithDescendants(groupId);
+        List<dev3.nms.vo.mgmt.DeviceVO> devices = deviceMapper.findDevicesByGroupIds(groupIds);
+
+        // 5. 기존 매핑된 장비 ID 목록
+        List<WatchGroupDeviceVO> existingDevices = watchMapper.findDevicesByGroupId(watchGroupId);
+        java.util.Set<Integer> existingDeviceIds = new java.util.HashSet<>();
+        for (WatchGroupDeviceVO ed : existingDevices) {
+            existingDeviceIds.add(ed.getDEVICE_ID());
+        }
+
+        // 6. 새 장비 ID 목록
+        java.util.Set<Integer> newDeviceIds = new java.util.HashSet<>();
+        for (dev3.nms.vo.mgmt.DeviceVO device : devices) {
+            newDeviceIds.add(device.getDEVICE_ID());
+        }
+
+        // 7. 삭제된 장비 제거 (기존에 있었지만 그룹에서 빠진 장비)
+        for (Integer existingId : existingDeviceIds) {
+            if (!newDeviceIds.contains(existingId)) {
+                watchMapper.deleteDeviceInterfaces(watchGroupId, existingId);
+                watchMapper.deleteGroupDeviceById(watchGroupId, existingId);
+            }
+        }
+
+        // 8. 새 장비 추가 (포트는 추가하지 않음 - 사용자가 모달에서 선택)
+        for (dev3.nms.vo.mgmt.DeviceVO device : devices) {
+            if (!existingDeviceIds.contains(device.getDEVICE_ID())) {
+                WatchGroupDeviceVO wgd = new WatchGroupDeviceVO();
+                wgd.setWATCH_GROUP_ID(watchGroupId);
+                wgd.setDEVICE_ID(device.getDEVICE_ID());
+                watchMapper.insertGroupDevice(wgd);
+            }
+        }
+
+        log.info("[WATCH] 일반 그룹 동기화 완료 - GroupID: {}, 장비: {}개", groupId, devices.size());
+        return getGroupDetail(watchGroupId);
     }
 
     /**
