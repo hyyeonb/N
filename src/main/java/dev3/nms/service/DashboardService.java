@@ -128,7 +128,7 @@ public class DashboardService {
 
             Map<String, Object> param = new HashMap<>();
             param.put("metrics", metrics);
-            param.put("topN", 10);
+            param.put("topN", 5);
             param.put("intervalSec", 300);
 
             if ("pie".equals(userWidgetConfig.getChartType())) {
@@ -144,7 +144,7 @@ public class DashboardService {
 
             Map<String, Object> param = new HashMap<>();
             param.put("metrics", metrics);
-            param.put("topN", 10);
+            param.put("topN", 5);
             param.put("intervalSec", 300);
 
             if ("pie".equals(userWidgetConfig.getChartType())) {
@@ -160,7 +160,7 @@ public class DashboardService {
 
             Map<String, Object> param = new HashMap<>();
             param.put("metrics", metrics);
-            param.put("topN", 10);
+            param.put("topN", 5);
             param.put("intervalSec", 300);
 
             if ("pie".equals(userWidgetConfig.getChartType())) {
@@ -207,7 +207,7 @@ public class DashboardService {
 
             Map<String, Object> param = new HashMap<>();
             param.put("metrics", metrics);
-            param.put("topN", 10);
+            param.put("topN", 5);
             param.put("intervalSec", 300);
 
             if ("pie".equals(userWidgetConfig.getChartType())) {
@@ -223,7 +223,7 @@ public class DashboardService {
 
             Map<String, Object> param = new HashMap<>();
             param.put("metrics", metrics);
-            param.put("topN", 10);
+            param.put("topN", 5);
             param.put("intervalSec", 300);
 
             if ("pie".equals(userWidgetConfig.getChartType())) {
@@ -239,7 +239,7 @@ public class DashboardService {
 
             Map<String, Object> param = new HashMap<>();
             param.put("metrics", metrics);
-            param.put("topN", 10);
+            param.put("topN", 5);
             param.put("intervalSec", 300);
 
             if ("pie".equals(userWidgetConfig.getChartType())) {
