@@ -4,9 +4,11 @@ import org.mybatis.spring.annotation.MapperScan;
 import org.mybatis.spring.boot.autoconfigure.MybatisAutoConfiguration;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication(exclude = {MybatisAutoConfiguration.class})
 @MapperScan("dev3.nms.mapper")
+@EnableScheduling
 public class NmsApplication {
 
     public static void main(String[] args) {

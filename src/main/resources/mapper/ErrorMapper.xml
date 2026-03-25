@@ -21,9 +21,9 @@
             d.DEVICE_NAME,
             g.GROUP_NAME
         FROM f_error_t e
-        LEFT JOIN r_device_t d ON e.DEVICE_ID = d.DEVICE_ID
+        LEFT JOIN r_device_t d ON e.DEVICE_ID = d.DEVICE_ID AND d.DELETE_AT IS NULL
         LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
-        LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
+        LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID AND g.DELETE_AT IS NULL
         WHERE 1=1
         <if test="errorLevel != null and errorLevel != ''">
             AND e.ERROR_LEVEL = #{errorLevel}
@@ -53,6 +53,13 @@
         </if>
         <if test="groupName != null and groupName != ''">
             AND g.GROUP_NAME LIKE CONCAT('%', #{groupName}, '%')
+        </if>
+        <if test="accessibleDeviceIds != null and accessibleDeviceIds.size() > 0">
+            AND e.DEVICE_ID IN
+            <foreach collection="accessibleDeviceIds" item="adid" open="(" separator="," close=")">#{adid}</foreach>
+        </if>
+        <if test="accessibleDeviceIds != null and accessibleDeviceIds.size() == 0">
+            AND 1 = 0
         </if>
         ORDER BY e.OCCUR_AT DESC
     </select>
@@ -61,9 +68,9 @@
     <select id="countErrors" resultType="int">
         SELECT COUNT(*)
         FROM f_error_t e
-        LEFT JOIN r_device_t d ON e.DEVICE_ID = d.DEVICE_ID
+        LEFT JOIN r_device_t d ON e.DEVICE_ID = d.DEVICE_ID AND d.DELETE_AT IS NULL
         LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
-        LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
+        LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID AND g.DELETE_AT IS NULL
         WHERE 1=1
         <if test="errorLevel != null and errorLevel != ''">
             AND e.ERROR_LEVEL = #{errorLevel}
@@ -93,6 +100,13 @@
         </if>
         <if test="groupName != null and groupName != ''">
             AND g.GROUP_NAME LIKE CONCAT('%', #{groupName}, '%')
+        </if>
+        <if test="accessibleDeviceIds != null and accessibleDeviceIds.size() > 0">
+            AND e.DEVICE_ID IN
+            <foreach collection="accessibleDeviceIds" item="adid" open="(" separator="," close=")">#{adid}</foreach>
+        </if>
+        <if test="accessibleDeviceIds != null and accessibleDeviceIds.size() == 0">
+            AND 1 = 0
         </if>
     </select>
 
@@ -112,7 +126,7 @@
             e.IF_IP_ADDRESS,
             d.DEVICE_NAME
         FROM f_error_t e
-        LEFT JOIN r_device_t d ON e.DEVICE_ID = d.DEVICE_ID
+        LEFT JOIN r_device_t d ON e.DEVICE_ID = d.DEVICE_ID AND d.DELETE_AT IS NULL
         WHERE e.ERROR_ID = #{errorId}
     </select>
 
@@ -142,9 +156,9 @@
             d.DEVICE_NAME,
             g.GROUP_NAME
         FROM f_error_history_t h
-        LEFT JOIN r_device_t d ON h.DEVICE_ID = d.DEVICE_ID
+        LEFT JOIN r_device_t d ON h.DEVICE_ID = d.DEVICE_ID AND d.DELETE_AT IS NULL
         LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
-        LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
+        LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID AND g.DELETE_AT IS NULL
         WHERE 1=1
         <if test="errorLevel != null and errorLevel != ''">
             AND h.ERROR_LEVEL = #{errorLevel}
@@ -180,6 +194,13 @@
         </if>
         <if test="groupName != null and groupName != ''">
             AND g.GROUP_NAME LIKE CONCAT('%', #{groupName}, '%')
+        </if>
+        <if test="accessibleDeviceIds != null and accessibleDeviceIds.size() > 0">
+            AND h.DEVICE_ID IN
+            <foreach collection="accessibleDeviceIds" item="adid" open="(" separator="," close=")">#{adid}</foreach>
+        </if>
+        <if test="accessibleDeviceIds != null and accessibleDeviceIds.size() == 0">
+            AND 1 = 0
         </if>
         ORDER BY
         <choose>
@@ -202,9 +223,9 @@
     <select id="countErrorHistory" resultType="int">
         SELECT COUNT(*)
         FROM f_error_history_t h
-        LEFT JOIN r_device_t d ON h.DEVICE_ID = d.DEVICE_ID
+        LEFT JOIN r_device_t d ON h.DEVICE_ID = d.DEVICE_ID AND d.DELETE_AT IS NULL
         LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
-        LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
+        LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID AND g.DELETE_AT IS NULL
         WHERE 1=1
         <if test="errorLevel != null and errorLevel != ''">
             AND h.ERROR_LEVEL = #{errorLevel}
@@ -241,9 +262,26 @@
         <if test="groupName != null and groupName != ''">
             AND g.GROUP_NAME LIKE CONCAT('%', #{groupName}, '%')
         </if>
+        <if test="accessibleDeviceIds != null and accessibleDeviceIds.size() > 0">
+            AND h.DEVICE_ID IN
+            <foreach collection="accessibleDeviceIds" item="adid" open="(" separator="," close=")">#{adid}</foreach>
+        </if>
+        <if test="accessibleDeviceIds != null and accessibleDeviceIds.size() == 0">
+            AND 1 = 0
+        </if>
     </select>
 
     <!-- 장애 이력 상세 조회 -->
+    <!-- 장애 이력의 위치(몇 번째 행인지) 조회 — CLEAR_AT DESC 정렬 기준 -->
+    <select id="countHistoryBefore" resultType="int">
+        SELECT COUNT(*)
+        FROM f_error_history_t
+        WHERE DEVICE_ID = #{deviceId}
+          AND (CLEAR_AT > (SELECT CLEAR_AT FROM f_error_history_t WHERE ERROR_HISTORY_ID = #{errorHistoryId})
+               OR (CLEAR_AT = (SELECT CLEAR_AT FROM f_error_history_t WHERE ERROR_HISTORY_ID = #{errorHistoryId})
+                   AND ERROR_HISTORY_ID > #{errorHistoryId}))
+    </select>
+
     <select id="selectErrorHistoryById" resultType="dev3.nms.vo.fault.ErrorHistoryVO">
         SELECT
             h.ERROR_HISTORY_ID,
@@ -259,7 +297,7 @@
             h.DEVICE_IP,
             d.DEVICE_NAME
         FROM f_error_history_t h
-        LEFT JOIN r_device_t d ON h.DEVICE_ID = d.DEVICE_ID
+        LEFT JOIN r_device_t d ON h.DEVICE_ID = d.DEVICE_ID AND d.DELETE_AT IS NULL
         WHERE h.ERROR_HISTORY_ID = #{errorHistoryId}
     </select>
 
@@ -486,7 +524,7 @@
             GROUP BY DEVICE_ID
         ) dt
         JOIN r_device_t d ON dt.DEVICE_ID = d.DEVICE_ID
-        LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
+        LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID AND g.DELETE_AT IS NULL
         WHERE 1=1
         <include refid="deviceFilter"/>
         GROUP BY dt.DEVICE_ID, d.DEVICE_NAME, d.DEVICE_IP, g.GROUP_NAME
@@ -592,6 +630,11 @@
         INNER JOIN r_port_t p ON e.DEVICE_ID = p.DEVICE_ID AND e.IF_INDEX = p.IF_INDEX
         WHERE e.DEVICE_ID = #{deviceId}
           AND p.DELETE_AT IS NOT NULL
+    </delete>
+
+    <!-- 장비 삭제 시 ICMP 데이터 전체 삭제 -->
+    <delete id="deleteIcmpByDeviceId">
+        DELETE FROM p_icmp_t WHERE DEVICE_ID = #{deviceId}
     </delete>
 
 </mapper>

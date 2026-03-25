@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="dev3.nms.mapper.ActivityLogMapper">
+
+    <resultMap id="ActivityLogResultMap" type="dev3.nms.vo.auth.ActivityLogVO">
+        <id property="LOG_ID" column="LOG_ID"/>
+        <result property="HISTORY_ID" column="HISTORY_ID"/>
+        <result property="USER_ID" column="USER_ID"/>
+        <result property="ACTION_TYPE" column="ACTION_TYPE"/>
+        <result property="TARGET_TYPE" column="TARGET_TYPE"/>
+        <result property="TARGET_ID" column="TARGET_ID"/>
+        <result property="TARGET_NAME" column="TARGET_NAME"/>
+        <result property="PAGE_CODE" column="PAGE_CODE"/>
+        <result property="REQUEST_METHOD" column="REQUEST_METHOD"/>
+        <result property="REQUEST_URI" column="REQUEST_URI"/>
+        <result property="IP_ADDRESS" column="IP_ADDRESS"/>
+        <result property="DETAIL" column="DETAIL"/>
+        <result property="CREATED_AT" column="CREATED_AT"/>
+        <result property="USER_NAME" column="USER_NAME"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="dev3.nms.vo.auth.ActivityLogVO"
+            useGeneratedKeys="true" keyProperty="LOG_ID" keyColumn="LOG_ID">
+        INSERT INTO R_ACTIVITY_LOG_T (HISTORY_ID, USER_ID, ACTION_TYPE, TARGET_TYPE, TARGET_ID, TARGET_NAME,
+                                      PAGE_CODE, REQUEST_METHOD, REQUEST_URI, IP_ADDRESS, DETAIL)
+        VALUES (#{HISTORY_ID}, #{USER_ID}, #{ACTION_TYPE}, #{TARGET_TYPE}, #{TARGET_ID}, #{TARGET_NAME},
+                #{PAGE_CODE}, #{REQUEST_METHOD}, #{REQUEST_URI}, #{IP_ADDRESS}, #{DETAIL})
+    </insert>
+
+    <select id="findPaged" parameterType="map" resultMap="ActivityLogResultMap">
+        SELECT a.*, u.NAME AS USER_NAME
+        FROM R_ACTIVITY_LOG_T a
+        LEFT JOIN R_USER_T u ON a.USER_ID = u.USER_ID
+        <where>
+            <if test="actionType != null and actionType != ''">
+                AND a.ACTION_TYPE = #{actionType}
+            </if>
+            <if test="targetType != null and targetType != ''">
+                AND a.TARGET_TYPE = #{targetType}
+            </if>
+            <if test="userId != null">
+                AND a.USER_ID = #{userId}
+            </if>
+            <if test="startDate != null and startDate != ''">
+                AND a.CREATED_AT &gt;= #{startDate}
+            </if>
+            <if test="endDate != null and endDate != ''">
+                AND a.CREATED_AT &lt;= #{endDate}
+            </if>
+            <if test="search != null and search != ''">
+                AND (u.NAME LIKE CONCAT('%', #{search}, '%')
+                     OR a.TARGET_NAME LIKE CONCAT('%', #{search}, '%')
+                     OR a.REQUEST_URI LIKE CONCAT('%', #{search}, '%'))
+            </if>
+        </where>
+        ORDER BY
+        <choose>
+            <when test="sort == 'USER_NAME'">u.NAME</when>
+            <when test="sort == 'ACTION_TYPE'">a.ACTION_TYPE</when>
+            <when test="sort == 'TARGET_TYPE'">a.TARGET_TYPE</when>
+            <when test="sort == 'CREATED_AT'">a.CREATED_AT</when>
+            <otherwise>a.CREATED_AT</otherwise>
+        </choose>
+        <if test="order == 'asc'">ASC</if>
+        <if test="order != 'asc'">DESC</if>
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="count" parameterType="map" resultType="long">
+        SELECT COUNT(*)
+        FROM R_ACTIVITY_LOG_T a
+        LEFT JOIN R_USER_T u ON a.USER_ID = u.USER_ID
+        <where>
+            <if test="actionType != null and actionType != ''">
+                AND a.ACTION_TYPE = #{actionType}
+            </if>
+            <if test="targetType != null and targetType != ''">
+                AND a.TARGET_TYPE = #{targetType}
+            </if>
+            <if test="userId != null">
+                AND a.USER_ID = #{userId}
+            </if>
+            <if test="startDate != null and startDate != ''">
+                AND a.CREATED_AT &gt;= #{startDate}
+            </if>
+            <if test="endDate != null and endDate != ''">
+                AND a.CREATED_AT &lt;= #{endDate}
+            </if>
+            <if test="search != null and search != ''">
+                AND (u.NAME LIKE CONCAT('%', #{search}, '%')
+                     OR a.TARGET_NAME LIKE CONCAT('%', #{search}, '%')
+                     OR a.REQUEST_URI LIKE CONCAT('%', #{search}, '%'))
+            </if>
+        </where>
+    </select>
+
+    <!-- 특정 장비의 변경 이력 조회 -->
+    <select id="findByDeviceId" parameterType="map" resultMap="ActivityLogResultMap">
+        SELECT a.*, u.NAME AS USER_NAME
+        FROM R_ACTIVITY_LOG_T a
+        LEFT JOIN R_USER_T u ON a.USER_ID = u.USER_ID
+        WHERE a.TARGET_ID = #{deviceId}
+          AND a.TARGET_TYPE IN ('DEVICE', 'DEVICE_SNMP', 'DEVICE_SCOPE', 'DEVICE_SSH', 'PORT')
+          AND a.ACTION_TYPE IN ('CREATE', 'UPDATE', 'DELETE')
+        ORDER BY a.CREATED_AT DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countByDeviceId" parameterType="map" resultType="long">
+        SELECT COUNT(*)
+        FROM R_ACTIVITY_LOG_T
+        WHERE TARGET_ID = #{deviceId}
+          AND TARGET_TYPE IN ('DEVICE', 'DEVICE_SNMP', 'DEVICE_SCOPE', 'DEVICE_SSH', 'PORT')
+          AND ACTION_TYPE IN ('CREATE', 'UPDATE', 'DELETE')
+    </select>
+
+    <!-- 특정 로그인 세션의 활동 로그 조회 -->
+    <select id="findByHistoryId" parameterType="map" resultMap="ActivityLogResultMap">
+        SELECT a.*, u.NAME AS USER_NAME
+        FROM R_ACTIVITY_LOG_T a
+        LEFT JOIN R_USER_T u ON a.USER_ID = u.USER_ID
+        WHERE a.HISTORY_ID = #{historyId}
+        ORDER BY a.CREATED_AT DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countByHistoryId" resultType="long">
+        SELECT COUNT(*)
+        FROM R_ACTIVITY_LOG_T
+        WHERE HISTORY_ID = #{historyId}
+    </select>
+
+</mapper>

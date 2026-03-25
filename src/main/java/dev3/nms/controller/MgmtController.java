@@ -1,19 +1,22 @@
 package dev3.nms.controller;
 
+import dev3.nms.config.AuditLog;
+import dev3.nms.config.RequireEditPermission;
+import dev3.nms.config.RequireGroupAccess;
 import dev3.nms.mapper.GroupMapper;
 import dev3.nms.mapper.ModelMapper;
 import dev3.nms.mapper.VendorMapper;
-import dev3.nms.service.AuthService;
 import dev3.nms.service.DevCodeService;
 import dev3.nms.service.DeviceService;
 import dev3.nms.service.GroupService;
 import dev3.nms.service.MiddlewareClient;
+import dev3.nms.service.PermissionService;
 import dev3.nms.service.PortService;
 import dev3.nms.service.TempDeviceService;
 import dev3.nms.service.TrafficService;
 import dev3.nms.vo.mgmt.TrafficVO;
 import dev3.nms.vo.mgmt.CpuMemVO;
-import dev3.nms.vo.auth.UserVO;
+import dev3.nms.util.SessionUtil;
 import dev3.nms.vo.common.PageVO;
 import dev3.nms.vo.common.ResVO;
 import dev3.nms.vo.mgmt.DeviceRegistrationResultVO;
@@ -50,21 +53,25 @@ public class MgmtController {
     private final TempDeviceService tempDeviceService;
     private final DeviceService deviceService;
     private final PortService portService;
-    private final AuthService authService;
     private final TrafficService trafficService;
     private final DevCodeService devCodeService;
     private final GroupMapper groupMapper;
     private final VendorMapper vendorMapper;
     private final ModelMapper modelMapper;
     private final MiddlewareClient middlewareClient;
+    private final dev3.nms.mapper.MetricTypeMapper metricTypeMapper;
+    private final dev3.nms.mapper.EnvironmentMapper environmentMapper;
+    private final PermissionService permissionService;
     private final dev3.nms.mapper.DeviceSshMapper deviceSshMapper;
 
     /**
-     * 그룹 계층 구조 전체 조회 API
+     * 그룹 계층 구조 조회 API (접근 가능 그룹만)
      */
     @GetMapping("/groups")
-    public ResponseEntity<ResVO<List<GroupVO>>> getGroupHierarchy() {
-        List<GroupVO> groupHierarchy = groupService.getGroupHierarchy();
+    public ResponseEntity<ResVO<List<GroupVO>>> getGroupHierarchy(HttpSession session) {
+        Long userId = SessionUtil.getUserId(session);
+        List<Long> accessibleGroupIds = permissionService.getAccessibleAssetGroupIds(userId);
+        List<GroupVO> groupHierarchy = groupService.getGroupHierarchy(accessibleGroupIds);
         ResVO<List<GroupVO>> response = new ResVO<>(200, "조회 성공", groupHierarchy);
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
@@ -73,8 +80,10 @@ public class MgmtController {
      * 그룹 트리 조회 API (프론트엔드 호환용)
      */
     @GetMapping("/groups/tree")
-    public ResponseEntity<ResVO<List<GroupVO>>> getGroupTree() {
-        List<GroupVO> groupHierarchy = groupService.getGroupHierarchy();
+    public ResponseEntity<ResVO<List<GroupVO>>> getGroupTree(HttpSession session) {
+        Long userId = SessionUtil.getUserId(session);
+        List<Long> accessibleGroupIds = permissionService.getAccessibleAssetGroupIds(userId);
+        List<GroupVO> groupHierarchy = groupService.getGroupHierarchy(accessibleGroupIds);
         ResVO<List<GroupVO>> response = new ResVO<>(200, "조회 성공", groupHierarchy);
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
@@ -82,6 +91,7 @@ public class MgmtController {
     /**
      * 특정 그룹 정보 조회 API
      */
+    @RequireGroupAccess(groupType = "ASSET", action = "VIEW")
     @GetMapping("/groups/{groupId}")
     public ResponseEntity<ResVO<GroupVO>> getGroupById(@PathVariable Integer groupId) {
         try {
@@ -96,10 +106,13 @@ public class MgmtController {
     /**
      * 새 그룹 생성 API
      */
+    @AuditLog(actionType = "CREATE", targetType = "GROUP", pageCode = "group_mgmt")
+    @RequireEditPermission("group_mgmt")
     @PostMapping("/groups")
-    public ResponseEntity<ResVO<GroupVO>> createGroup(@RequestBody GroupVO group) {
+    public ResponseEntity<ResVO<GroupVO>> createGroup(@RequestBody GroupVO group, HttpSession session) {
         try {
-            GroupVO createdGroup = groupService.createGroup(group);
+            Integer userId = getUserIdFromSession(session);
+            GroupVO createdGroup = groupService.createGroup(group, userId);
             ResVO<GroupVO> response = new ResVO<>(201, "그룹 생성 성공", createdGroup);
             return new ResponseEntity<>(response, HttpStatus.CREATED);
         } catch (IllegalArgumentException e) {
@@ -110,10 +123,13 @@ public class MgmtController {
     /**
      * 그룹 정보 수정 API
      */
+    @AuditLog(actionType = "UPDATE", targetType = "GROUP", pageCode = "group_mgmt")
+    @RequireEditPermission("group_mgmt")
     @PutMapping("/groups/{groupId}")
-    public ResponseEntity<ResVO<GroupVO>> updateGroup(@PathVariable Integer groupId, @RequestBody GroupVO groupUpdates) {
+    public ResponseEntity<ResVO<GroupVO>> updateGroup(@PathVariable Integer groupId, @RequestBody GroupVO groupUpdates, HttpSession session) {
         try {
-            GroupVO updatedGroup = groupService.updateGroup(groupId, groupUpdates);
+            Integer userId = getUserIdFromSession(session);
+            GroupVO updatedGroup = groupService.updateGroup(groupId, groupUpdates, userId);
             ResVO<GroupVO> response = new ResVO<>(200, "그룹 수정 성공", updatedGroup);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (IllegalArgumentException e) {
@@ -124,10 +140,13 @@ public class MgmtController {
     /**
      * 그룹 삭제 API
      */
+    @AuditLog(actionType = "DELETE", targetType = "GROUP", pageCode = "group_mgmt")
+    @RequireEditPermission("group_mgmt")
     @DeleteMapping("/groups/{groupId}")
-    public ResponseEntity<ResVO<Void>> deleteGroup(@PathVariable Integer groupId) {
+    public ResponseEntity<ResVO<Void>> deleteGroup(@PathVariable Integer groupId, HttpSession session) {
         try {
-            groupService.deleteGroup(groupId);
+            Integer userId = getUserIdFromSession(session);
+            groupService.deleteGroup(groupId, userId);
             ResVO<Void> response = new ResVO<>(200, "그룹 삭제 성공", null);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (IllegalArgumentException e) {
@@ -141,12 +160,16 @@ public class MgmtController {
      * 그룹 이동 API (드래그 앤 드롭)
      * 특정 그룹의 부모를 변경합니다.
      */
+    @AuditLog(actionType = "UPDATE", targetType = "GROUP", pageCode = "group_mgmt")
+    @RequireEditPermission("group_mgmt")
     @PatchMapping("/groups/{groupId}/move")
     public ResponseEntity<ResVO<GroupVO>> moveGroup(
             @PathVariable Integer groupId,
-            @RequestBody GroupVO moveRequest) {
+            @RequestBody GroupVO moveRequest,
+            HttpSession session) {
         try {
-            GroupVO movedGroup = groupService.moveGroup(groupId, moveRequest.getPARENT_GROUP_ID());
+            Integer userId = getUserIdFromSession(session);
+            GroupVO movedGroup = groupService.moveGroup(groupId, moveRequest.getPARENT_GROUP_ID(), userId);
             ResVO<GroupVO> response = new ResVO<>(200, "그룹 이동 성공", movedGroup);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (IllegalArgumentException e) {
@@ -159,13 +182,17 @@ public class MgmtController {
     /**
      * 그룹 아이콘 설정 API
      */
+    @AuditLog(actionType = "UPDATE", targetType = "GROUP", pageCode = "group_mgmt")
+    @RequireEditPermission("group_mgmt")
     @PatchMapping("/groups/{groupId}/icon")
     public ResponseEntity<ResVO<GroupVO>> updateGroupIcon(
             @PathVariable Integer groupId,
-            @RequestBody Map<String, String> iconRequest) {
+            @RequestBody Map<String, String> iconRequest,
+            HttpSession session) {
         try {
+            Integer userId = getUserIdFromSession(session);
             String iconName = iconRequest.get("ICON_NAME");
-            GroupVO updatedGroup = groupService.updateGroupIcon(groupId, iconName);
+            GroupVO updatedGroup = groupService.updateGroupIcon(groupId, iconName, userId);
             ResVO<GroupVO> response = new ResVO<>(200, "아이콘 설정 성공", updatedGroup);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (IllegalArgumentException e) {
@@ -232,6 +259,8 @@ public class MgmtController {
     /**
      * 새 임시 장비 생성 API
      */
+    @AuditLog(actionType = "CREATE", targetType = "TEMP_DEVICE", pageCode = "new_asset_mgmt")
+    @RequireEditPermission("new_asset_mgmt")
     @PostMapping("/temp-devices")
     public ResponseEntity<ResVO<TempDeviceVO>> createTempDevice(@RequestBody TempDeviceVO device, HttpSession session) {
         try {
@@ -269,6 +298,8 @@ public class MgmtController {
     /**
      * 새 임시 장비 대량 생성 API (엑셀)
      */
+    @AuditLog(actionType = "CREATE", targetType = "TEMP_DEVICE", pageCode = "new_asset_mgmt")
+    @RequireEditPermission("new_asset_mgmt")
     @PostMapping("/temp-devices/bulk")
     public ResponseEntity<ResVO<List<TempDeviceVO>>> createTempDevices(@RequestBody List<TempDeviceVO> devices, HttpSession session) {
         try {
@@ -293,6 +324,8 @@ public class MgmtController {
     /**
      * 임시 장비 정보 수정 API
      */
+    @AuditLog(actionType = "UPDATE", targetType = "TEMP_DEVICE", pageCode = "new_asset_mgmt")
+    @RequireEditPermission("new_asset_mgmt")
     @PutMapping("/temp-devices/{deviceId}")
     public ResponseEntity<ResVO<TempDeviceVO>> updateTempDevice(@PathVariable int deviceId, @RequestBody TempDeviceVO device) {
         try {
@@ -307,6 +340,8 @@ public class MgmtController {
     /**
      * 임시 장비 삭제 API (대량)
      */
+    @AuditLog(actionType = "DELETE", targetType = "TEMP_DEVICE", pageCode = "new_asset_mgmt")
+    @RequireEditPermission("new_asset_mgmt")
     @DeleteMapping("/temp-devices")
     public ResponseEntity<ResVO<Void>> deleteTempDevices(@RequestBody List<Integer> deviceIds) {
         try {
@@ -324,9 +359,15 @@ public class MgmtController {
      * 모든 장비 목록 조회 API
      */
     @GetMapping("/devices")
-    public ResponseEntity<ResVO<List<DeviceVO>>> getAllDevices() {
+    public ResponseEntity<ResVO<List<DeviceVO>>> getAllDevices(HttpSession session) {
         try {
             List<DeviceVO> devices = deviceService.getAllDevices();
+            List<Long> accessibleDeviceIds = getAccessibleDeviceIds(session);
+            if (accessibleDeviceIds != null) {
+                devices = devices.stream()
+                        .filter(d -> accessibleDeviceIds.contains((long) d.getDEVICE_ID()))
+                        .toList();
+            }
             ResVO<List<DeviceVO>> response = new ResVO<>(200, "장비 목록 조회 성공", devices);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
@@ -338,9 +379,15 @@ public class MgmtController {
      * 특정 그룹 및 하위 그룹의 장비 목록 조회 API
      */
     @PostMapping("/devices/search")
-    public ResponseEntity<ResVO<List<DeviceVO>>> getDevicesByGroupIds(@RequestBody List<Integer> groupIds) {
+    public ResponseEntity<ResVO<List<DeviceVO>>> getDevicesByGroupIds(@RequestBody List<Integer> groupIds, HttpSession session) {
         try {
             List<DeviceVO> devices = deviceService.getDevicesByGroupIds(groupIds);
+            List<Long> accessibleDeviceIds = getAccessibleDeviceIds(session);
+            if (accessibleDeviceIds != null) {
+                devices = devices.stream()
+                        .filter(d -> accessibleDeviceIds.contains((long) d.getDEVICE_ID()))
+                        .toList();
+            }
             ResVO<List<DeviceVO>> response = new ResVO<>(200, "장비 목록 조회 성공", devices);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
@@ -357,9 +404,17 @@ public class MgmtController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "DEVICE_ID") String sort,
-            @RequestParam(defaultValue = "asc") String order) {
+            @RequestParam(defaultValue = "asc") String order,
+            HttpSession session) {
         try {
             PageVO<DeviceVO> pagedDevices = deviceService.getDevicesByGroupIdsPaged(groupIds, page, size, sort, order);
+            List<Long> accessibleDeviceIds = getAccessibleDeviceIds(session);
+            if (accessibleDeviceIds != null && pagedDevices.getContent() != null) {
+                List<DeviceVO> filtered = pagedDevices.getContent().stream()
+                        .filter(d -> accessibleDeviceIds.contains((long) d.getDEVICE_ID()))
+                        .toList();
+                pagedDevices = PageVO.of(filtered, pagedDevices.getPage(), pagedDevices.getSize(), filtered.size());
+            }
             ResVO<PageVO<DeviceVO>> response = new ResVO<>(200, "장비 목록 조회 성공", pagedDevices);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
@@ -371,6 +426,7 @@ public class MgmtController {
      * 특정 그룹의 장비 목록 조회 API (하위 그룹 포함 옵션)
      * includeChildren=true면 해당 그룹 및 모든 하위 그룹의 장비 조회
      */
+    @RequireGroupAccess(groupType = "ASSET", action = "VIEW")
     @GetMapping("/devices/by-group/{groupId}")
     public ResponseEntity<ResVO<PageVO<DeviceVO>>> getDevicesByGroupWithChildren(
             @PathVariable int groupId,
@@ -407,8 +463,12 @@ public class MgmtController {
      * 특정 장비 조회 API
      */
     @GetMapping("/devices/{deviceId}")
-    public ResponseEntity<ResVO<DeviceVO>> getDeviceById(@PathVariable int deviceId) {
+    public ResponseEntity<ResVO<DeviceVO>> getDeviceById(@PathVariable int deviceId, HttpSession session) {
         try {
+            List<Long> accessibleDeviceIds = getAccessibleDeviceIds(session);
+            if (accessibleDeviceIds != null && !accessibleDeviceIds.contains((long) deviceId)) {
+                return new ResponseEntity<>(new ResVO<>(403, "해당 장비에 접근할 수 없습니다", null), HttpStatus.FORBIDDEN);
+            }
             DeviceVO device = deviceService.getDeviceById(deviceId);
             if (device == null) {
                 return new ResponseEntity<>(new ResVO<>(404, "장비를 찾을 수 없습니다", null), HttpStatus.NOT_FOUND);
@@ -424,6 +484,8 @@ public class MgmtController {
      * 장비 직접 등록 API (즉시 SNMP 검증)
      * 성공: r_device_t, 실패: r_temp_device_t
      */
+    @AuditLog(actionType = "CREATE", targetType = "DEVICE", pageCode = "asset_mgmt")
+    @RequireEditPermission("asset_mgmt")
     @PostMapping("/devices/direct")
     public ResponseEntity<ResVO<DeviceRegistrationResultVO>> createDeviceDirectly(@RequestBody TempDeviceVO device, HttpSession session) {
         try {
@@ -450,6 +512,8 @@ public class MgmtController {
      * 장비 일괄 등록 API (엑셀 업로드 - 즉시 SNMP 검증)
      * 성공: r_device_t, 실패: r_temp_device_t
      */
+    @AuditLog(actionType = "CREATE", targetType = "DEVICE", pageCode = "asset_mgmt")
+    @RequireEditPermission("asset_mgmt")
     @PostMapping("/devices/direct/bulk")
     public ResponseEntity<ResVO<DeviceRegistrationResultVO>> createDevicesBulkDirectly(@RequestBody List<TempDeviceVO> devices, HttpSession session) {
         try {
@@ -475,6 +539,8 @@ public class MgmtController {
     /**
      * 임시 장비를 실제 장비로 등록 API (단건)
      */
+    @AuditLog(actionType = "CREATE", targetType = "DEVICE", pageCode = "asset_mgmt")
+    @RequireEditPermission("asset_mgmt")
     @PostMapping("/devices/register/{tempDeviceId}")
     public ResponseEntity<ResVO<DeviceVO>> registerDeviceFromTemp(@PathVariable int tempDeviceId, @RequestBody(required = false) Map<String, Integer> requestBody) {
         try {
@@ -493,6 +559,8 @@ public class MgmtController {
      * 임시 장비를 실제 장비로 일괄 등록 API
      * 성공/실패 결과를 모두 반환
      */
+    @AuditLog(actionType = "CREATE", targetType = "DEVICE", pageCode = "asset_mgmt")
+    @RequireEditPermission("asset_mgmt")
     @PostMapping("/devices/register/bulk")
     public ResponseEntity<ResVO<DeviceRegistrationResultVO>> registerDevicesFromTemp(@RequestBody Map<String, Object> requestBody) {
         try {
@@ -520,6 +588,8 @@ public class MgmtController {
     /**
      * 장비 정보 수정 API
      */
+    @AuditLog(actionType = "UPDATE", targetType = "DEVICE", pageCode = "asset_mgmt")
+    @RequireEditPermission("asset_mgmt")
     @PutMapping("/devices/{deviceId}")
     public ResponseEntity<ResVO<DeviceVO>> updateDevice(@PathVariable int deviceId, @RequestBody DeviceVO device) {
         try {
@@ -536,6 +606,8 @@ public class MgmtController {
     /**
      * 장비 삭제 API
      */
+    @AuditLog(actionType = "DELETE", targetType = "DEVICE", pageCode = "asset_mgmt")
+    @RequireEditPermission("asset_mgmt")
     @DeleteMapping("/devices/{deviceId}")
     public ResponseEntity<ResVO<Void>> deleteDevice(@PathVariable int deviceId) {
         try {
@@ -552,6 +624,8 @@ public class MgmtController {
     /**
      * 장비 일괄 삭제 API
      */
+    @AuditLog(actionType = "DELETE", targetType = "DEVICE", pageCode = "asset_mgmt")
+    @RequireEditPermission("asset_mgmt")
     @DeleteMapping("/devices")
     public ResponseEntity<ResVO<Void>> deleteDevices(@RequestBody Map<String, List<Integer>> requestBody) {
         try {
@@ -575,9 +649,15 @@ public class MgmtController {
      * 모든 포트 목록 조회 API
      */
     @GetMapping("/ports")
-    public ResponseEntity<ResVO<List<PortVO>>> getAllPorts() {
+    public ResponseEntity<ResVO<List<PortVO>>> getAllPorts(HttpSession session) {
         try {
             List<PortVO> ports = portService.getAllPorts();
+            List<Long> accessibleDeviceIds = getAccessibleDeviceIds(session);
+            if (accessibleDeviceIds != null) {
+                ports = ports.stream()
+                        .filter(p -> accessibleDeviceIds.contains((long) p.getDEVICE_ID()))
+                        .toList();
+            }
             ResVO<List<PortVO>> response = new ResVO<>(200, "포트 목록 조회 성공", ports);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
@@ -592,8 +672,13 @@ public class MgmtController {
     @GetMapping("/devices/{deviceId}/ports")
     public ResponseEntity<ResVO<List<PortVO>>> getPortsByDeviceId(
             @PathVariable Integer deviceId,
-            @RequestParam(required = false, defaultValue = "ethernet") String type) {
+            @RequestParam(required = false, defaultValue = "ethernet") String type,
+            HttpSession session) {
         try {
+            List<Long> accessibleDeviceIds = getAccessibleDeviceIds(session);
+            if (accessibleDeviceIds != null && !accessibleDeviceIds.contains((long) deviceId)) {
+                return new ResponseEntity<>(new ResVO<>(403, "해당 장비에 접근할 수 없습니다", null), HttpStatus.FORBIDDEN);
+            }
             List<PortVO> ports = "all".equalsIgnoreCase(type)
                     ? portService.getAllPortsByDeviceId(deviceId)
                     : portService.getPortsByDeviceId(deviceId);
@@ -608,8 +693,12 @@ public class MgmtController {
      * 특정 포트 조회 API
      */
     @GetMapping("/devices/{deviceId}/ports/{ifIndex}")
-    public ResponseEntity<ResVO<PortVO>> getPort(@PathVariable Integer deviceId, @PathVariable Integer ifIndex) {
+    public ResponseEntity<ResVO<PortVO>> getPort(@PathVariable Integer deviceId, @PathVariable Integer ifIndex, HttpSession session) {
         try {
+            List<Long> accessibleDeviceIds = getAccessibleDeviceIds(session);
+            if (accessibleDeviceIds != null && !accessibleDeviceIds.contains((long) deviceId)) {
+                return new ResponseEntity<>(new ResVO<>(403, "해당 장비에 접근할 수 없습니다", null), HttpStatus.FORBIDDEN);
+            }
             PortVO port = portService.getPort(deviceId, ifIndex);
             if (port == null) {
                 return new ResponseEntity<>(new ResVO<>(404, "포트를 찾을 수 없습니다", null), HttpStatus.NOT_FOUND);
@@ -625,9 +714,15 @@ public class MgmtController {
      * 감시 대상 포트만 조회 API
      */
     @GetMapping("/ports/monitored")
-    public ResponseEntity<ResVO<List<PortVO>>> getMonitoredPorts() {
+    public ResponseEntity<ResVO<List<PortVO>>> getMonitoredPorts(HttpSession session) {
         try {
             List<PortVO> ports = portService.getMonitoredPorts();
+            List<Long> accessibleDeviceIds = getAccessibleDeviceIds(session);
+            if (accessibleDeviceIds != null) {
+                ports = ports.stream()
+                        .filter(p -> accessibleDeviceIds.contains((long) p.getDEVICE_ID()))
+                        .toList();
+            }
             ResVO<List<PortVO>> response = new ResVO<>(200, "감시 대상 포트 목록 조회 성공", ports);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
@@ -638,6 +733,8 @@ public class MgmtController {
     /**
      * 포트 감시 설정 수정 API
      */
+    @AuditLog(actionType = "UPDATE", targetType = "PORT", pageCode = "asset_mgmt")
+    @RequireEditPermission("asset_mgmt")
     @PatchMapping("/devices/{deviceId}/ports/{ifIndex}/monitor")
     public ResponseEntity<ResVO<Void>> updatePortMonitorSettings(
             @PathVariable Integer deviceId,
@@ -657,6 +754,8 @@ public class MgmtController {
     /**
      * 포트 정보 수정 API
      */
+    @AuditLog(actionType = "UPDATE", targetType = "PORT", pageCode = "asset_mgmt")
+    @RequireEditPermission("asset_mgmt")
     @PutMapping("/devices/{deviceId}/ports/{ifIndex}")
     public ResponseEntity<ResVO<Void>> updatePort(
             @PathVariable Integer deviceId,
@@ -677,10 +776,67 @@ public class MgmtController {
      * 세션에서 로그인한 사용자 ID를 가져오는 헬퍼 메소드
      */
     private Integer getUserIdFromSession(HttpSession session) {
-        String sessionId = (String) session.getAttribute("SESSION_ID");
-        if (sessionId == null) return null;
-        UserVO user = authService.getUserBySession(sessionId);
-        return user != null ? user.getUSER_ID().intValue() : null;
+        Object userId = session.getAttribute("USER_ID");
+        if (userId instanceof Long) return ((Long) userId).intValue();
+        if (userId instanceof Number) return ((Number) userId).intValue();
+        return null;
+    }
+
+    /**
+     * 세션 사용자의 접근 가능 장비 ID 목록 조회 헬퍼
+     * @return null = 전체 허용 (admin), List = 접근 가능 장비 ID (빈 리스트 = 접근 불가)
+     */
+    // ==================== 메트릭 유형 API ====================
+
+    /** 전체 메트릭 유형 목록 */
+    @GetMapping("/metric-types")
+    public ResponseEntity<ResVO<List<dev3.nms.vo.mgmt.MetricTypeVO>>> getMetricTypes() {
+        return new ResponseEntity<>(new ResVO<>(200, "조회 성공", metricTypeMapper.findAll()), HttpStatus.OK);
+    }
+
+    /** 모델의 수집 메트릭 목록 */
+    @GetMapping("/models/{modelId}/metrics")
+    public ResponseEntity<ResVO<List<String>>> getModelMetrics(@PathVariable Integer modelId) {
+        return new ResponseEntity<>(new ResVO<>(200, "조회 성공", metricTypeMapper.findMetricsByModelId(modelId)), HttpStatus.OK);
+    }
+
+    /** 모델의 수집 메트릭 저장 */
+    @PutMapping("/models/{modelId}/metrics")
+    public ResponseEntity<ResVO<Void>> saveModelMetrics(@PathVariable Integer modelId, @RequestBody List<String> metricCodes) {
+        metricTypeMapper.deleteModelMetrics(modelId);
+        for (String code : metricCodes) {
+            metricTypeMapper.insertModelMetric(modelId, code);
+        }
+        return new ResponseEntity<>(new ResVO<>(200, "저장 성공", null), HttpStatus.OK);
+    }
+
+    /** 장비의 수집 메트릭 목록 (모델 기반) */
+    @GetMapping("/devices/{deviceId}/metrics")
+    public ResponseEntity<ResVO<List<String>>> getDeviceMetrics(@PathVariable Integer deviceId) {
+        return new ResponseEntity<>(new ResVO<>(200, "조회 성공", metricTypeMapper.findMetricsByDeviceId(deviceId)), HttpStatus.OK);
+    }
+
+    // ==================== 환경 데이터 API ====================
+
+    /** 환경 데이터 최신값 (온도/습도 등) */
+    @GetMapping("/devices/{deviceId}/environment")
+    public ResponseEntity<ResVO<List<dev3.nms.vo.mgmt.EnvironmentVO>>> getEnvironmentLatest(@PathVariable Integer deviceId) {
+        return new ResponseEntity<>(new ResVO<>(200, "조회 성공", environmentMapper.findLatest(deviceId)), HttpStatus.OK);
+    }
+
+    /** 환경 데이터 시계열 */
+    @GetMapping("/devices/{deviceId}/environment/history")
+    public ResponseEntity<ResVO<List<dev3.nms.vo.mgmt.EnvironmentVO>>> getEnvironmentHistory(
+            @PathVariable Integer deviceId,
+            @RequestParam String metricCode,
+            @RequestParam(defaultValue = "60") Integer minutes) {
+        return new ResponseEntity<>(new ResVO<>(200, "조회 성공", environmentMapper.findHistory(deviceId, metricCode, minutes)), HttpStatus.OK);
+    }
+
+    private List<Long> getAccessibleDeviceIds(HttpSession session) {
+        Long userId = SessionUtil.getUserId(session);
+        if (userId == null) return List.of();
+        return permissionService.getAccessibleDeviceIds(userId);
     }
 
     // ==================== Device Scope 관련 API ====================
@@ -689,8 +845,12 @@ public class MgmtController {
      * 장비 관제 설정 조회 API
      */
     @GetMapping("/devices/{deviceId}/scope")
-    public ResponseEntity<ResVO<DeviceScopeVO>> getDeviceScope(@PathVariable int deviceId) {
+    public ResponseEntity<ResVO<DeviceScopeVO>> getDeviceScope(@PathVariable int deviceId, HttpSession session) {
         try {
+            List<Long> accessibleDeviceIds = getAccessibleDeviceIds(session);
+            if (accessibleDeviceIds != null && !accessibleDeviceIds.contains((long) deviceId)) {
+                return new ResponseEntity<>(new ResVO<>(403, "해당 장비에 접근할 수 없습니다", null), HttpStatus.FORBIDDEN);
+            }
             DeviceScopeVO scope = deviceService.getDeviceScope(deviceId);
             if (scope == null) {
                 return new ResponseEntity<>(new ResVO<>(404, "관제 설정을 찾을 수 없습니다", null), HttpStatus.NOT_FOUND);
@@ -706,6 +866,8 @@ public class MgmtController {
     /**
      * 장비 관제 설정 수정 API
      */
+    @AuditLog(actionType = "UPDATE", targetType = "DEVICE_SCOPE", pageCode = "asset_mgmt")
+    @RequireEditPermission("asset_mgmt")
     @PutMapping("/devices/{deviceId}/scope")
     public ResponseEntity<ResVO<DeviceScopeVO>> updateDeviceScope(@PathVariable int deviceId, @RequestBody DeviceScopeVO scope) {
         try {
@@ -724,8 +886,12 @@ public class MgmtController {
      * 장비 접속 정보 조회 API
      */
     @GetMapping("/devices/{deviceId}/ssh")
-    public ResponseEntity<ResVO<DeviceSshVO>> getDeviceSsh(@PathVariable int deviceId) {
+    public ResponseEntity<ResVO<DeviceSshVO>> getDeviceSsh(@PathVariable int deviceId, HttpSession session) {
         try {
+            List<Long> accessibleDeviceIds = getAccessibleDeviceIds(session);
+            if (accessibleDeviceIds != null && !accessibleDeviceIds.contains((long) deviceId)) {
+                return new ResponseEntity<>(new ResVO<>(403, "해당 장비에 접근할 수 없습니다", null), HttpStatus.FORBIDDEN);
+            }
             DeviceSshVO ssh = deviceService.getDeviceSsh(deviceId);
             return new ResponseEntity<>(new ResVO<>(200, "접속 정보 조회 성공", ssh), HttpStatus.OK);
         } catch (Exception e) {
@@ -737,6 +903,8 @@ public class MgmtController {
     /**
      * 장비 접속 정보 저장/수정 API
      */
+    @AuditLog(actionType = "UPDATE", targetType = "DEVICE_SSH", pageCode = "asset_mgmt")
+    @RequireEditPermission("asset_mgmt")
     @PutMapping("/devices/{deviceId}/ssh")
     public ResponseEntity<ResVO<DeviceSshVO>> saveDeviceSsh(@PathVariable int deviceId, @RequestBody DeviceSshVO ssh) {
         try {
@@ -752,6 +920,8 @@ public class MgmtController {
     /**
      * 장비 접속 정보 삭제 API
      */
+    @AuditLog(actionType = "DELETE", targetType = "DEVICE_SSH", pageCode = "asset_mgmt")
+    @RequireEditPermission("asset_mgmt")
     @DeleteMapping("/devices/{deviceId}/ssh")
     public ResponseEntity<ResVO<Void>> deleteDeviceSsh(@PathVariable int deviceId) {
         try {
@@ -773,8 +943,13 @@ public class MgmtController {
     @GetMapping("/devices/{deviceId}/traffic")
     public ResponseEntity<ResVO<Map<String, Object>>> getDeviceTraffic(
             @PathVariable int deviceId,
-            @RequestParam(required = false, defaultValue = "60") Integer minutes) {
+            @RequestParam(required = false, defaultValue = "60") Integer minutes,
+            HttpSession session) {
         try {
+            List<Long> accessibleDeviceIds = getAccessibleDeviceIds(session);
+            if (accessibleDeviceIds != null && !accessibleDeviceIds.contains((long) deviceId)) {
+                return new ResponseEntity<>(new ResVO<>(403, "해당 장비에 접근할 수 없습니다", null), HttpStatus.FORBIDDEN);
+            }
             Map<String, Object> trafficData = trafficService.getTrafficChartData(deviceId, minutes);
             ResVO<Map<String, Object>> response = new ResVO<>(200, "트래픽 데이터 조회 성공", trafficData);
             return new ResponseEntity<>(response, HttpStatus.OK);
@@ -794,8 +969,13 @@ public class MgmtController {
             @PathVariable int deviceId,
             @RequestParam(required = false, defaultValue = "60") Integer minutes,
             @RequestParam(required = false) String startDate,
-            @RequestParam(required = false) String endDate) {
+            @RequestParam(required = false) String endDate,
+            HttpSession session) {
         try {
+            List<Long> accessibleDeviceIds = getAccessibleDeviceIds(session);
+            if (accessibleDeviceIds != null && !accessibleDeviceIds.contains((long) deviceId)) {
+                return new ResponseEntity<>(new ResVO<>(403, "해당 장비에 접근할 수 없습니다", null), HttpStatus.FORBIDDEN);
+            }
             List<TrafficVO> trafficData = trafficService.getRecentTraffic(deviceId, minutes, startDate, endDate);
             ResVO<List<TrafficVO>> response = new ResVO<>(200, "트래픽 데이터 조회 성공", trafficData);
             return new ResponseEntity<>(response, HttpStatus.OK);
@@ -810,8 +990,12 @@ public class MgmtController {
      * @param deviceId 장비 ID
      */
     @GetMapping("/devices/{deviceId}/cpu-mem")
-    public ResponseEntity<ResVO<CpuMemVO>> getDeviceCpuMem(@PathVariable int deviceId) {
+    public ResponseEntity<ResVO<CpuMemVO>> getDeviceCpuMem(@PathVariable int deviceId, HttpSession session) {
         try {
+            List<Long> accessibleDeviceIds = getAccessibleDeviceIds(session);
+            if (accessibleDeviceIds != null && !accessibleDeviceIds.contains((long) deviceId)) {
+                return new ResponseEntity<>(new ResVO<>(403, "해당 장비에 접근할 수 없습니다", null), HttpStatus.FORBIDDEN);
+            }
             CpuMemVO cpuMem = deviceService.getLatestCpuMem(deviceId);
             ResVO<CpuMemVO> response = new ResVO<>(200, "CPU/MEM 데이터 조회 성공", cpuMem);
             return new ResponseEntity<>(response, HttpStatus.OK);
@@ -831,8 +1015,13 @@ public class MgmtController {
             @PathVariable int deviceId,
             @RequestParam(required = false, defaultValue = "60") Integer minutes,
             @RequestParam(required = false) String startDate,
-            @RequestParam(required = false) String endDate) {
+            @RequestParam(required = false) String endDate,
+            HttpSession session) {
         try {
+            List<Long> accessibleDeviceIds = getAccessibleDeviceIds(session);
+            if (accessibleDeviceIds != null && !accessibleDeviceIds.contains((long) deviceId)) {
+                return new ResponseEntity<>(new ResVO<>(403, "해당 장비에 접근할 수 없습니다", null), HttpStatus.FORBIDDEN);
+            }
             List<CpuMemVO> cpuMemData = deviceService.getRecentCpuMem(deviceId, minutes, startDate, endDate);
             ResVO<List<CpuMemVO>> response = new ResVO<>(200, "CPU/MEM 시계열 데이터 조회 성공", cpuMemData);
             return new ResponseEntity<>(response, HttpStatus.OK);
@@ -852,8 +1041,13 @@ public class MgmtController {
     public ResponseEntity<ResVO<List<TrafficVO>>> getPortTraffic(
             @PathVariable int deviceId,
             @PathVariable int ifIndex,
-            @RequestParam(required = false, defaultValue = "60") Integer minutes) {
+            @RequestParam(required = false, defaultValue = "60") Integer minutes,
+            HttpSession session) {
         try {
+            List<Long> accessibleDeviceIds = getAccessibleDeviceIds(session);
+            if (accessibleDeviceIds != null && !accessibleDeviceIds.contains((long) deviceId)) {
+                return new ResponseEntity<>(new ResVO<>(403, "해당 장비에 접근할 수 없습니다", null), HttpStatus.FORBIDDEN);
+            }
             List<TrafficVO> trafficData = trafficService.getPortTraffic(deviceId, ifIndex, minutes);
             ResVO<List<TrafficVO>> response = new ResVO<>(200, "포트 트래픽 데이터 조회 성공", trafficData);
             return new ResponseEntity<>(response, HttpStatus.OK);
@@ -867,6 +1061,8 @@ public class MgmtController {
      * SNMP 수집 시도 후 장비 정보 업데이트 API
      * SNMP 정보를 입력받아 수집 시도 후 성공하면 장비 정보 업데이트, 실패하면 오류 반환
      */
+    @AuditLog(actionType = "UPDATE", targetType = "DEVICE_SNMP", pageCode = "asset_mgmt")
+    @RequireEditPermission("asset_mgmt")
     @PostMapping("/devices/{deviceId}/snmp-collect")
     public ResponseEntity<ResVO<DeviceVO>> collectSnmpAndUpdate(
             @PathVariable int deviceId,
@@ -907,8 +1103,13 @@ public class MgmtController {
     @GetMapping("/devices/{deviceId}/ports/{ifIndex}/check")
     public ResponseEntity<ResVO<MiddlewareClient.PortStatusResponse>> checkPortStatus(
             @PathVariable Integer deviceId,
-            @PathVariable Integer ifIndex) {
+            @PathVariable Integer ifIndex,
+            HttpSession session) {
         try {
+            List<Long> accessibleDeviceIds = getAccessibleDeviceIds(session);
+            if (accessibleDeviceIds != null && !accessibleDeviceIds.contains((long) deviceId)) {
+                return new ResponseEntity<>(new ResVO<>(403, "해당 장비에 접근할 수 없습니다", null), HttpStatus.FORBIDDEN);
+            }
             DeviceVO device = deviceService.getDeviceById(deviceId);
             if (device == null) {
                 return new ResponseEntity<>(new ResVO<>(404, "장비를 찾을 수 없습니다", null), HttpStatus.NOT_FOUND);
@@ -1049,6 +1250,8 @@ public class MgmtController {
      * Enterprise OID 형식: .1.3.6.1.4.1.{벤더번호}.xxx
      * DB의 VENDOR_BASE_OID는 1.3.6.1.4.1.{벤더번호} 형식 (앞 . 없음)
      */
+    @AuditLog(actionType = "CREATE", targetType = "MODEL", pageCode = "model_mgmt")
+    @RequireEditPermission("model_mgmt")
     @PostMapping("/models")
     public ResponseEntity<ResVO<ModelVO>> createModel(@RequestBody ModelVO model, HttpSession session) {
         try {
@@ -1094,6 +1297,8 @@ public class MgmtController {
     /**
      * 모델 수정 API
      */
+    @AuditLog(actionType = "UPDATE", targetType = "MODEL", pageCode = "model_mgmt")
+    @RequireEditPermission("model_mgmt")
     @PutMapping("/models/{modelId}")
     public ResponseEntity<ResVO<ModelVO>> updateModel(@PathVariable int modelId, @RequestBody ModelVO model, HttpSession session) {
         try {
@@ -1116,6 +1321,8 @@ public class MgmtController {
     /**
      * 모델 삭제 API (소프트 삭제)
      */
+    @AuditLog(actionType = "DELETE", targetType = "MODEL", pageCode = "model_mgmt")
+    @RequireEditPermission("model_mgmt")
     @DeleteMapping("/models/{modelId}")
     public ResponseEntity<ResVO<Void>> deleteModel(@PathVariable int modelId) {
         try {
@@ -1181,6 +1388,7 @@ public class MgmtController {
     /**
      * 장비군 코드 생성 API
      */
+    @AuditLog(actionType = "CREATE", targetType = "DEV_CODE", pageCode = "model_mgmt")
     @PostMapping("/dev-codes")
     public ResponseEntity<ResVO<DevCodeVO>> createDevCode(@RequestBody DevCodeVO devCode) {
         try {
@@ -1195,6 +1403,7 @@ public class MgmtController {
     /**
      * 장비군 코드 수정 API
      */
+    @AuditLog(actionType = "UPDATE", targetType = "DEV_CODE", pageCode = "model_mgmt")
     @PutMapping("/dev-codes/{devCodeId}")
     public ResponseEntity<ResVO<DevCodeVO>> updateDevCode(@PathVariable Long devCodeId, @RequestBody DevCodeVO devCode) {
         try {
@@ -1215,6 +1424,7 @@ public class MgmtController {
     /**
      * 장비군 코드 삭제 API (하위 코드 포함 삭제)
      */
+    @AuditLog(actionType = "DELETE", targetType = "DEV_CODE", pageCode = "model_mgmt")
     @DeleteMapping("/dev-codes/{devCodeId}")
     public ResponseEntity<ResVO<Void>> deleteDevCode(@PathVariable Long devCodeId) {
         try {
@@ -1236,9 +1446,15 @@ public class MgmtController {
      * SSH 정보가 등록된 장비 목록 조회 (Traceroute 트리용)
      */
     @GetMapping("/devices/ssh-enabled")
-    public ResponseEntity<ResVO<List<DeviceVO>>> getSshEnabledDevices() {
+    public ResponseEntity<ResVO<List<DeviceVO>>> getSshEnabledDevices(HttpSession session) {
         try {
             List<DeviceVO> devices = deviceSshMapper.findDevicesWithSsh();
+            List<Long> accessibleDeviceIds = getAccessibleDeviceIds(session);
+            if (accessibleDeviceIds != null) {
+                devices = devices.stream()
+                        .filter(d -> accessibleDeviceIds.contains((long) d.getDEVICE_ID()))
+                        .toList();
+            }
             return new ResponseEntity<>(new ResVO<>(200, "SSH 장비 목록 조회 성공", devices), HttpStatus.OK);
         } catch (Exception e) {
             return new ResponseEntity<>(new ResVO<>(500, "조회 실패", null), HttpStatus.INTERNAL_SERVER_ERROR);
@@ -1358,6 +1574,40 @@ public class MgmtController {
             log.error("Traceroute API 오류", e);
             return new ResponseEntity<>(new ResVO<>(500, "Traceroute 실행 중 오류가 발생했습니다.", null), HttpStatus.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    // ==================== 장비별 이력 조회 ====================
+
+    private final dev3.nms.service.ActivityLogService activityLogService;
+    private final dev3.nms.service.SshSessionService sshSessionService;
+
+    /**
+     * 특정 장비의 변경 이력 조회
+     */
+    @GetMapping("/devices/{deviceId}/change-history")
+    public ResponseEntity<ResVO<PageVO<dev3.nms.vo.auth.ActivityLogVO>>> getDeviceChangeHistory(
+            @PathVariable int deviceId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        var result = activityLogService.getActivitiesByDeviceId(String.valueOf(deviceId), page, size);
+        return ResponseEntity.ok(new ResVO<>(200, "조회 성공", result));
+    }
+
+    /**
+     * 특정 장비의 SSH 접속 이력 조회 (장비 IP로 매칭)
+     */
+    @GetMapping("/devices/{deviceId}/ssh-history")
+    public ResponseEntity<ResVO<PageVO<dev3.nms.vo.ssh.SshSessionDto.SessionRes>>> getDeviceSshHistory(
+            @PathVariable int deviceId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        // 장비 IP 조회
+        var device = deviceService.getDeviceById(deviceId);
+        if (device == null) {
+            return ResponseEntity.ok(new ResVO<>(404, "장비를 찾을 수 없습니다", null));
+        }
+        var result = sshSessionService.getSessionsByHost(device.getDEVICE_IP(), page, size);
+        return ResponseEntity.ok(new ResVO<>(200, "조회 성공", result));
     }
 }
 

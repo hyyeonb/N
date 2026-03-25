@@ -18,4 +18,9 @@ public class LoginHistoryVO {
     private String IP_ADDRESS;
     private String USER_AGENT;
     private LocalDateTime LOGIN_AT;
+    private LocalDateTime LOGOUT_AT;
+
+    // JOIN/서브쿼리 필드
+    private String USER_NAME;
+    private LocalDateTime LAST_ACTIVITY_AT;
 }

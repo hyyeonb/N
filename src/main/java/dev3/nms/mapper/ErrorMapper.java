@@ -20,7 +20,8 @@ public interface ErrorMapper {
                                 @Param("deviceName") String deviceName,
                                 @Param("deviceIp") String deviceIp,
                                 @Param("errorMessage") String errorMessage,
-                                @Param("groupName") String groupName);
+                                @Param("groupName") String groupName,
+                                @Param("accessibleDeviceIds") List<Long> accessibleDeviceIds);
 
     /**
      * 실시간 장애 수 조회
@@ -31,7 +32,8 @@ public interface ErrorMapper {
                     @Param("deviceName") String deviceName,
                     @Param("deviceIp") String deviceIp,
                     @Param("errorMessage") String errorMessage,
-                    @Param("groupName") String groupName);
+                    @Param("groupName") String groupName,
+                    @Param("accessibleDeviceIds") List<Long> accessibleDeviceIds);
 
     /**
      * 장애 상세 조회
@@ -60,7 +62,8 @@ public interface ErrorMapper {
                                              @Param("sortKey") String sortKey,
                                              @Param("sortDirection") String sortDirection,
                                              @Param("offset") int offset,
-                                             @Param("size") int size);
+                                             @Param("size") int size,
+                                             @Param("accessibleDeviceIds") List<Long> accessibleDeviceIds);
 
     /**
      * 장애 이력 수 조회
@@ -73,7 +76,8 @@ public interface ErrorMapper {
                           @Param("deviceName") String deviceName,
                           @Param("deviceIp") String deviceIp,
                           @Param("errorMessage") String errorMessage,
-                          @Param("groupName") String groupName);
+                          @Param("groupName") String groupName,
+                          @Param("accessibleDeviceIds") List<Long> accessibleDeviceIds);
 
     /**
      * 장애 이력 상세 조회
@@ -111,6 +115,8 @@ public interface ErrorMapper {
      * 삭제된 포트의 잔존 Oper 장애 삭제
      */
     int deleteDeletedPortErrors(@Param("deviceId") Integer deviceId);
+
+    int deleteIcmpByDeviceId(@Param("deviceId") Integer deviceId);
 
     // ========== 장애 통계 ==========
 
@@ -163,4 +169,10 @@ public interface ErrorMapper {
 
     List<Map<String, Object>> selectErrorAging(@Param("groupIds") List<Long> groupIds,
                                                 @Param("deviceIds") List<Long> deviceIds);
+
+    /**
+     * 장애 이력의 위치 (해당 행 앞에 몇 건이 있는지)
+     */
+    int countHistoryBefore(@Param("errorHistoryId") Long errorHistoryId,
+                           @Param("deviceId") Long deviceId);
 }

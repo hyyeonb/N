@@ -19,6 +19,7 @@ public class DeviceVO {
     private String DEVICE_DESC;
     private Integer MODEL_ID;  // VENDOR_ID → MODEL_ID (r_model_t 참조)
     private Integer PORT_COUNT; // 포트 수
+    private Integer MIDDLEWARE_ID; // 수집 서버 ID (r_middleware_t FK)
 
     // JOIN으로 가져오는 정보
     private String VENDOR_NAME;  // model → vendor 조인으로 가져옴

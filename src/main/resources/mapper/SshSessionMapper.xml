@@ -14,8 +14,11 @@
             S.CONNECTED_AT    AS connectedAt,
             S.DISCONNECTED_AT AS disconnectedAt
         FROM r_user_ssh_sessions S
-        LEFT JOIN USER U ON S.USER_ID = U.USER_ID
+        LEFT JOIN R_USER_T U ON S.USER_ID = U.USER_ID
         WHERE 1=1
+        <if test="filterUserId != null">
+            AND S.USER_ID = #{filterUserId}
+        </if>
         <if test="search != null and search != ''">
             AND (U.NAME LIKE CONCAT('%', #{search}, '%')
               OR S.HOST LIKE CONCAT('%', #{search}, '%')
@@ -52,8 +55,11 @@
     <select id="countSessions" resultType="int">
         SELECT COUNT(1)
         FROM r_user_ssh_sessions S
-        LEFT JOIN USER U ON S.USER_ID = U.USER_ID
+        LEFT JOIN R_USER_T U ON S.USER_ID = U.USER_ID
         WHERE 1=1
+        <if test="filterUserId != null">
+            AND S.USER_ID = #{filterUserId}
+        </if>
         <if test="search != null and search != ''">
             AND (U.NAME LIKE CONCAT('%', #{search}, '%')
               OR S.HOST LIKE CONCAT('%', #{search}, '%')
@@ -62,49 +68,89 @@
         </if>
     </select>
 
+    <!-- 특정 장비(IP) SSH 세션 목록 조회 (HOST에 포트 포함: "192.168.3.208:22") -->
+    <select id="findSessionsByHost" resultType="dev3.nms.vo.ssh.SshSessionDto$SessionRes">
+        SELECT
+            S.SESSION_ID      AS sessionId,
+            S.USER_ID         AS userId,
+            U.NAME            AS userName,
+            S.HOST            AS host,
+            S.SSH_USER        AS sshUser,
+            S.REMOTE_ADDR     AS remoteAddr,
+            S.CONNECTED_AT    AS connectedAt,
+            S.DISCONNECTED_AT AS disconnectedAt
+        FROM r_user_ssh_sessions S
+        LEFT JOIN R_USER_T U ON S.USER_ID = U.USER_ID
+        WHERE S.HOST LIKE CONCAT(#{host}, '%')
+        ORDER BY S.CONNECTED_AT DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countSessionsByHost" resultType="int">
+        SELECT COUNT(1)
+        FROM r_user_ssh_sessions
+        WHERE HOST LIKE CONCAT(#{host}, '%')
+    </select>
+
     <!-- 세션별 명령어 목록 조회 -->
     <select id="findCommandsBySessionId" resultType="dev3.nms.vo.ssh.SshSessionDto$CommandRes">
         SELECT
-            CMMANDS_ID   AS commandsId,
-            SESSION_ID   AS sessionId,
-            COMMAND      AS command,
-            EXECUTED_AT  AS executedAt
-        FROM r_user_ssh_commands
-        WHERE SESSION_ID = #{sessionId}
-        ORDER BY EXECUTED_AT ASC
+            C.CMMANDS_ID   AS commandsId,
+            C.SESSION_ID   AS sessionId,
+            C.COMMAND      AS command,
+            C.EXECUTED_AT  AS executedAt
+        FROM r_user_ssh_commands C
+        INNER JOIN r_user_ssh_sessions S ON C.SESSION_ID = S.SESSION_ID
+        WHERE C.SESSION_ID = #{sessionId}
+        <if test="filterUserId != null">
+            AND S.USER_ID = #{filterUserId}
+        </if>
+        ORDER BY C.EXECUTED_AT ASC
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
     <!-- 세션별 명령어 총 건수 -->
     <select id="countCommandsBySessionId" resultType="int">
         SELECT COUNT(1)
-        FROM r_user_ssh_commands
-        WHERE SESSION_ID = #{sessionId}
+        FROM r_user_ssh_commands C
+        INNER JOIN r_user_ssh_sessions S ON C.SESSION_ID = S.SESSION_ID
+        WHERE C.SESSION_ID = #{sessionId}
+        <if test="filterUserId != null">
+            AND S.USER_ID = #{filterUserId}
+        </if>
     </select>
 
     <!-- 세션별 SFTP 로그 목록 조회 -->
     <select id="findSftpLogsBySessionId" resultType="dev3.nms.vo.ssh.SshSessionDto$SftpLogRes">
         SELECT
-            S.LOG_ID       AS logId,
-            S.SESSION_ID   AS sessionId,
-            S.USER_ID      AS userId,
+            FL.LOG_ID       AS logId,
+            FL.SESSION_ID   AS sessionId,
+            FL.USER_ID      AS userId,
             U.NAME         AS userName,
-            S.OPERATION    AS operation,
-            S.FILE_PATH    AS filePath,
-            S.FILE_SIZE    AS fileSize,
-            S.EXECUTED_AT  AS executedAt
-        FROM r_user_sftp_logs S
-        LEFT JOIN USER U ON S.USER_ID = U.USER_ID
-        WHERE S.SESSION_ID = #{sessionId}
-        ORDER BY S.EXECUTED_AT ASC
+            FL.OPERATION    AS operation,
+            FL.FILE_PATH    AS filePath,
+            FL.FILE_SIZE    AS fileSize,
+            FL.EXECUTED_AT  AS executedAt
+        FROM r_user_sftp_logs FL
+        LEFT JOIN R_USER_T U ON FL.USER_ID = U.USER_ID
+        INNER JOIN r_user_ssh_sessions SS ON FL.SESSION_ID = SS.SESSION_ID
+        WHERE FL.SESSION_ID = #{sessionId}
+        <if test="filterUserId != null">
+            AND SS.USER_ID = #{filterUserId}
+        </if>
+        ORDER BY FL.EXECUTED_AT ASC
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
     <!-- 세션별 SFTP 로그 총 건수 -->
     <select id="countSftpLogsBySessionId" resultType="int">
         SELECT COUNT(1)
-        FROM r_user_sftp_logs
-        WHERE SESSION_ID = #{sessionId}
+        FROM r_user_sftp_logs FL
+        INNER JOIN r_user_ssh_sessions SS ON FL.SESSION_ID = SS.SESSION_ID
+        WHERE FL.SESSION_ID = #{sessionId}
+        <if test="filterUserId != null">
+            AND SS.USER_ID = #{filterUserId}
+        </if>
     </select>
 
 </mapper>

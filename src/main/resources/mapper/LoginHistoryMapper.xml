@@ -11,22 +11,111 @@
         <result property="IP_ADDRESS" column="IP_ADDRESS"/>
         <result property="USER_AGENT" column="USER_AGENT"/>
         <result property="LOGIN_AT" column="LOGIN_AT"/>
+        <result property="LOGOUT_AT" column="LOGOUT_AT"/>
+        <result property="USER_NAME" column="USER_NAME"/>
+        <result property="LAST_ACTIVITY_AT" column="LAST_ACTIVITY_AT"/>
     </resultMap>
 
     <!-- 로그인 히스토리 저장 -->
     <insert id="insert" parameterType="dev3.nms.vo.auth.LoginHistoryVO"
             useGeneratedKeys="true" keyProperty="HISTORY_ID" keyColumn="HISTORY_ID">
-        INSERT INTO LOGIN_HISTORY (USER_ID, LOGIN_TYPE, IP_ADDRESS, USER_AGENT)
+        INSERT INTO R_LOGIN_HISTORY_T (USER_ID, LOGIN_TYPE, IP_ADDRESS, USER_AGENT)
         VALUES (#{USER_ID}, #{LOGIN_TYPE}, #{IP_ADDRESS}, #{USER_AGENT})
     </insert>
+
+    <!-- 고아 세션 정리: 마지막 활동이 N분 이상 지난 세션 종료 -->
+    <update id="closeStaleSession" parameterType="int">
+        UPDATE R_LOGIN_HISTORY_T h
+        SET h.LOGOUT_AT = COALESCE(
+            (SELECT MAX(a.CREATED_AT) FROM R_ACTIVITY_LOG_T a WHERE a.HISTORY_ID = h.HISTORY_ID),
+            DATE_ADD(h.LOGIN_AT, INTERVAL #{timeoutMinutes} MINUTE)
+        )
+        WHERE h.LOGOUT_AT IS NULL
+          AND COALESCE(
+            (SELECT MAX(a.CREATED_AT) FROM R_ACTIVITY_LOG_T a WHERE a.HISTORY_ID = h.HISTORY_ID),
+            h.LOGIN_AT
+          ) &lt; DATE_SUB(NOW(), INTERVAL #{timeoutMinutes} MINUTE)
+    </update>
 
     <!-- 사용자의 로그인 히스토리 조회 -->
     <select id="findByUserId" resultMap="LoginHistoryResultMap">
         SELECT *
-        FROM LOGIN_HISTORY
+        FROM R_LOGIN_HISTORY_T
         WHERE USER_ID = #{USER_ID}
         ORDER BY LOGIN_AT DESC
         LIMIT #{limit}
     </select>
+
+    <!-- 페이지네이션 조회 (JOIN R_USER_T) -->
+    <select id="findPaged" parameterType="map" resultMap="LoginHistoryResultMap">
+        SELECT h.*, u.NAME AS USER_NAME,
+            (SELECT MAX(a.CREATED_AT) FROM R_ACTIVITY_LOG_T a WHERE a.HISTORY_ID = h.HISTORY_ID) AS LAST_ACTIVITY_AT
+        FROM R_LOGIN_HISTORY_T h
+        LEFT JOIN R_USER_T u ON h.USER_ID = u.USER_ID
+        <where>
+            <if test="filterUserId != null">
+                AND h.USER_ID = #{filterUserId}
+            </if>
+            <if test="loginType != null and loginType != ''">
+                AND h.LOGIN_TYPE = #{loginType}
+            </if>
+            <if test="startDate != null and startDate != ''">
+                AND h.LOGIN_AT &gt;= #{startDate}
+            </if>
+            <if test="endDate != null and endDate != ''">
+                AND h.LOGIN_AT &lt;= #{endDate}
+            </if>
+            <if test="search != null and search != ''">
+                AND (u.NAME LIKE CONCAT('%', #{search}, '%')
+                     OR h.IP_ADDRESS LIKE CONCAT('%', #{search}, '%')
+                     OR h.LOGIN_TYPE LIKE CONCAT('%', #{search}, '%'))
+            </if>
+        </where>
+        ORDER BY
+        <choose>
+            <when test="sort == 'USER_NAME'">u.NAME</when>
+            <when test="sort == 'LOGIN_TYPE'">h.LOGIN_TYPE</when>
+            <when test="sort == 'IP_ADDRESS'">h.IP_ADDRESS</when>
+            <when test="sort == 'LOGIN_AT'">h.LOGIN_AT</when>
+            <otherwise>h.LOGIN_AT</otherwise>
+        </choose>
+        <if test="order == 'asc'">ASC</if>
+        <if test="order != 'asc'">DESC</if>
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <!-- 총 건수 -->
+    <select id="count" parameterType="map" resultType="long">
+        SELECT COUNT(*)
+        FROM R_LOGIN_HISTORY_T h
+        LEFT JOIN R_USER_T u ON h.USER_ID = u.USER_ID
+        <where>
+            <if test="filterUserId != null">
+                AND h.USER_ID = #{filterUserId}
+            </if>
+            <if test="loginType != null and loginType != ''">
+                AND h.LOGIN_TYPE = #{loginType}
+            </if>
+            <if test="startDate != null and startDate != ''">
+                AND h.LOGIN_AT &gt;= #{startDate}
+            </if>
+            <if test="endDate != null and endDate != ''">
+                AND h.LOGIN_AT &lt;= #{endDate}
+            </if>
+            <if test="search != null and search != ''">
+                AND (u.NAME LIKE CONCAT('%', #{search}, '%')
+                     OR h.IP_ADDRESS LIKE CONCAT('%', #{search}, '%')
+                     OR h.LOGIN_TYPE LIKE CONCAT('%', #{search}, '%'))
+            </if>
+        </where>
+    </select>
+
+    <!-- 로그아웃 시각 기록 -->
+    <update id="updateLogoutAt">
+        UPDATE R_LOGIN_HISTORY_T
+        SET LOGOUT_AT = NOW()
+        WHERE HISTORY_ID = #{historyId}
+          AND LOGOUT_AT IS NULL
+    </update>
 
 </mapper>
