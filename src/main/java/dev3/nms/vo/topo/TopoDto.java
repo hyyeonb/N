@@ -20,6 +20,7 @@ public class TopoDto {
     public static class TopoViewDtoRes {
         @Setter
         private String backIconData;
+        @Setter
         private List<TopoViewNode> nodes;
         private List<TopoViewLink> links;
     }

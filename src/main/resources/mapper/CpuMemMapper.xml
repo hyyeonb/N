@@ -73,4 +73,9 @@
         ORDER BY COLLECTED_AT ASC
     </select>
 
+    <!-- 장비 삭제 시 해당 장비의 CPU/MEM 데이터 전체 삭제 -->
+    <delete id="deleteByDeviceId">
+        DELETE FROM p_cpu_mem_t WHERE DEVICE_ID = #{deviceId}
+    </delete>
+
 </mapper>

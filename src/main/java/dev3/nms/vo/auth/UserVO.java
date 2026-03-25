@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 
 import lombok.Setter;
@@ -14,7 +15,9 @@ import lombok.Setter;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserVO {
+public class UserVO implements Serializable {
+    private static final long serialVersionUID = 1L;
+
     private Long USER_ID;
     private String LOGIN_ID;      // 로컬 로그인용 아이디
     private String PASSWORD;      // 로컬 로그인용 비밀번호 (BCrypt)
@@ -26,4 +29,7 @@ public class UserVO {
     private String SOCIAL_ID;
     private LocalDateTime CREATED_AT;
     private LocalDateTime UPDATED_AT;
+    private String STATUS;        // ACTIVE, SUSPENDED, PENDING
+    private Boolean ALL_GROUP_VIEW; // 전체 그룹 조회 권한
+    private LocalDateTime REVIEWED_AT; // 관리자 확인 일시
 }

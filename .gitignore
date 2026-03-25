@@ -39,3 +39,4 @@ out/
 ### Local Config ###
 src/main/resources/application.properties
 .claude/settings.local.json
+nul

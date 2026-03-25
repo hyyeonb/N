@@ -1,5 +1,7 @@
 package dev3.nms.controller;
 
+import dev3.nms.config.AuditLog;
+import dev3.nms.config.RequireEditPermission;
 import dev3.nms.service.BoardFileService;
 import dev3.nms.vo.board.BoardFileDto;
 import dev3.nms.vo.common.PageVO;
@@ -64,6 +66,8 @@ public class BoardFileController {
     /**
      * 등록 (multipart: post JSON + files)
      */
+    @AuditLog(actionType = "CREATE", targetType = "BOARD_FILE", pageCode = "board_files")
+    @RequireEditPermission("board_files")
     @PostMapping("/posts")
     public ResponseEntity<ResVO<BoardFileDto.PostDetailRes>> createPost(
             @RequestPart("post") BoardFileDto.PostCreateReq post,
@@ -84,6 +88,8 @@ public class BoardFileController {
     /**
      * 수정 (multipart: post JSON + files + 삭제할 첨부ID)
      */
+    @AuditLog(actionType = "UPDATE", targetType = "BOARD_FILE", pageCode = "board_files")
+    @RequireEditPermission("board_files")
     @PutMapping("/posts/{postId}")
     public ResponseEntity<ResVO<BoardFileDto.PostDetailRes>> updatePost(
             @PathVariable Long postId,
@@ -104,6 +110,8 @@ public class BoardFileController {
     /**
      * 삭제 (소프트 삭제)
      */
+    @AuditLog(actionType = "DELETE", targetType = "BOARD_FILE", pageCode = "board_files")
+    @RequireEditPermission("board_files")
     @DeleteMapping("/posts/{postId}")
     public ResponseEntity<ResVO<Void>> deletePost(
             @PathVariable Long postId

@@ -175,7 +175,7 @@
             p.IF_DESCRIPTION AS IF_NAME,
             p.IF_SPEED
         FROM R_WATCH_GROUP_IF_T gi
-        LEFT JOIN R_PORT_T p ON gi.DEVICE_ID = p.DEVICE_ID AND gi.IF_INDEX = p.IF_INDEX
+        LEFT JOIN R_PORT_T p ON gi.DEVICE_ID = p.DEVICE_ID AND gi.IF_INDEX = p.IF_INDEX AND p.DELETE_AT IS NULL
         WHERE gi.WATCH_GROUP_ID = #{watchGroupId}
           AND gi.DEVICE_ID = #{deviceId}
         ORDER BY gi.IF_INDEX
@@ -191,7 +191,7 @@
             p.IF_DESCRIPTION AS IF_NAME,
             p.IF_SPEED
         FROM R_WATCH_GROUP_IF_T gi
-        LEFT JOIN R_PORT_T p ON gi.DEVICE_ID = p.DEVICE_ID AND gi.IF_INDEX = p.IF_INDEX
+        LEFT JOIN R_PORT_T p ON gi.DEVICE_ID = p.DEVICE_ID AND gi.IF_INDEX = p.IF_INDEX AND p.DELETE_AT IS NULL
         WHERE gi.WATCH_GROUP_ID = #{watchGroupId}
         ORDER BY gi.DEVICE_ID, gi.IF_INDEX
     </select>
@@ -253,5 +253,17 @@
         DELETE FROM R_WATCH_GROUP_IF_T
         WHERE DEVICE_ID = #{deviceId}
     </delete>
+
+    <!-- 관제 그룹 ID 목록에 배정된 장비 ID 조회 (권한 필터용, LINKED 그룹 제외) -->
+    <select id="findDeviceIdsByWatchGroupIds" resultType="long">
+        SELECT DISTINCT gd.DEVICE_ID
+        FROM R_WATCH_GROUP_DEVICE_T gd
+        INNER JOIN R_WATCH_GROUP_T wg ON gd.WATCH_GROUP_ID = wg.WATCH_GROUP_ID
+        WHERE wg.LINKED_GROUP_ID IS NULL
+          AND gd.WATCH_GROUP_ID IN
+        <foreach collection="watchGroupIds" item="wgid" open="(" separator="," close=")">
+            #{wgid}
+        </foreach>
+    </select>
 
 </mapper>

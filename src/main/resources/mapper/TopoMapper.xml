@@ -93,9 +93,9 @@
             COALESCE(n.FY, n.Y) AS fy
         FROM
             R_TPO_NODE_T n
-            LEFT JOIN r_device_t d ON n.DEVICE_ID = d.DEVICE_ID
-            LEFT JOIN r_group_t  g ON n.GROUP_ID  = g.GROUP_ID       -- 그룹 노드
-            LEFT JOIN r_group_t gd ON d.GROUP_ID  = gd.GROUP_ID      -- 장비 노드의 상위 그룹
+            LEFT JOIN r_device_t d ON n.DEVICE_ID = d.DEVICE_ID AND d.DELETE_AT IS NULL
+            LEFT JOIN r_group_t  g ON n.GROUP_ID  = g.GROUP_ID AND g.DELETE_AT IS NULL      -- 그룹 노드
+            LEFT JOIN r_group_t gd ON d.GROUP_ID  = gd.GROUP_ID AND gd.DELETE_AT IS NULL    -- 장비 노드의 상위 그룹
             LEFT JOIN r_model_t m ON d.MODEL_ID   = m.MODEL_ID       -- 모델명 테이블 있으면
         WHERE
             n.VIEW_ID = #{id}
@@ -118,8 +118,8 @@
             dp.IF_NAME  as dstIfName,
             l.STATUS as status
         FROM R_TPO_LINK_T l
-            LEFT JOIN r_port_t sp ON l.SRC_NODE_KEY = sp.DEVICE_ID AND l.SRC_IF_KEY = sp.IF_INDEX
-            LEFT JOIN r_port_t dp ON l.DST_NODE_KEY = dp.DEVICE_ID AND l.DST_IF_KEY = dp.IF_INDEX
+            LEFT JOIN r_port_t sp ON l.SRC_NODE_KEY = sp.DEVICE_ID AND l.SRC_IF_KEY = sp.IF_INDEX AND sp.DELETE_AT IS NULL
+            LEFT JOIN r_port_t dp ON l.DST_NODE_KEY = dp.DEVICE_ID AND l.DST_IF_KEY = dp.IF_INDEX AND dp.DELETE_AT IS NULL
         WHERE l.VIEW_ID = #{id}
     </select>
 
@@ -279,6 +279,7 @@
         FROM r_tpo_view_t A, r_group_t B
         WHERE 1 = 1
         AND A.GROUP_ID = B.GROUP_ID
+        AND B.DELETE_AT IS NULL
         AND A.VIEW_ID = #{viewId}
     </select>
 
@@ -308,6 +309,7 @@
             resultType="long">
         SELECT MODEL_ID FROM r_device_t
         WHERE DEVICE_ID = #{id}
+          AND DELETE_AT IS NULL
     </select>
 
 </mapper>

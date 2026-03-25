@@ -131,6 +131,11 @@ public interface WatchMapper {
             @Param("watchGroupId") Integer watchGroupId,
             @Param("deviceId") Integer deviceId);
 
+    /**
+     * 관제 그룹 ID 목록에 배정된 장비 ID 조회 (권한 필터용)
+     */
+    List<Long> findDeviceIdsByWatchGroupIds(@Param("watchGroupIds") List<Long> watchGroupIds);
+
     // ==================== 장비 삭제 시 관제 그룹 정리 ====================
 
     /**

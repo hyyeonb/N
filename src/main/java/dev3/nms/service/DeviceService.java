@@ -4,6 +4,7 @@ import dev3.nms.mapper.CpuMemMapper;
 import dev3.nms.mapper.DeviceMapper;
 import dev3.nms.mapper.DeviceSshMapper;
 import dev3.nms.mapper.ErrorMapper;
+import dev3.nms.mapper.TrafficMapper;
 import dev3.nms.mapper.ModelMapper;
 import dev3.nms.mapper.PortMapper;
 import dev3.nms.mapper.TempDeviceMapper;
@@ -33,6 +34,7 @@ public class DeviceService {
     private final VendorMapper vendorMapper;
     private final ModelMapper modelMapper;
     private final CpuMemMapper cpuMemMapper;
+    private final TrafficMapper trafficMapper;
     private final MiddlewareClient middlewareClient;
     private final PortService portService;
     private final ErrorMapper errorMapper;
@@ -748,23 +750,32 @@ public class DeviceService {
             log.info("  장비 {} 장애 이관: {}건 → 이력, {}건 삭제", deviceId, movedErrors, deletedErrors);
         }
 
-        // 2. 관제 그룹에서 제거 (인터페이스 먼저, 장비 후)
+        // 2. 성능 데이터 삭제 (트래픽, CPU/MEM, ICMP)
+        int delTraffic = trafficMapper.deleteByDeviceId(deviceId);
+        int delCpuMem = cpuMemMapper.deleteByDeviceId(deviceId);
+        int delIcmp = errorMapper.deleteIcmpByDeviceId(deviceId);
+        if (delTraffic + delCpuMem + delIcmp > 0) {
+            log.info("  장비 {} 성능 데이터 삭제: 트래픽={}건, CPU/MEM={}건, ICMP={}건",
+                    deviceId, delTraffic, delCpuMem, delIcmp);
+        }
+
+        // 3. 관제 그룹에서 제거 (인터페이스 먼저, 장비 후)
         watchMapper.deleteDeviceInterfacesFromAllGroups(deviceId);
         watchMapper.deleteDeviceFromAllWatchGroups(deviceId);
 
-        // 3. 포트 소프트 삭제
+        // 4. 포트 소프트 삭제
         portMapper.deletePortsByDeviceId(deviceId);
 
-        // 4. SSH 크리덴셜 삭제
+        // 5. SSH 크리덴셜 삭제
         deviceSshMapper.deleteByDeviceId(deviceId);
 
-        // 5. SNMP 설정 삭제
+        // 6. SNMP 설정 삭제
         deviceMapper.deleteDeviceSnmp(deviceId);
 
-        // 6. 수집 설정(Scope) 삭제
+        // 7. 수집 설정(Scope) 삭제
         deviceMapper.deleteDeviceScope(deviceId);
 
-        // 7. 장비 본체 소프트 삭제
+        // 8. 장비 본체 소프트 삭제
         deviceMapper.deleteDevice(deviceId);
     }
 

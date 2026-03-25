@@ -12,15 +12,14 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
-        // 구독 경로 - 카테고리별 분리
         config.enableSimpleBroker(
-            "/topic/alerts",            // 전체 알림
-            "/topic/alerts/connection", // 연결 장애
-            "/topic/alerts/performance",// 성능 장애
-            "/topic/alerts/port",       // 포트 장애
-            "/topic/alerts/system",     // 시스템 장애
-            "/topic/notice/urgent",     // 긴급공지
-            "/user/queue/alerts"        // 개인 알림
+            "/topic/alerts",
+            "/topic/alerts/connection",
+            "/topic/alerts/performance",
+            "/topic/alerts/port",
+            "/topic/alerts/system",
+            "/topic/notice/urgent",
+            "/user/queue/alerts"
         );
         config.setApplicationDestinationPrefixes("/app");
         config.setUserDestinationPrefix("/user");
@@ -28,8 +27,16 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
+        // WebSocket CORS도 명시적으로 제한 (기존 * → 허용 Origin만)
         registry.addEndpoint("/ws/alerts")
-                .setAllowedOriginPatterns("*")
+                .setAllowedOrigins(
+                    "http://localhost:3000",
+                    "http://localhost:5173",
+                    "http://127.0.0.1:3000",
+                    "http://127.0.0.1:5173",
+                    "http://192.168.3.114",
+                    "http://192.168.3.114.nip.io"
+                )
                 .withSockJS();
     }
 }

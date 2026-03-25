@@ -48,6 +48,12 @@ public class TrafficVO {
     private Double OUT_BPS;
     private Double OUT_HIGH_BPS;
 
+    // 사용률(%) - 신규 컬럼
+    private Double IN_USED_PERCENT;
+    private Double IN_HIGH_USED_PERCENT;
+    private Double OUT_USED_PERCENT;
+    private Double OUT_HIGH_USED_PERCENT;
+
     // JOIN으로 가져오는 정보
     private String IF_NAME;
     private String IF_DESCR;
@@ -70,6 +76,30 @@ public class TrafficVO {
             return OUT_HIGH_BPS;
         }
         return OUT_BPS;
+    }
+
+    /**
+     * 입력 사용률(%) 반환 - 신규 컬럼 우선, 없으면 기존 BPS(=%) 폴백
+     */
+    public Double getInPercentValue() {
+        if (IN_HIGH_USED_PERCENT != null) return IN_HIGH_USED_PERCENT;
+        if (IN_USED_PERCENT != null) return IN_USED_PERCENT;
+        // 폴백: 기존 BPS 컬럼 (구 데이터에서는 %가 저장되어 있음)
+        Double bps = getInBpsValue();
+        if (bps != null && bps <= 100) return bps;
+        return null;
+    }
+
+    /**
+     * 출력 사용률(%) 반환 - 신규 컬럼 우선, 없으면 기존 BPS(=%) 폴백
+     */
+    public Double getOutPercentValue() {
+        if (OUT_HIGH_USED_PERCENT != null) return OUT_HIGH_USED_PERCENT;
+        if (OUT_USED_PERCENT != null) return OUT_USED_PERCENT;
+        // 폴백: 기존 BPS 컬럼 (구 데이터에서는 %가 저장되어 있음)
+        Double bps = getOutBpsValue();
+        if (bps != null && bps <= 100) return bps;
+        return null;
     }
 
     /**

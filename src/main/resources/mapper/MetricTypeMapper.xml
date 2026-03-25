@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="dev3.nms.mapper.MetricTypeMapper">
+
+    <select id="findAll" resultType="dev3.nms.vo.mgmt.MetricTypeVO">
+        SELECT METRIC_CODE, METRIC_NAME, UNIT, CATEGORY, HAS_THRESHOLD, SORT_ORDER
+        FROM B_METRIC_TYPE_T
+        ORDER BY SORT_ORDER
+    </select>
+
+    <!-- 모델의 수집 메트릭 (모델 개별 설정) -->
+    <select id="findMetricsByModelId" resultType="string">
+        SELECT METRIC_CODE
+        FROM R_MODEL_METRIC_T
+        WHERE MODEL_ID = #{modelId}
+        ORDER BY METRIC_CODE
+    </select>
+
+    <!-- 장비의 수집 메트릭 (우선순위: 모델 개별 → 장비군 → 상위 장비군) -->
+    <select id="findMetricsByDeviceId" resultType="string">
+        SELECT METRIC_CODE FROM R_MODEL_METRIC_T mm
+        JOIN r_device_t d ON d.MODEL_ID = mm.MODEL_ID
+        WHERE d.DEVICE_ID = #{deviceId} AND d.DELETE_AT IS NULL
+
+        UNION
+
+        SELECT METRIC_CODE FROM R_DEV_CODE_METRIC_T dcm
+        JOIN r_model_t m ON m.DEV_CODE_ID = dcm.DEV_CODE_ID
+        JOIN r_device_t d ON d.MODEL_ID = m.MODEL_ID
+        WHERE d.DEVICE_ID = #{deviceId} AND d.DELETE_AT IS NULL
+
+        UNION
+
+        SELECT METRIC_CODE FROM R_DEV_CODE_METRIC_T dcm
+        JOIN b_dev_code_t dc ON dcm.DEV_CODE_ID = dc.DEV_CODE_ID
+        JOIN b_dev_code_t dc2 ON dc2.PARENT_DEV_CODE_ID = dc.DEV_CODE_ID
+        JOIN r_model_t m ON m.DEV_CODE_ID = dc2.DEV_CODE_ID
+        JOIN r_device_t d ON d.MODEL_ID = m.MODEL_ID
+        WHERE d.DEVICE_ID = #{deviceId} AND d.DELETE_AT IS NULL
+
+        ORDER BY METRIC_CODE
+    </select>
+
+    <!-- 장비군의 메트릭 목록 -->
+    <select id="findMetricsByDevCodeId" resultType="string">
+        SELECT METRIC_CODE
+        FROM R_DEV_CODE_METRIC_T
+        WHERE DEV_CODE_ID = #{devCodeId}
+        ORDER BY METRIC_CODE
+    </select>
+
+    <delete id="deleteModelMetrics">
+        DELETE FROM R_MODEL_METRIC_T WHERE MODEL_ID = #{modelId}
+    </delete>
+
+    <insert id="insertModelMetric">
+        INSERT IGNORE INTO R_MODEL_METRIC_T (MODEL_ID, METRIC_CODE)
+        VALUES (#{modelId}, #{metricCode})
+    </insert>
+
+</mapper>

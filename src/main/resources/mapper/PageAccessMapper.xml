@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="dev3.nms.mapper.PageAccessMapper">
+
+    <resultMap id="PageResultMap" type="dev3.nms.vo.auth.PageMasterVO">
+        <id property="PAGE_CODE" column="PAGE_CODE"/>
+        <result property="PAGE_NAME" column="PAGE_NAME"/>
+        <result property="PAGE_GROUP" column="PAGE_GROUP"/>
+        <result property="SORT_ORDER" column="SORT_ORDER"/>
+        <result property="PAGE_PATH" column="PAGE_PATH"/>
+        <result property="CREATE_AT" column="CREATE_AT"/>
+    </resultMap>
+
+    <resultMap id="PageAccessResultMap" type="dev3.nms.vo.auth.PageAccessVO">
+        <id property="USER_ID" column="USER_ID"/>
+        <id property="PAGE_CODE" column="PAGE_CODE"/>
+        <result property="CAN_VIEW" column="CAN_VIEW"/>
+        <result property="CAN_EDIT" column="CAN_EDIT"/>
+        <result property="MODIFY_USER_ID" column="MODIFY_USER_ID"/>
+        <result property="MODIFY_AT" column="MODIFY_AT"/>
+        <result property="PAGE_NAME" column="PAGE_NAME"/>
+        <result property="PAGE_GROUP" column="PAGE_GROUP"/>
+        <result property="SORT_ORDER" column="SORT_ORDER"/>
+        <result property="PAGE_PATH" column="PAGE_PATH"/>
+    </resultMap>
+
+    <!-- 전체 페이지 마스터 목록 -->
+    <select id="findAllPages" resultMap="PageResultMap">
+        SELECT * FROM R_PAGE_T ORDER BY PAGE_GROUP, SORT_ORDER
+    </select>
+
+    <!-- 사용자의 페이지 권한 목록 (JOIN) -->
+    <select id="findByUserId" resultMap="PageAccessResultMap">
+        SELECT a.USER_ID, a.PAGE_CODE, a.CAN_VIEW, a.CAN_EDIT,
+               a.MODIFY_USER_ID, a.MODIFY_AT,
+               p.PAGE_NAME, p.PAGE_GROUP, p.SORT_ORDER, p.PAGE_PATH
+        FROM R_USER_PAGE_ACCESS_T a
+        JOIN R_PAGE_T p ON a.PAGE_CODE = p.PAGE_CODE
+        WHERE a.USER_ID = #{USER_ID}
+        ORDER BY p.PAGE_GROUP, p.SORT_ORDER
+    </select>
+
+    <!-- 특정 페이지 권한 조회 -->
+    <select id="findByUserIdAndPageCode" resultMap="PageAccessResultMap">
+        SELECT a.USER_ID, a.PAGE_CODE, a.CAN_VIEW, a.CAN_EDIT,
+               a.MODIFY_USER_ID, a.MODIFY_AT,
+               p.PAGE_NAME, p.PAGE_GROUP, p.SORT_ORDER, p.PAGE_PATH
+        FROM R_USER_PAGE_ACCESS_T a
+        JOIN R_PAGE_T p ON a.PAGE_CODE = p.PAGE_CODE
+        WHERE a.USER_ID = #{USER_ID} AND a.PAGE_CODE = #{PAGE_CODE}
+    </select>
+
+    <!-- 페이지 권한 추가 -->
+    <insert id="insertPageAccess" parameterType="dev3.nms.vo.auth.PageAccessVO">
+        INSERT INTO R_USER_PAGE_ACCESS_T (USER_ID, PAGE_CODE, CAN_VIEW, CAN_EDIT, MODIFY_USER_ID, MODIFY_AT)
+        VALUES (#{USER_ID}, #{PAGE_CODE}, #{CAN_VIEW}, #{CAN_EDIT}, #{MODIFY_USER_ID}, NOW())
+    </insert>
+
+    <!-- 페이지 권한 일괄 추가 -->
+    <insert id="insertPageAccessBatch" parameterType="java.util.List">
+        INSERT INTO R_USER_PAGE_ACCESS_T (USER_ID, PAGE_CODE, CAN_VIEW, CAN_EDIT, MODIFY_USER_ID, MODIFY_AT)
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.USER_ID}, #{item.PAGE_CODE}, #{item.CAN_VIEW}, #{item.CAN_EDIT}, #{item.MODIFY_USER_ID}, NOW())
+        </foreach>
+    </insert>
+
+    <!-- 페이지 권한 수정 -->
+    <update id="updatePageAccess" parameterType="dev3.nms.vo.auth.PageAccessVO">
+        UPDATE R_USER_PAGE_ACCESS_T
+        SET CAN_VIEW = #{CAN_VIEW},
+            CAN_EDIT = #{CAN_EDIT},
+            MODIFY_USER_ID = #{MODIFY_USER_ID},
+            MODIFY_AT = NOW()
+        WHERE USER_ID = #{USER_ID} AND PAGE_CODE = #{PAGE_CODE}
+    </update>
+
+    <!-- 사용자의 모든 페이지 권한 삭제 -->
+    <delete id="deleteByUserId">
+        DELETE FROM R_USER_PAGE_ACCESS_T WHERE USER_ID = #{USER_ID}
+    </delete>
+
+    <!-- 특정 페이지 권한 삭제 -->
+    <delete id="deleteByUserIdAndPageCode">
+        DELETE FROM R_USER_PAGE_ACCESS_T WHERE USER_ID = #{USER_ID} AND PAGE_CODE = #{PAGE_CODE}
+    </delete>
+
+</mapper>

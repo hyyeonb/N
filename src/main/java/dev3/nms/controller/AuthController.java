@@ -1,38 +1,32 @@
 package dev3.nms.controller;
 
+import dev3.nms.mapper.LoginHistoryMapper;
 import dev3.nms.service.AuthService;
-import dev3.nms.vo.auth.LoginResponseVO;
-import dev3.nms.vo.auth.SocialCodeRequestVO;
-import dev3.nms.vo.auth.SocialLoginRequestVO;
-import dev3.nms.vo.auth.UserVO;
+import dev3.nms.util.SessionUtil;
+import dev3.nms.vo.auth.*;
 import dev3.nms.vo.common.ResVO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
 @RestController
 @RequestMapping("/api/auth")
+@RequiredArgsConstructor
 public class AuthController {
 
     private final AuthService authService;
-
-    public AuthController(AuthService authService) {
-        this.authService = authService;
-    }
+    private final LoginHistoryMapper loginHistoryMapper;
 
     /**
-     * 소셜 로그인 API (Kakao, Google, Naver)
-     *
-     * @param request 소셜 로그인 요청 정보 (SOCIAL_TYPE, ACCESS_TOKEN)
-     * @param httpRequest HTTP 요청 정보
-     * @param session HTTP 세션
-     * @return 로그인 응답 (사용자 정보 + 세션 ID)
+     * 소셜 로그인 API
      */
     @PostMapping("/social/login")
     public ResVO<LoginResponseVO> socialLogin(
@@ -41,36 +35,22 @@ public class AuthController {
             HttpSession session) {
 
         log.info("========== 소셜 로그인 요청 시작 ==========");
-        log.info("요청 정보 - SOCIAL_TYPE: {}, ACCESS_TOKEN: {}",
-                request.getSOCIAL_TYPE(),
-                request.getACCESS_TOKEN() != null ? "***존재***" : "null");
 
-        // IP 주소 및 User Agent 추출
         String ipAddress = getClientIp(httpRequest);
         String userAgent = httpRequest.getHeader("User-Agent");
-        log.info("클라이언트 정보 - IP: {}, User-Agent: {}", ipAddress, userAgent);
 
-        // 소셜 로그인 처리
-        log.info("AuthService.socialLogin() 호출");
         LoginResponseVO loginResponse = authService.socialLogin(request, ipAddress, userAgent);
-        log.info("로그인 성공 - USER_ID: {}, EMAIL: {}", loginResponse.getUSER_ID(), loginResponse.getEMAIL());
 
-        // 세션에 사용자 정보 저장
+        // HttpSession에 사용자 정보 저장
         session.setAttribute("USER_ID", loginResponse.getUSER_ID());
-        session.setAttribute("SESSION_ID", loginResponse.getSESSION_ID());
-        log.info("세션 저장 완료 - SESSION_ID: {}", loginResponse.getSESSION_ID());
+        session.setAttribute("HISTORY_ID", loginResponse.getHISTORY_ID());
 
         log.info("========== 소셜 로그인 요청 완료 ==========");
         return new ResVO<>(200, "로그인 성공", loginResponse);
     }
 
     /**
-     * 소셜 로그인 API - Authorization Code 방식 (Kakao용)
-     *
-     * @param request 소셜 코드 요청 정보 (SOCIAL_TYPE, CODE, REDIRECT_URI)
-     * @param httpRequest HTTP 요청 정보
-     * @param session HTTP 세션
-     * @return 로그인 응답 (사용자 정보 + 세션 ID)
+     * 소셜 로그인 API - Authorization Code 방식
      */
     @PostMapping("/social/code")
     public ResVO<LoginResponseVO> socialLoginWithCode(
@@ -79,26 +59,15 @@ public class AuthController {
             HttpSession session) {
 
         log.info("========== 소셜 로그인 (Code) 요청 시작 ==========");
-        log.info("요청 정보 - SOCIAL_TYPE: {}, CODE: {}, REDIRECT_URI: {}, STATE: {}",
-                request.getSOCIAL_TYPE(),
-                request.getCODE() != null ? "***존재***" : "null",
-                request.getREDIRECT_URI(),
-                request.getSTATE());
 
-        // IP 주소 및 User Agent 추출
         String ipAddress = getClientIp(httpRequest);
         String userAgent = httpRequest.getHeader("User-Agent");
-        log.info("클라이언트 정보 - IP: {}, User-Agent: {}", ipAddress, userAgent);
 
-        // 소셜 로그인 처리
-        log.info("AuthService.socialLoginWithCode() 호출");
         LoginResponseVO loginResponse = authService.socialLoginWithCode(request, ipAddress, userAgent);
-        log.info("로그인 성공 - USER_ID: {}, EMAIL: {}", loginResponse.getUSER_ID(), loginResponse.getEMAIL());
 
-        // 세션에 사용자 정보 저장
+        // HttpSession에 사용자 정보 저장
         session.setAttribute("USER_ID", loginResponse.getUSER_ID());
-        session.setAttribute("SESSION_ID", loginResponse.getSESSION_ID());
-        log.info("세션 저장 완료 - SESSION_ID: {}", loginResponse.getSESSION_ID());
+        session.setAttribute("HISTORY_ID", loginResponse.getHISTORY_ID());
 
         log.info("========== 소셜 로그인 (Code) 요청 완료 ==========");
         return new ResVO<>(200, "로그인 성공", loginResponse);
@@ -106,94 +75,97 @@ public class AuthController {
 
     /**
      * 로그아웃 API
-     *
-     * @param session HTTP 세션
-     * @return 로그아웃 결과
      */
     @PostMapping("/logout")
     public ResVO<Void> logout(HttpSession session) {
-        String sessionId = (String) session.getAttribute("SESSION_ID");
-
-        if (sessionId != null) {
-            authService.logout(sessionId);
+        // 로그아웃 시 세션 종료 시각 기록
+        Long historyId = getHistoryIdFromSession(session);
+        if (historyId != null) {
+            loginHistoryMapper.updateLogoutAt(historyId);
         }
-
         session.invalidate();
-
         return new ResVO<>(200, "로그아웃 성공", null);
     }
 
     /**
      * 현재 로그인한 사용자 정보 조회 API
-     *
-     * @param session HTTP 세션
-     * @return 사용자 정보
      */
     @GetMapping("/me")
-    public ResVO<UserVO> getCurrentUser(HttpSession session) {
-        String sessionId = (String) session.getAttribute("SESSION_ID");
-
-        if (sessionId == null) {
+    public ResVO<Map<String, Object>> getCurrentUser(HttpSession session) {
+        Long userId = getUserIdFromSession(session);
+        if (userId == null) {
             return new ResVO<>(401, "로그인이 필요합니다", null);
         }
 
-        UserVO user = authService.getUserBySession(sessionId);
-
+        UserVO user = authService.getUserById(userId);
         if (user == null) {
             return new ResVO<>(401, "세션이 만료되었습니다", null);
         }
 
-        return new ResVO<>(200, "조회 성공", user);
+        // 사용자 정보 + 권한 정보 함께 반환
+        UserPermissionVO permissions = authService.buildPermissions(user);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("USER_ID", user.getUSER_ID());
+        result.put("LOGIN_ID", user.getLOGIN_ID());
+        result.put("EMAIL", user.getEMAIL());
+        result.put("NAME", user.getNAME());
+        result.put("PHONE", user.getPHONE());
+        result.put("PROFILE_IMAGE", user.getPROFILE_IMAGE());
+        result.put("SOCIAL_TYPE", user.getSOCIAL_TYPE());
+        result.put("STATUS", user.getSTATUS());
+        result.put("permissions", permissions);
+
+        return new ResVO<>(200, "조회 성공", result);
     }
 
     /**
      * 세션 유효성 검증 API
-     *
-     * @param session HTTP 세션
-     * @return 세션 유효 여부
      */
     @GetMapping("/validate")
-    public ResVO<Boolean> validateSession(HttpSession session) {
-        String sessionId = (String) session.getAttribute("SESSION_ID");
-
-        if (sessionId == null) {
+    public ResVO<Boolean> validateSession(HttpSession session, HttpServletRequest request) {
+        Long userId = getUserIdFromSession(session);
+        if (userId == null) {
             return new ResVO<>(401, "세션이 없습니다", false);
         }
 
-        UserVO user = authService.getUserBySession(sessionId);
-        boolean isValid = user != null;
+        UserVO user = authService.getUserById(userId);
+        if (user == null) {
+            return new ResVO<>(200, "검증 완료", false);
+        }
 
-        return new ResVO<>(200, "검증 완료", isValid);
+        // 세션에 HISTORY_ID가 없으면 새 로그인 이력 생성 (서버 재시작 등으로 유실된 경우)
+        if (getHistoryIdFromSession(session) == null) {
+            String ipAddress = getClientIp(request);
+            String userAgent = request.getHeader("User-Agent");
+            String loginType = user.getSOCIAL_TYPE() != null ? user.getSOCIAL_TYPE() : "LOCAL";
+            Long historyId = authService.createLoginHistory(userId, loginType, ipAddress, userAgent);
+            session.setAttribute("HISTORY_ID", historyId);
+            log.info("[Validate] 세션에 HISTORY_ID 복원 - USER_ID: {}, HISTORY_ID: {}", userId, historyId);
+        }
+
+        return new ResVO<>(200, "검증 완료", true);
     }
 
     // ==================== 로컬 회원가입/로그인 ====================
 
-    /**
-     * 로컬 회원가입 API
-     * DuplicateKeyException → GlobalExceptionHandler에서 HTTP 409 반환
-     */
     @PostMapping("/signup")
     public ResponseEntity<ResVO<UserVO>> signup(
             @RequestBody UserVO user,
             HttpServletRequest httpRequest) {
 
         log.info("========== 로컬 회원가입 요청 ==========");
-        log.info("LOGIN_ID: {}, EMAIL: {}, NAME: {}",
-                user.getLOGIN_ID(), user.getEMAIL(), user.getNAME());
 
         String ipAddress = getClientIp(httpRequest);
         String userAgent = httpRequest.getHeader("User-Agent");
 
         UserVO savedUser = authService.signup(user, ipAddress, userAgent);
-        savedUser.setPASSWORD(null); // 응답에서 비밀번호 제외
+        savedUser.setPASSWORD(null);
 
         log.info("========== 로컬 회원가입 완료 ==========");
         return ResponseEntity.ok(new ResVO<>(200, "회원가입 성공", savedUser));
     }
 
-    /**
-     * 로컬 로그인 API
-     */
     @PostMapping("/login")
     public ResponseEntity<ResVO<LoginResponseVO>> login(
             @RequestBody Map<String, String> request,
@@ -201,10 +173,8 @@ public class AuthController {
             HttpSession session) {
 
         log.info("========== 로컬 로그인 요청 ==========");
-        // 프론트엔드 필드명 호환 (LOGIN_ID/loginId 둘 다 지원)
         String loginId = request.get("LOGIN_ID") != null ? request.get("LOGIN_ID") : request.get("loginId");
         String password = request.get("PASSWORD") != null ? request.get("PASSWORD") : request.get("password");
-        log.info("LOGIN_ID: {}", loginId);
 
         String ipAddress = getClientIp(httpRequest);
         String userAgent = httpRequest.getHeader("User-Agent");
@@ -212,9 +182,9 @@ public class AuthController {
         try {
             LoginResponseVO loginResponse = authService.localLogin(loginId, password, ipAddress, userAgent);
 
-            // 세션에 사용자 정보 저장
+            // HttpSession에 사용자 정보 저장
             session.setAttribute("USER_ID", loginResponse.getUSER_ID());
-            session.setAttribute("SESSION_ID", loginResponse.getSESSION_ID());
+            session.setAttribute("HISTORY_ID", loginResponse.getHISTORY_ID());
 
             log.info("========== 로컬 로그인 완료 ==========");
             return ResponseEntity.ok(new ResVO<>(200, "로그인 성공", loginResponse));
@@ -225,9 +195,6 @@ public class AuthController {
         }
     }
 
-    /**
-     * 아이디 중복 체크 API
-     */
     @GetMapping("/check-id")
     public ResVO<Boolean> checkLoginId(@RequestParam("loginId") String loginId) {
         boolean available = authService.isLoginIdAvailable(loginId);
@@ -235,9 +202,6 @@ public class AuthController {
         return new ResVO<>(200, message, available);
     }
 
-    /**
-     * 이메일 중복 체크 API
-     */
     @GetMapping("/check-email")
     public ResVO<Boolean> checkEmail(@RequestParam("email") String email) {
         boolean available = authService.isEmailAvailable(email);
@@ -245,9 +209,6 @@ public class AuthController {
         return new ResVO<>(200, message, available);
     }
 
-    /**
-     * 전화번호 중복 체크 API
-     */
     @GetMapping("/check-phone")
     public ResVO<Boolean> checkPhone(@RequestParam("phone") String phone) {
         boolean available = authService.isPhoneAvailable(phone);
@@ -255,87 +216,66 @@ public class AuthController {
         return new ResVO<>(200, message, available);
     }
 
-    /**
-     * 아이디 찾기 API
-     */
     @PostMapping("/find-id")
     public ResponseEntity<ResVO<String>> findId(@RequestBody Map<String, String> request) {
-        log.info("========== 아이디 찾기 요청 ==========");
         String name = request.get("NAME");
         String phone = request.get("PHONE");
-        log.info("NAME: {}, PHONE: {}", name, phone);
 
         String loginId = authService.findLoginId(name, phone);
-
         if (loginId == null) {
-            log.warn("아이디 찾기 실패 - 일치하는 계정 없음");
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(new ResVO<>(404, "일치하는 계정을 찾을 수 없습니다.", null));
         }
-
-        log.info("========== 아이디 찾기 완료 ==========");
         return ResponseEntity.ok(new ResVO<>(200, "아이디 조회 성공", loginId));
     }
 
-    /**
-     * 비밀번호 재설정 API
-     */
     @PostMapping("/reset-password")
     public ResponseEntity<ResVO<Void>> resetPassword(@RequestBody Map<String, String> request) {
-        log.info("========== 비밀번호 재설정 요청 ==========");
         String loginId = request.get("LOGIN_ID");
         String name = request.get("NAME");
         String phone = request.get("PHONE");
         String newPassword = request.get("NEW_PASSWORD");
-        log.info("LOGIN_ID: {}, NAME: {}", loginId, name);
 
         boolean success = authService.resetPassword(loginId, name, phone, newPassword);
-
         if (!success) {
-            log.warn("비밀번호 재설정 실패 - 일치하는 계정 없음");
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(new ResVO<>(404, "일치하는 계정을 찾을 수 없습니다.", null));
         }
-
-        log.info("========== 비밀번호 재설정 완료 ==========");
         return ResponseEntity.ok(new ResVO<>(200, "비밀번호가 변경되었습니다.", null));
     }
 
-    /**
-     * 클라이언트 IP 주소 추출
-     */
+    private Long getUserIdFromSession(HttpSession session) {
+        Object userId = session.getAttribute("USER_ID");
+        if (userId instanceof Long) return (Long) userId;
+        if (userId instanceof Number) return ((Number) userId).longValue();
+        return null;
+    }
+
+    private Long getHistoryIdFromSession(HttpSession session) {
+        Object historyId = session.getAttribute("HISTORY_ID");
+        if (historyId instanceof Long) return (Long) historyId;
+        if (historyId instanceof Number) return ((Number) historyId).longValue();
+        return null;
+    }
+
     private String getClientIp(HttpServletRequest request) {
         String[] headers = {
-                "X-Forwarded-For",
-                "Proxy-Client-IP",
-                "WL-Proxy-Client-IP",
-                "HTTP_CLIENT_IP",
-                "HTTP_X_FORWARDED_FOR"
+                "X-Forwarded-For", "Proxy-Client-IP", "WL-Proxy-Client-IP",
+                "HTTP_CLIENT_IP", "HTTP_X_FORWARDED_FOR"
         };
 
         String ip = null;
-
         for (String header : headers) {
             ip = request.getHeader(header);
-            if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip)) {
-                break;
-            }
+            if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip)) break;
         }
 
         if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
             ip = request.getRemoteAddr();
         }
 
-        // 헤더에 여러 IP가 포함된 경우, 첫 번째 IP를 사용
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
-        }
-
-        // IPv6 loopback address를 IPv4 형식으로 변환
-        if ("0:0:0:0:0:0:0:1".equals(ip)) {
-            ip = "127.0.0.1";
-        }
-
+        if (ip != null && ip.contains(",")) ip = ip.split(",")[0].trim();
+        if ("0:0:0:0:0:0:0:1".equals(ip)) ip = "127.0.0.1";
         return ip;
     }
 }

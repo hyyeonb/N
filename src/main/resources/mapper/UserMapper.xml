@@ -16,12 +16,15 @@
         <result property="SOCIAL_ID" column="SOCIAL_ID"/>
         <result property="CREATED_AT" column="CREATED_AT"/>
         <result property="UPDATED_AT" column="UPDATED_AT"/>
+        <result property="STATUS" column="STATUS"/>
+        <result property="ALL_GROUP_VIEW" column="ALL_GROUP_VIEW"/>
+        <result property="REVIEWED_AT" column="REVIEWED_AT"/>
     </resultMap>
 
     <!-- 소셜 타입과 소셜 ID로 사용자 조회 -->
     <select id="findBySocialTypeAndSocialId" resultMap="UserResultMap">
         SELECT *
-        FROM USER
+        FROM R_USER_T
         WHERE SOCIAL_TYPE = #{SOCIAL_TYPE}
           AND SOCIAL_ID = #{SOCIAL_ID}
     </select>
@@ -29,7 +32,7 @@
     <!-- 이메일로 사용자 조회 (NULL 이메일은 조회하지 않음) -->
     <select id="findByEmail" resultMap="UserResultMap">
         SELECT *
-        FROM USER
+        FROM R_USER_T
         WHERE EMAIL = #{EMAIL}
           AND EMAIL IS NOT NULL
           AND EMAIL != ''
@@ -38,34 +41,34 @@
     <!-- 사용자 ID로 조회 -->
     <select id="findById" resultMap="UserResultMap">
         SELECT *
-        FROM USER
+        FROM R_USER_T
         WHERE USER_ID = #{USER_ID}
     </select>
 
     <!-- 새 사용자 생성 (소셜 로그인) - 빈 문자열 EMAIL은 NULL로 변환 -->
     <insert id="insert" parameterType="dev3.nms.vo.auth.UserVO"
             useGeneratedKeys="true" keyProperty="USER_ID" keyColumn="USER_ID">
-        INSERT INTO USER (EMAIL, NAME, PROFILE_IMAGE, SOCIAL_TYPE, SOCIAL_ID)
+        INSERT INTO R_USER_T (EMAIL, NAME, PROFILE_IMAGE, SOCIAL_TYPE, SOCIAL_ID)
         VALUES (NULLIF(#{EMAIL}, ''), #{NAME}, #{PROFILE_IMAGE}, #{SOCIAL_TYPE}, #{SOCIAL_ID})
     </insert>
 
     <!-- 새 사용자 생성 (로컬 회원가입) - 빈 문자열 EMAIL은 NULL로 변환 -->
     <insert id="insertLocal" parameterType="dev3.nms.vo.auth.UserVO"
             useGeneratedKeys="true" keyProperty="USER_ID" keyColumn="USER_ID">
-        INSERT INTO USER (LOGIN_ID, PASSWORD, EMAIL, NAME, PHONE, SOCIAL_TYPE)
+        INSERT INTO R_USER_T (LOGIN_ID, PASSWORD, EMAIL, NAME, PHONE, SOCIAL_TYPE)
         VALUES (#{LOGIN_ID}, #{PASSWORD}, NULLIF(#{EMAIL}, ''), #{NAME}, #{PHONE}, 'LOCAL')
     </insert>
 
     <!-- 로그인 ID로 사용자 조회 -->
     <select id="findByLoginId" resultMap="UserResultMap">
         SELECT *
-        FROM USER
+        FROM R_USER_T
         WHERE LOGIN_ID = #{LOGIN_ID}
     </select>
 
     <!-- 사용자 정보 업데이트 -->
     <update id="update" parameterType="dev3.nms.vo.auth.UserVO">
-        UPDATE USER
+        UPDATE R_USER_T
         SET EMAIL = #{EMAIL},
             NAME = #{NAME},
             PROFILE_IMAGE = #{PROFILE_IMAGE}
@@ -75,7 +78,7 @@
     <!-- 전화번호로 사용자 조회 (전화번호 중복 체크) -->
     <select id="findByPhone" resultMap="UserResultMap">
         SELECT *
-        FROM USER
+        FROM R_USER_T
         WHERE PHONE = #{PHONE}
           AND PHONE IS NOT NULL
           AND PHONE != ''
@@ -85,7 +88,7 @@
     <!-- 이름과 전화번호로 사용자 조회 (아이디 찾기) -->
     <select id="findByNameAndPhone" resultMap="UserResultMap">
         SELECT *
-        FROM USER
+        FROM R_USER_T
         WHERE NAME = #{NAME}
           AND PHONE = #{PHONE}
           AND SOCIAL_TYPE = 'LOCAL'
@@ -94,7 +97,7 @@
     <!-- 로그인 ID, 이름, 전화번호로 사용자 조회 (비밀번호 재설정 검증) -->
     <select id="findByLoginIdAndNameAndPhone" resultMap="UserResultMap">
         SELECT *
-        FROM USER
+        FROM R_USER_T
         WHERE LOGIN_ID = #{LOGIN_ID}
           AND NAME = #{NAME}
           AND PHONE = #{PHONE}
@@ -103,8 +106,50 @@
 
     <!-- 비밀번호 변경 -->
     <update id="updatePassword">
-        UPDATE USER
+        UPDATE R_USER_T
         SET PASSWORD = #{PASSWORD},
+            UPDATED_AT = NOW()
+        WHERE USER_ID = #{USER_ID}
+    </update>
+
+    <!-- 전체 사용자 목록 조회 (Admin용) -->
+    <select id="findAll" resultMap="UserResultMap">
+        SELECT USER_ID, LOGIN_ID, EMAIL, NAME, PHONE, PROFILE_IMAGE, SOCIAL_TYPE,
+               CREATED_AT, UPDATED_AT, STATUS, ALL_GROUP_VIEW, REVIEWED_AT
+        FROM R_USER_T
+        ORDER BY CREATED_AT DESC
+    </select>
+
+    <!-- 사용자 상태 변경 -->
+    <update id="updateStatus">
+        UPDATE R_USER_T
+        SET STATUS = #{STATUS},
+            UPDATED_AT = NOW()
+        WHERE USER_ID = #{USER_ID}
+    </update>
+
+    <!-- 전체 그룹 조회 권한 변경 -->
+    <update id="updateAllGroupView">
+        UPDATE R_USER_T
+        SET ALL_GROUP_VIEW = #{ALL_GROUP_VIEW},
+            UPDATED_AT = NOW()
+        WHERE USER_ID = #{USER_ID}
+    </update>
+
+    <!-- 관리자 확인 처리 -->
+    <update id="updateReviewedAt">
+        UPDATE R_USER_T
+        SET REVIEWED_AT = NOW(),
+            UPDATED_AT = NOW()
+        WHERE USER_ID = #{USER_ID}
+    </update>
+
+    <!-- 프로필 정보 수정 (이름, 이메일, 전화번호) -->
+    <update id="updateProfile">
+        UPDATE R_USER_T
+        SET NAME = #{NAME},
+            EMAIL = NULLIF(#{EMAIL}, ''),
+            PHONE = #{PHONE},
             UPDATED_AT = NOW()
         WHERE USER_ID = #{USER_ID}
     </update>

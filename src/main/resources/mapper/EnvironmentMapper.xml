@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="dev3.nms.mapper.EnvironmentMapper">
+
+    <!-- 장비의 각 메트릭별 최신 1건 -->
+    <select id="findLatest" resultType="dev3.nms.vo.mgmt.EnvironmentVO">
+        SELECT e.ENV_ID, e.DEVICE_ID, e.METRIC_CODE, e.VALUE, e.COLLECTED_AT
+        FROM P_ENVIRONMENT_T e
+        INNER JOIN (
+            SELECT DEVICE_ID, METRIC_CODE, MAX(COLLECTED_AT) AS MAX_AT
+            FROM P_ENVIRONMENT_T
+            WHERE DEVICE_ID = #{deviceId}
+            GROUP BY DEVICE_ID, METRIC_CODE
+        ) latest ON e.DEVICE_ID = latest.DEVICE_ID
+                AND e.METRIC_CODE = latest.METRIC_CODE
+                AND e.COLLECTED_AT = latest.MAX_AT
+        WHERE e.DEVICE_ID = #{deviceId}
+    </select>
+
+    <!-- 시계열 데이터 (최근 N분) -->
+    <select id="findHistory" resultType="dev3.nms.vo.mgmt.EnvironmentVO">
+        SELECT ENV_ID, DEVICE_ID, METRIC_CODE, VALUE, COLLECTED_AT
+        FROM P_ENVIRONMENT_T
+        WHERE DEVICE_ID = #{deviceId}
+          AND METRIC_CODE = #{metricCode}
+          AND COLLECTED_AT >= DATE_SUB(NOW(), INTERVAL #{minutes} MINUTE)
+        ORDER BY COLLECTED_AT ASC
+    </select>
+
+</mapper>

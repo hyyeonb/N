@@ -45,4 +45,6 @@ public interface CpuMemMapper {
     List<CpuMemVO> findByDeviceIdAndTimeRange(@Param("deviceId") Integer deviceId,
                                                @Param("startTime") LocalDateTime startTime,
                                                @Param("endTime") LocalDateTime endTime);
+
+    int deleteByDeviceId(@Param("deviceId") Integer deviceId);
 }

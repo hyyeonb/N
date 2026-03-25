@@ -1,8 +1,14 @@
 package dev3.nms.controller;
 
+import dev3.nms.config.AuditLog;
+import dev3.nms.config.RequireEditPermission;
+import dev3.nms.config.RequireGroupAccess;
+import dev3.nms.service.PermissionService;
 import dev3.nms.service.WatchService;
+import dev3.nms.util.SessionUtil;
 import dev3.nms.vo.common.ResVO;
 import dev3.nms.vo.watch.*;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -25,6 +31,7 @@ import java.util.Map;
 public class WatchController {
 
     private final WatchService watchService;
+    private final PermissionService permissionService;
 
     // ==================== 관제 그룹 CRUD ====================
 
@@ -32,9 +39,16 @@ public class WatchController {
      * 관제 그룹 목록 조회
      */
     @GetMapping("/groups")
-    public ResponseEntity<ResVO<List<WatchGroupVO>>> getGroups() {
+    public ResponseEntity<ResVO<List<WatchGroupVO>>> getGroups(HttpSession session) {
         try {
             List<WatchGroupVO> groups = watchService.getAllGroups();
+            Long userId = SessionUtil.getUserId(session);
+            List<Long> accessibleWatchGroupIds = permissionService.getAccessibleWatchGroupIds(userId);
+            if (accessibleWatchGroupIds != null) {
+                groups = groups.stream()
+                        .filter(g -> accessibleWatchGroupIds.contains(g.getWATCH_GROUP_ID().longValue()))
+                        .toList();
+            }
             return ResponseEntity.ok(new ResVO<>(200, "조회 성공", groups));
         } catch (Exception e) {
             log.error("관제 그룹 목록 조회 실패: {}", e.getMessage());
@@ -46,6 +60,7 @@ public class WatchController {
     /**
      * 관제 그룹 상세 조회 (장비 + 인터페이스 포함)
      */
+    @RequireGroupAccess(groupType = "WATCH", action = "VIEW")
     @GetMapping("/groups/{watchGroupId}")
     public ResponseEntity<ResVO<WatchGroupVO>> getGroupDetail(@PathVariable Integer watchGroupId) {
         try {
@@ -71,6 +86,8 @@ public class WatchController {
      *   ]
      * }
      */
+    @AuditLog(actionType = "CREATE", targetType = "WATCH_GROUP", pageCode = "watch_realtime")
+    @RequireEditPermission("watch_realtime")
     @PostMapping("/groups")
     public ResponseEntity<ResVO<WatchGroupVO>> createGroup(@RequestBody Map<String, Object> requestBody) {
         try {
@@ -110,6 +127,8 @@ public class WatchController {
     /**
      * 관제 그룹 수정
      */
+    @AuditLog(actionType = "UPDATE", targetType = "WATCH_GROUP", pageCode = "watch_realtime")
+    @RequireEditPermission("watch_realtime")
     @PutMapping("/groups/{watchGroupId}")
     public ResponseEntity<ResVO<WatchGroupVO>> updateGroup(
             @PathVariable Integer watchGroupId,
@@ -153,6 +172,8 @@ public class WatchController {
     /**
      * 관제 그룹 삭제
      */
+    @AuditLog(actionType = "DELETE", targetType = "WATCH_GROUP", pageCode = "watch_realtime")
+    @RequireEditPermission("watch_realtime")
     @DeleteMapping("/groups/{watchGroupId}")
     public ResponseEntity<ResVO<Void>> deleteGroup(@PathVariable Integer watchGroupId) {
         try {
@@ -171,6 +192,8 @@ public class WatchController {
     /**
      * 관제 그룹 이동 (드래그 앤 드롭)
      */
+    @AuditLog(actionType = "UPDATE", targetType = "WATCH_GROUP", pageCode = "watch_realtime")
+    @RequireEditPermission("watch_realtime")
     @PatchMapping("/groups/{watchGroupId}/move")
     public ResponseEntity<ResVO<Void>> moveGroup(
             @PathVariable Integer watchGroupId,
@@ -194,6 +217,8 @@ public class WatchController {
     /**
      * 관제 그룹 아이콘 설정
      */
+    @AuditLog(actionType = "UPDATE", targetType = "WATCH_GROUP", pageCode = "watch_realtime")
+    @RequireEditPermission("watch_realtime")
     @PatchMapping("/groups/{watchGroupId}/icon")
     public ResponseEntity<ResVO<Void>> updateGroupIcon(
             @PathVariable Integer watchGroupId,
@@ -232,7 +257,9 @@ public class WatchController {
     /**
      * 장비 그룹 가져오기 (R_GROUP_T → R_WATCH_GROUP_T 연동)
      */
+    @AuditLog(actionType = "CREATE", targetType = "WATCH_GROUP", pageCode = "watch_realtime")
     @SuppressWarnings("unchecked")
+    @RequireEditPermission("watch_realtime")
     @PostMapping("/groups/import")
     public ResponseEntity<ResVO<List<WatchGroupVO>>> importFromGroups(@RequestBody Map<String, Object> requestBody) {
         try {
@@ -268,6 +295,8 @@ public class WatchController {
     /**
      * 연동 해제 (linked watch group 삭제)
      */
+    @AuditLog(actionType = "DELETE", targetType = "WATCH_GROUP", pageCode = "watch_realtime")
+    @RequireEditPermission("watch_realtime")
     @DeleteMapping("/groups/linked/{linkedGroupId}")
     public ResponseEntity<ResVO<Void>> deleteLinkedGroup(@PathVariable Integer linkedGroupId) {
         try {
@@ -305,6 +334,8 @@ public class WatchController {
      * - 연결된 관제 그룹이 없으면 자동 생성
      * - 장비/인터페이스를 매핑 테이블에 동기화
      */
+    @AuditLog(actionType = "CREATE", targetType = "WATCH_GROUP", pageCode = "watch_realtime")
+    @RequireEditPermission("watch_realtime")
     @PostMapping("/groups/sync-from-group/{groupId}")
     public ResponseEntity<ResVO<WatchGroupVO>> syncFromRegularGroup(@PathVariable Integer groupId) {
         try {
@@ -325,6 +356,8 @@ public class WatchController {
     /**
      * 관제 수집 시작
      */
+    @AuditLog(actionType = "UPDATE", targetType = "WATCH_CONTROL", pageCode = "watch_realtime")
+    @RequireEditPermission("watch_realtime")
     @PostMapping("/start/{watchGroupId}")
     public ResponseEntity<ResVO<Void>> startWatch(@PathVariable Integer watchGroupId) {
         try {
@@ -343,6 +376,8 @@ public class WatchController {
     /**
      * 관제 수집 중지
      */
+    @AuditLog(actionType = "UPDATE", targetType = "WATCH_CONTROL", pageCode = "watch_realtime")
+    @RequireEditPermission("watch_realtime")
     @PostMapping("/stop/{watchGroupId}")
     public ResponseEntity<ResVO<Void>> stopWatch(@PathVariable Integer watchGroupId) {
         try {
@@ -376,8 +411,14 @@ public class WatchController {
      * 최신 메트릭 조회
      */
     @GetMapping("/metrics/{watchGroupId}")
-    public ResponseEntity<ResVO<WatchMetricsVO>> getMetrics(@PathVariable Integer watchGroupId) {
+    public ResponseEntity<ResVO<WatchMetricsVO>> getMetrics(@PathVariable Integer watchGroupId, HttpSession session) {
         try {
+            Long userId = SessionUtil.getUserId(session);
+            List<Long> accessibleWatchGroupIds = permissionService.getAccessibleWatchGroupIds(userId);
+            if (accessibleWatchGroupIds != null && !accessibleWatchGroupIds.contains(watchGroupId.longValue())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(new ResVO<>(403, "해당 관제 그룹에 접근할 수 없습니다", null));
+            }
             WatchMetricsVO metrics = watchService.getLatestMetrics(watchGroupId);
             if (metrics == null) {
                 return ResponseEntity.ok(new ResVO<>(200, "메트릭 없음", null));
@@ -396,8 +437,15 @@ public class WatchController {
     @GetMapping("/history/{watchGroupId}/{deviceId}")
     public ResponseEntity<ResVO<List<WatchHistoryVO>>> getHistory(
             @PathVariable Integer watchGroupId,
-            @PathVariable Integer deviceId) {
+            @PathVariable Integer deviceId,
+            HttpSession session) {
         try {
+            Long userId = SessionUtil.getUserId(session);
+            List<Long> accessibleWatchGroupIds = permissionService.getAccessibleWatchGroupIds(userId);
+            if (accessibleWatchGroupIds != null && !accessibleWatchGroupIds.contains(watchGroupId.longValue())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(new ResVO<>(403, "해당 관제 그룹에 접근할 수 없습니다", null));
+            }
             List<WatchHistoryVO> history = watchService.getHistory(watchGroupId, deviceId);
             return ResponseEntity.ok(new ResVO<>(200, "조회 성공", history));
         } catch (Exception e) {

@@ -24,4 +24,5 @@ public interface SocialAccountMapper {
      */
     int countByUserIdAndSocialType(@Param("USER_ID") Long userId,
                                      @Param("SOCIAL_TYPE") String socialType);
+
 }

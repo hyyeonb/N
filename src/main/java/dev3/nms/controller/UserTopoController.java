@@ -1,8 +1,12 @@
 package dev3.nms.controller;
 
+import dev3.nms.config.AuditLog;
+import dev3.nms.config.RequireEditPermission;
 import dev3.nms.service.UserTopoService;
+import dev3.nms.util.SessionUtil;
 import dev3.nms.vo.common.ResVO;
 import dev3.nms.vo.topo.UserTopoDto;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -21,7 +25,11 @@ public class UserTopoController {
      * 사용자 메인 토폴로지 조회
      */
     @GetMapping("/{userId:\\d+}")
-    public ResponseEntity<ResVO<UserTopoDto.ViewRes>> getUserTopo(@PathVariable Long userId) {
+    public ResponseEntity<ResVO<UserTopoDto.ViewRes>> getUserTopo(@PathVariable Long userId, HttpSession session) {
+        Long currentUserId = SessionUtil.getUserId(session);
+        if (currentUserId == null || !currentUserId.equals(userId)) {
+            return new ResponseEntity<>(new ResVO<>(403, "접근 권한이 없습니다", null), HttpStatus.FORBIDDEN);
+        }
         UserTopoDto.ViewRes result = userTopoService.getUserTopo(userId, 0L);
         ResVO<UserTopoDto.ViewRes> response = new ResVO<>(200, "조회 성공", result);
         return new ResponseEntity<>(response, HttpStatus.OK);
@@ -30,6 +38,8 @@ public class UserTopoController {
     /**
      * 사용자 메인 토폴로지 저장 (전체 교체)
      */
+    @AuditLog(actionType = "UPDATE", targetType = "USER_TOPOLOGY", pageCode = "user_topology")
+    @RequireEditPermission("user_topology")
     @PutMapping("/{userId:\\d+}")
     public ResponseEntity<ResVO<UserTopoDto.ViewRes>> saveUserTopo(
             @PathVariable Long userId,
@@ -46,8 +56,13 @@ public class UserTopoController {
     @GetMapping("/{userId:\\d+}/group/{groupId:\\d+}")
     public ResponseEntity<ResVO<UserTopoDto.ViewRes>> getUserGroupTopo(
             @PathVariable Long userId,
-            @PathVariable Long groupId
+            @PathVariable Long groupId,
+            HttpSession session
     ) {
+        Long currentUserId = SessionUtil.getUserId(session);
+        if (currentUserId == null || !currentUserId.equals(userId)) {
+            return new ResponseEntity<>(new ResVO<>(403, "접근 권한이 없습니다", null), HttpStatus.FORBIDDEN);
+        }
         UserTopoDto.ViewRes result = userTopoService.getUserTopo(userId, groupId);
         ResVO<UserTopoDto.ViewRes> response = new ResVO<>(200, "조회 성공", result);
         return new ResponseEntity<>(response, HttpStatus.OK);
@@ -56,6 +71,8 @@ public class UserTopoController {
     /**
      * 사용자 그룹 하위 토폴로지 저장 (전체 교체)
      */
+    @AuditLog(actionType = "UPDATE", targetType = "USER_TOPOLOGY", pageCode = "user_topology")
+    @RequireEditPermission("user_topology")
     @PutMapping("/{userId:\\d+}/group/{groupId:\\d+}")
     public ResponseEntity<ResVO<UserTopoDto.ViewRes>> saveUserGroupTopo(
             @PathVariable Long userId,
@@ -70,6 +87,8 @@ public class UserTopoController {
     /**
      * 배경 이미지 저장
      */
+    @AuditLog(actionType = "UPDATE", targetType = "USER_TOPOLOGY", pageCode = "user_topology")
+    @RequireEditPermission("user_topology")
     @PutMapping("/back-img")
     public ResponseEntity<ResVO<Boolean>> saveBackImg(
             @RequestBody UserTopoDto.SaveBackImgReq req
@@ -82,6 +101,8 @@ public class UserTopoController {
     /**
      * 노드 커스텀 아이콘 저장
      */
+    @AuditLog(actionType = "UPDATE", targetType = "USER_TOPOLOGY", pageCode = "user_topology")
+    @RequireEditPermission("user_topology")
     @PutMapping("/node-img")
     public ResponseEntity<ResVO<Boolean>> saveNodeImg(
             @RequestBody UserTopoDto.SaveNodeImgReq req

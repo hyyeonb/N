@@ -9,8 +9,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -20,13 +22,8 @@ public class GroupService {
     private final GroupMapper groupMapper;
     private final TempDeviceService tempDeviceService; // TempDeviceService 의존성 주입
 
-    // TODO: 현재 로그인한 사용자 ID를 가져오는 로직 추가 필요 (세션 또는 Spring Security 연동)
-    private Integer getCurrentUserId() {
-        return 1; // Placeholder for logged-in user ID
-    }
-
     @Transactional
-    public GroupVO createGroup(GroupVO group) {
+    public GroupVO createGroup(GroupVO group, Integer userId) {
         if (group.getPARENT_GROUP_ID() != null) {
             GroupVO parentGroup = groupMapper.findGroupById(group.getPARENT_GROUP_ID())
                     .orElseThrow(() -> new IllegalArgumentException("Parent group not found with ID: " + group.getPARENT_GROUP_ID()));
@@ -34,29 +31,73 @@ public class GroupService {
         } else {
             group.setDEPTH(0); // Root group
         }
-        group.setCREATE_USER_ID(getCurrentUserId());
+        group.setCREATE_USER_ID(userId);
         groupMapper.insertGroup(group);
         return group;
     }
 
     @Transactional(readOnly = true)
     public List<GroupVO> getGroupHierarchy() {
+        return getGroupHierarchy(null);
+    }
+
+    /**
+     * 그룹 트리 조회 (접근 가능 그룹 필터링)
+     * @param accessibleGroupIds null이면 전체, 리스트이면 해당 그룹 + 상위 경로만 표시
+     */
+    @Transactional(readOnly = true)
+    public List<GroupVO> getGroupHierarchy(List<Long> accessibleGroupIds) {
         List<GroupVO> flatList = groupMapper.findAllGroups();
         Map<Integer, GroupVO> groupMap = flatList.stream()
                 .collect(Collectors.toMap(GroupVO::getGROUP_ID, group -> group));
 
+        // 접근 가능 그룹 + 상위 경로 계산
+        Set<Integer> visibleGroupIds = null;
+        if (accessibleGroupIds != null) {
+            visibleGroupIds = new HashSet<>();
+            Set<Integer> allowedIds = accessibleGroupIds.stream()
+                    .map(Long::intValue)
+                    .collect(Collectors.toSet());
+
+            // 허용된 그룹의 상위 경로(루트까지) 추가
+            for (Integer gid : allowedIds) {
+                Integer current = gid;
+                while (current != null && current != 0) {
+                    visibleGroupIds.add(current);
+                    GroupVO g = groupMap.get(current);
+                    if (g == null) break;
+                    current = g.getPARENT_GROUP_ID();
+                }
+            }
+        }
+
+        // 필터링된 flatList
+        List<GroupVO> filteredList = flatList;
+        if (visibleGroupIds != null) {
+            Set<Integer> finalVisible = visibleGroupIds;
+            filteredList = flatList.stream()
+                    .filter(g -> finalVisible.contains(g.getGROUP_ID()))
+                    .toList();
+        }
+
+        // 트리 구축
+        // 필터링 후 새 맵 생성 (children 초기화)
+        Map<Integer, GroupVO> filteredMap = filteredList.stream()
+                .peek(g -> g.setChildren(null))
+                .collect(Collectors.toMap(GroupVO::getGROUP_ID, g -> g));
+
         List<GroupVO> hierarchy = new ArrayList<>();
-        for (GroupVO group : flatList) {
-            if (group.getPARENT_GROUP_ID() == null || group.getPARENT_GROUP_ID() == 0) { // 최상위 그룹
+        for (GroupVO group : filteredList) {
+            if (group.getPARENT_GROUP_ID() == null || group.getPARENT_GROUP_ID() == 0
+                    || !filteredMap.containsKey(group.getPARENT_GROUP_ID())) {
                 hierarchy.add(group);
             } else {
-                GroupVO parent = groupMap.get(group.getPARENT_GROUP_ID());
+                GroupVO parent = filteredMap.get(group.getPARENT_GROUP_ID());
                 if (parent != null) {
                     if (parent.getChildren() == null) {
                         parent.setChildren(new ArrayList<>());
                     }
-                    List<GroupVO> children = parent.getChildren();
-                    children.add(group);
+                    parent.getChildren().add(group);
                 }
             }
         }
@@ -75,7 +116,7 @@ public class GroupService {
                     .build();
             hierarchy.add(unassignedGroup);
         }
-        
+
         return hierarchy;
     }
 
@@ -86,7 +127,7 @@ public class GroupService {
     }
 
     @Transactional
-    public GroupVO updateGroup(Integer groupId, GroupVO groupUpdates) {
+    public GroupVO updateGroup(Integer groupId, GroupVO groupUpdates, Integer userId) {
         GroupVO existingGroup = getGroupById(groupId);
         
         // Update fields if provided
@@ -113,7 +154,7 @@ public class GroupService {
             existingGroup.setDEPTH(0);
         }
 
-        existingGroup.setMODIFY_USER_ID(getCurrentUserId());
+        existingGroup.setMODIFY_USER_ID(userId);
         groupMapper.updateGroup(existingGroup);
         return existingGroup;
     }
@@ -122,13 +163,13 @@ public class GroupService {
      * 그룹 삭제 (하위 그룹도 함께 삭제)
      */
     @Transactional
-    public void deleteGroup(Integer groupId) {
+    public void deleteGroup(Integer groupId, Integer userId) {
         // 그룹 존재 확인
         getGroupById(groupId);
 
         GroupVO groupForDelete = GroupVO.builder()
                                         .GROUP_ID(groupId)
-                                        .DELETE_USER_ID(getCurrentUserId())
+                                        .DELETE_USER_ID(userId)
                                         .build();
 
         // 자식 그룹도 함께 재귀적으로 삭제
@@ -158,7 +199,7 @@ public class GroupService {
      * 그룹 이동 (하위 그룹도 함께 이동, DEPTH 재계산)
      */
     @Transactional
-    public GroupVO moveGroup(Integer groupId, Integer newParentId) {
+    public GroupVO moveGroup(Integer groupId, Integer newParentId, Integer userId) {
         GroupVO group = getGroupById(groupId);
 
         // 자기 자신을 부모로 설정하려는 경우
@@ -185,7 +226,7 @@ public class GroupService {
         }
 
         group.setDEPTH(newDepth);
-        group.setMODIFY_USER_ID(getCurrentUserId());
+        group.setMODIFY_USER_ID(userId);
         groupMapper.updateGroup(group);
 
         // 하위 그룹들의 DEPTH도 재계산
@@ -198,10 +239,10 @@ public class GroupService {
      * 그룹 아이콘 설정
      */
     @Transactional
-    public GroupVO updateGroupIcon(Integer groupId, String iconName) {
+    public GroupVO updateGroupIcon(Integer groupId, String iconName, Integer userId) {
         GroupVO existingGroup = getGroupById(groupId);
         existingGroup.setICON_NAME(iconName);
-        existingGroup.setMODIFY_USER_ID(getCurrentUserId());
+        existingGroup.setMODIFY_USER_ID(userId);
         groupMapper.updateGroupIcon(groupId, iconName);
         return existingGroup;
     }

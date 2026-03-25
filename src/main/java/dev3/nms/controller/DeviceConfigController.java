@@ -3,11 +3,14 @@ package dev3.nms.controller;
 import dev3.nms.mapper.DeviceConfigMapper;
 import dev3.nms.mapper.GroupMapper;
 import dev3.nms.service.DeviceConfigService;
+import dev3.nms.service.PermissionService;
+import dev3.nms.util.SessionUtil;
 import dev3.nms.vo.common.PageVO;
 import dev3.nms.vo.common.ResVO;
 import dev3.nms.vo.dashboard.DashboardDto;
 import dev3.nms.vo.deviceConfig.DeviceConfigDto;
 import dev3.nms.vo.mgmt.DeviceVO;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -26,12 +29,19 @@ public class DeviceConfigController {
 
     private final DeviceConfigService deviceConfigService;
     private final GroupMapper groupMapper;
+    private final PermissionService permissionService;
 
     @GetMapping("/{deviceId}")
     public ResponseEntity<ResVO<DeviceConfigDto.DeviceConfigRes>> getWidgetsView(
             @PathVariable Long deviceId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            HttpSession session
     ) {
+        Long userId = SessionUtil.getUserId(session);
+        List<Long> accessibleDeviceIds = permissionService.getAccessibleDeviceIds(userId);
+        if (accessibleDeviceIds != null && !accessibleDeviceIds.contains(deviceId)) {
+            return new ResponseEntity<>(new ResVO<>(403, "해당 장비에 접근할 수 없습니다", null), HttpStatus.FORBIDDEN);
+        }
         DeviceConfigDto.DeviceConfigRes deviceConfig = deviceConfigService.getDeviceConfig(deviceId, date);
         ResVO<DeviceConfigDto.DeviceConfigRes> response = new ResVO<>(200, "장비 Config 조회 성공", deviceConfig);
         return new ResponseEntity<>(response, HttpStatus.OK);
@@ -51,8 +61,14 @@ public class DeviceConfigController {
             @RequestParam(defaultValue = "asc") String order,
             @RequestParam(required = false) String deviceName,
             @RequestParam(required = false) String deviceIp,
-            @RequestParam(required = false) String groupName) {
+            @RequestParam(required = false) String groupName,
+            HttpSession session) {
         try {
+            Long userId = SessionUtil.getUserId(session);
+            List<Long> accessibleGroupIds = permissionService.getAccessibleAssetGroupIds(userId);
+            if (accessibleGroupIds != null && !accessibleGroupIds.contains((long) groupId)) {
+                return new ResponseEntity<>(new ResVO<>(403, "해당 그룹에 접근할 수 없습니다", null), HttpStatus.FORBIDDEN);
+            }
             List<Integer> groupIds;
             if (includeChildren) {
                 // 선택한 그룹 + 모든 하위 그룹 ID 조회

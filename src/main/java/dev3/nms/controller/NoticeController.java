@@ -1,5 +1,7 @@
 package dev3.nms.controller;
 
+import dev3.nms.config.AuditLog;
+import dev3.nms.config.RequireEditPermission;
 import dev3.nms.service.NoticeService;
 import dev3.nms.vo.common.PageVO;
 import dev3.nms.vo.common.ResVO;
@@ -49,6 +51,8 @@ public class NoticeController {
     /**
      * 등록 (긴급공지면 WebSocket 브로드캐스트)
      */
+    @AuditLog(actionType = "CREATE", targetType = "NOTICE", pageCode = "board_notices")
+    @RequireEditPermission("board_notices")
     @PostMapping("/posts")
     public ResponseEntity<ResVO<NoticeDto.PostDetailRes>> createPost(
             @RequestBody NoticeDto.PostCreateReq req
@@ -61,6 +65,8 @@ public class NoticeController {
     /**
      * 수정
      */
+    @AuditLog(actionType = "UPDATE", targetType = "NOTICE", pageCode = "board_notices")
+    @RequireEditPermission("board_notices")
     @PutMapping("/posts/{noticeId}")
     public ResponseEntity<ResVO<NoticeDto.PostDetailRes>> updatePost(
             @PathVariable Long noticeId,
@@ -74,6 +80,8 @@ public class NoticeController {
     /**
      * 삭제 (소프트)
      */
+    @AuditLog(actionType = "DELETE", targetType = "NOTICE", pageCode = "board_notices")
+    @RequireEditPermission("board_notices")
     @DeleteMapping("/posts/{noticeId}")
     public ResponseEntity<ResVO<Void>> deletePost(@PathVariable Long noticeId) {
         noticeService.deletePost(noticeId);

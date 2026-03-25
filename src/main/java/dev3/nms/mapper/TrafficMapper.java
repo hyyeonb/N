@@ -49,4 +49,6 @@ public interface TrafficMapper {
      * @return 포트별 최신 트래픽 데이터
      */
     List<TrafficVO> findLatestByDeviceId(@Param("deviceId") Integer deviceId);
+
+    int deleteByDeviceId(@Param("deviceId") Integer deviceId);
 }

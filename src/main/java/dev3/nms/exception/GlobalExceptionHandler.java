@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import org.springframework.security.access.AccessDeniedException;
+
 import java.util.Map;
 
 /**
@@ -24,6 +26,16 @@ import java.util.Map;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    /**
+     * 권한 부족 예외 처리 (Spring Security)
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ResVO<Object>> handleAccessDeniedException(AccessDeniedException ex) {
+        log.warn("접근 거부: {}", ex.getMessage());
+        ResVO<Object> response = new ResVO<>(HttpStatus.FORBIDDEN.value(), "권한이 없습니다", null);
+        return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
+    }
 
     /**
      * 중복 이메일 예외 처리 (기존)

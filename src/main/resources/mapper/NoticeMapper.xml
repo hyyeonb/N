@@ -14,7 +14,7 @@
             U.NAME       AS userName,
             P.CREATED_AT AS createdAt
         FROM r_notice_post_t P
-            LEFT JOIN USER U ON P.USER_ID = U.USER_ID
+            LEFT JOIN R_USER_T U ON P.USER_ID = U.USER_ID
         WHERE P.DEL_YN = 'N'
         <if test="search != null and search != ''">
             AND (P.TITLE LIKE CONCAT('%', #{search}, '%')
@@ -49,7 +49,7 @@
             P.CREATED_AT AS createdAt,
             P.UPDATED_AT AS updatedAt
         FROM r_notice_post_t P
-            LEFT JOIN USER U ON P.USER_ID = U.USER_ID
+            LEFT JOIN R_USER_T U ON P.USER_ID = U.USER_ID
         WHERE P.NOTICE_ID = #{noticeId}
           AND P.DEL_YN = 'N'
     </select>

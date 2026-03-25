@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="dev3.nms.mapper.ThresholdMapper">
+
+    <!-- 시스템 기본 임계치 -->
+    <select id="findAllBase" resultType="dev3.nms.vo.mgmt.ThresholdVO">
+        SELECT TYPE, CRITICAL, MAJOR, MINOR, WARNING
+        FROM b_threshold_t
+        ORDER BY FIELD(TYPE, 'CPU', 'MEM', 'TRAFFIC')
+    </select>
+
+    <update id="updateBase" parameterType="dev3.nms.vo.mgmt.ThresholdVO">
+        UPDATE b_threshold_t
+        SET CRITICAL = #{CRITICAL}, MAJOR = #{MAJOR}, MINOR = #{MINOR}, WARNING = #{WARNING}
+        WHERE TYPE = #{TYPE}
+    </update>
+
+    <!-- 장비별 오버라이드 전체 조회 (장비명, IP 포함) -->
+    <select id="findAllDevice" resultType="dev3.nms.vo.mgmt.ThresholdVO">
+        SELECT t.DEVICE_ID, t.TYPE, t.CRITICAL, t.MAJOR, t.MINOR, t.WARNING,
+               d.DEVICE_NAME, d.DEVICE_IP
+        FROM r_threshold_t t
+        LEFT JOIN r_device_t d ON t.DEVICE_ID = d.DEVICE_ID AND d.DELETE_AT IS NULL
+        ORDER BY t.DEVICE_ID, FIELD(t.TYPE, 'CPU', 'MEM', 'TRAFFIC')
+    </select>
+
+    <!-- 특정 장비 오버라이드 조회 -->
+    <select id="findByDeviceId" resultType="dev3.nms.vo.mgmt.ThresholdVO">
+        SELECT t.DEVICE_ID, t.TYPE, t.CRITICAL, t.MAJOR, t.MINOR, t.WARNING,
+               d.DEVICE_NAME, d.DEVICE_IP
+        FROM r_threshold_t t
+        LEFT JOIN r_device_t d ON t.DEVICE_ID = d.DEVICE_ID AND d.DELETE_AT IS NULL
+        WHERE t.DEVICE_ID = #{deviceId}
+        ORDER BY FIELD(t.TYPE, 'CPU', 'MEM', 'TRAFFIC')
+    </select>
+
+    <!-- 장비별 임계치 UPSERT -->
+    <insert id="upsertDevice" parameterType="dev3.nms.vo.mgmt.ThresholdVO">
+        INSERT INTO r_threshold_t (DEVICE_ID, TYPE, CRITICAL, MAJOR, MINOR, WARNING)
+        VALUES (#{DEVICE_ID}, #{TYPE}, #{CRITICAL}, #{MAJOR}, #{MINOR}, #{WARNING})
+        ON DUPLICATE KEY UPDATE
+            CRITICAL = #{CRITICAL}, MAJOR = #{MAJOR}, MINOR = #{MINOR}, WARNING = #{WARNING}
+    </insert>
+
+    <!-- 장비별 오버라이드 삭제 (시스템 기본값으로 복귀) -->
+    <delete id="deleteByDeviceId">
+        DELETE FROM r_threshold_t WHERE DEVICE_ID = #{deviceId}
+    </delete>
+
+</mapper>

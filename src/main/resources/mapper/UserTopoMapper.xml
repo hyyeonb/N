@@ -72,9 +72,9 @@
             COALESCE(n.FX, n.X) AS fx,
             COALESCE(n.FY, n.Y) AS fy
         FROM r_user_tpo_node_t n
-            LEFT JOIN r_device_t d  ON n.DEVICE_ID = d.DEVICE_ID
-            LEFT JOIN r_group_t  g  ON n.GROUP_ID  = g.GROUP_ID
-            LEFT JOIN r_group_t  gd ON d.GROUP_ID  = gd.GROUP_ID
+            LEFT JOIN r_device_t d  ON n.DEVICE_ID = d.DEVICE_ID AND d.DELETE_AT IS NULL
+            LEFT JOIN r_group_t  g  ON n.GROUP_ID  = g.GROUP_ID AND g.DELETE_AT IS NULL
+            LEFT JOIN r_group_t  gd ON d.GROUP_ID  = gd.GROUP_ID AND gd.DELETE_AT IS NULL
             LEFT JOIN r_model_t  m  ON d.MODEL_ID  = m.MODEL_ID
         WHERE n.VIEW_ID = #{viewId}
         ORDER BY n.NODE_KEY
@@ -109,8 +109,8 @@
             dp.IF_NAME     AS dstIfName,
             l.STATUS       AS status
         FROM r_user_tpo_link_t l
-            LEFT JOIN r_port_t sp ON l.SRC_NODE_KEY = sp.DEVICE_ID AND l.SRC_IF_KEY = sp.IF_INDEX
-            LEFT JOIN r_port_t dp ON l.DST_NODE_KEY = dp.DEVICE_ID AND l.DST_IF_KEY = dp.IF_INDEX
+            LEFT JOIN r_port_t sp ON l.SRC_NODE_KEY = sp.DEVICE_ID AND l.SRC_IF_KEY = sp.IF_INDEX AND sp.DELETE_AT IS NULL
+            LEFT JOIN r_port_t dp ON l.DST_NODE_KEY = dp.DEVICE_ID AND l.DST_IF_KEY = dp.IF_INDEX AND dp.DELETE_AT IS NULL
         WHERE l.VIEW_ID = #{viewId}
     </select>
 

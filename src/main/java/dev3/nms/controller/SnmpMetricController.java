@@ -1,5 +1,6 @@
 package dev3.nms.controller;
 
+import dev3.nms.config.AuditLog;
 import dev3.nms.service.SnmpMetricService;
 import dev3.nms.vo.mgmt.SnmpMetricVO;
 import dev3.nms.vo.mgmt.SnmpModelOidVO;
@@ -61,6 +62,7 @@ public class SnmpMetricController {
     /**
      * 모델 OID 저장 (단일)
      */
+    @AuditLog(actionType = "CREATE", targetType = "MODEL_OID", pageCode = "model_mgmt")
     @PostMapping("/model/{modelId}/oid")
     public ResponseEntity<Map<String, Object>> saveModelOid(
             @PathVariable Integer modelId,
@@ -83,6 +85,7 @@ public class SnmpMetricController {
     /**
      * 모델 OID 일괄 저장
      */
+    @AuditLog(actionType = "CREATE", targetType = "MODEL_OID", pageCode = "model_mgmt")
     @PostMapping("/model/{modelId}/oids")
     public ResponseEntity<Map<String, Object>> saveModelOids(
             @PathVariable Integer modelId,
@@ -104,6 +107,7 @@ public class SnmpMetricController {
     /**
      * 모델 OID 삭제
      */
+    @AuditLog(actionType = "DELETE", targetType = "MODEL_OID", pageCode = "model_mgmt")
     @DeleteMapping("/oid/{oidId}")
     public ResponseEntity<Map<String, Object>> deleteModelOid(@PathVariable Integer oidId) {
         Map<String, Object> response = new HashMap<>();

@@ -145,8 +145,8 @@ public class TrafficService {
             for (LocalDateTime time : timeSet) {
                 TrafficVO vo = timeMap.get(time);
                 if (vo != null) {
-                    Double inBps = vo.getInBpsValue();
-                    Double outBps = vo.getOutBpsValue();
+                    Double inBps = vo.getInPercentValue();
+                    Double outBps = vo.getOutPercentValue();
                     double total = 0;
                     if (inBps != null) total += inBps;
                     if (outBps != null) total += outBps;

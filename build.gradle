@@ -48,8 +48,14 @@ dependencies {
     // SNMP Library
     implementation 'org.snmp4j:snmp4j:3.8.2'
 
-    // Password Encryption (BCrypt)
-    implementation 'org.springframework.security:spring-security-crypto:6.4.2'
+    // Spring Security
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+
+    // Spring AOP (권한 체크 Aspect)
+    implementation 'org.aspectj:aspectjweaver:1.9.22'
+
+    // Spring Session Redis
+    implementation 'org.springframework.session:spring-session-data-redis'
 
     // HTTP Client for Social API
     implementation 'org.springframework.boot:spring-boot-starter-web'

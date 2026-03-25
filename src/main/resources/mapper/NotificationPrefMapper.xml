@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="dev3.nms.mapper.NotificationPrefMapper">
+
+    <resultMap id="NotificationPrefResultMap" type="dev3.nms.vo.auth.NotificationPrefVO">
+        <id property="USER_ID" column="USER_ID"/>
+        <result property="NOTIFY_SNMP" column="NOTIFY_SNMP"/>
+        <result property="NOTIFY_ICMP" column="NOTIFY_ICMP"/>
+        <result property="NOTIFY_PORT" column="NOTIFY_PORT"/>
+        <result property="NOTIFY_CPU_MEM" column="NOTIFY_CPU_MEM"/>
+        <result property="NOTIFY_TRAFFIC" column="NOTIFY_TRAFFIC"/>
+        <result property="NOTIFY_URGENT" column="NOTIFY_URGENT"/>
+        <result property="NOTIFY_CRITICAL" column="NOTIFY_CRITICAL"/>
+        <result property="NOTIFY_MAJOR" column="NOTIFY_MAJOR"/>
+        <result property="NOTIFY_MINOR" column="NOTIFY_MINOR"/>
+        <result property="NOTIFY_WARNING" column="NOTIFY_WARNING"/>
+        <result property="SOUND_ENABLED" column="SOUND_ENABLED"/>
+        <result property="SOUND_VOLUME" column="SOUND_VOLUME"/>
+        <result property="SOUND_TYPE" column="SOUND_TYPE"/>
+        <result property="BROWSER_NOTIFY" column="BROWSER_NOTIFY"/>
+        <result property="QUIET_ENABLED" column="QUIET_ENABLED"/>
+        <result property="QUIET_START_TIME" column="QUIET_START_TIME"/>
+        <result property="QUIET_END_TIME" column="QUIET_END_TIME"/>
+        <result property="CREATE_AT" column="CREATE_AT"/>
+        <result property="MODIFY_AT" column="MODIFY_AT"/>
+    </resultMap>
+
+    <select id="findByUserId" resultMap="NotificationPrefResultMap">
+        SELECT * FROM R_USER_NOTIFICATION_PREF_T WHERE USER_ID = #{USER_ID}
+    </select>
+
+    <insert id="insert" parameterType="dev3.nms.vo.auth.NotificationPrefVO">
+        INSERT INTO R_USER_NOTIFICATION_PREF_T (
+            USER_ID, NOTIFY_SNMP, NOTIFY_ICMP, NOTIFY_PORT, NOTIFY_CPU_MEM,
+            NOTIFY_TRAFFIC, NOTIFY_URGENT,
+            NOTIFY_CRITICAL, NOTIFY_MAJOR, NOTIFY_MINOR, NOTIFY_WARNING,
+            SOUND_ENABLED, SOUND_VOLUME, SOUND_TYPE,
+            BROWSER_NOTIFY, QUIET_ENABLED, QUIET_START_TIME, QUIET_END_TIME
+        ) VALUES (
+            #{USER_ID}, #{NOTIFY_SNMP}, #{NOTIFY_ICMP}, #{NOTIFY_PORT}, #{NOTIFY_CPU_MEM},
+            #{NOTIFY_TRAFFIC}, #{NOTIFY_URGENT},
+            #{NOTIFY_CRITICAL}, #{NOTIFY_MAJOR}, #{NOTIFY_MINOR}, #{NOTIFY_WARNING},
+            #{SOUND_ENABLED}, #{SOUND_VOLUME}, #{SOUND_TYPE},
+            #{BROWSER_NOTIFY}, #{QUIET_ENABLED}, #{QUIET_START_TIME}, #{QUIET_END_TIME}
+        )
+    </insert>
+
+    <update id="update" parameterType="dev3.nms.vo.auth.NotificationPrefVO">
+        UPDATE R_USER_NOTIFICATION_PREF_T
+        SET NOTIFY_SNMP = #{NOTIFY_SNMP},
+            NOTIFY_ICMP = #{NOTIFY_ICMP},
+            NOTIFY_PORT = #{NOTIFY_PORT},
+            NOTIFY_CPU_MEM = #{NOTIFY_CPU_MEM},
+            NOTIFY_TRAFFIC = #{NOTIFY_TRAFFIC},
+            NOTIFY_URGENT = #{NOTIFY_URGENT},
+            NOTIFY_CRITICAL = #{NOTIFY_CRITICAL},
+            NOTIFY_MAJOR = #{NOTIFY_MAJOR},
+            NOTIFY_MINOR = #{NOTIFY_MINOR},
+            NOTIFY_WARNING = #{NOTIFY_WARNING},
+            SOUND_ENABLED = #{SOUND_ENABLED},
+            SOUND_VOLUME = #{SOUND_VOLUME},
+            SOUND_TYPE = #{SOUND_TYPE},
+            BROWSER_NOTIFY = #{BROWSER_NOTIFY},
+            QUIET_ENABLED = #{QUIET_ENABLED},
+            QUIET_START_TIME = #{QUIET_START_TIME},
+            QUIET_END_TIME = #{QUIET_END_TIME}
+        WHERE USER_ID = #{USER_ID}
+    </update>
+
+</mapper>

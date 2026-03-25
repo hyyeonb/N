@@ -38,7 +38,7 @@ public class DashboardService {
         }
     }
 
-    public List<DashboardDto.DefaultWidgetRes> getDefaultWidget() {
+    public List<DashboardDto.DefaultWidgetRes> getDefaultWidget(List<Long> accessibleDeviceIds) {
         try {
             List<DashboardDto.DefaultWidgetRes> defaultWidgetList = dashboardMapper.getDefaultWidget();
             if (defaultWidgetList.isEmpty()) return defaultWidgetList;
@@ -46,7 +46,7 @@ public class DashboardService {
             List<CompletableFuture<Void>> futures = defaultWidgetList.stream()
                     .map(defaultWidget -> CompletableFuture.runAsync(() -> {
                         try {
-                            loadDefaultWidgetData(defaultWidget, om);
+                            loadDefaultWidgetData(defaultWidget, om, accessibleDeviceIds);
                         } catch (Exception e) {
                             log.warn("기본 위젯 데이터 로드 실패 - widgetId: {}, error: {}", defaultWidget.getWidgetId(), e.getMessage());
                         }
@@ -61,7 +61,7 @@ public class DashboardService {
         }
     }
 
-    public List<DashboardDto.UserWidgetRes> getUserWidget(Long userId) {
+    public List<DashboardDto.UserWidgetRes> getUserWidget(Long userId, List<Long> accessibleDeviceIds) {
         try {
             List<DashboardDto.UserWidgetRes> userWidgets = dashboardMapper.getUserWidget(userId);
             if (userWidgets.isEmpty()) return userWidgets;
@@ -69,7 +69,7 @@ public class DashboardService {
             List<CompletableFuture<Void>> futures = userWidgets.stream()
                     .map(userWidget -> CompletableFuture.runAsync(() -> {
                         try {
-                            loadWidgetData(userWidget, om);
+                            loadWidgetData(userWidget, om, accessibleDeviceIds);
                         } catch (Exception e) {
                             log.warn("위젯 데이터 로드 실패 - widgetId: {}, error: {}", userWidget.getWidgetId(), e.getMessage());
                         }
@@ -87,13 +87,13 @@ public class DashboardService {
     /**
      * 기본 대시보드 특정 위젯 데이터 갱신
      */
-    public DashboardDto.DefaultWidgetRes getDefaultWidgetById(Long widgetId) {
+    public DashboardDto.DefaultWidgetRes getDefaultWidgetById(Long widgetId, List<Long> accessibleDeviceIds) {
         try {
             DashboardDto.DefaultWidgetRes defaultWidget = dashboardMapper.getDefaultWidgetById(widgetId);
             if (defaultWidget == null) {
                 return null;
             }
-            loadDefaultWidgetData(defaultWidget, om);
+            loadDefaultWidgetData(defaultWidget, om, accessibleDeviceIds);
             return defaultWidget;
         } catch (Exception e) {
             log.warn("기본 위젯 단건 조회 실패 - widgetId: {}, error: {}", widgetId, e.getMessage());
@@ -104,13 +104,13 @@ public class DashboardService {
     /**
      * 사용자 대시보드 특정 위젯 데이터 갱신
      */
-    public DashboardDto.UserWidgetRes getUserWidgetById(Long userDashboardWidgetId) {
+    public DashboardDto.UserWidgetRes getUserWidgetById(Long userDashboardWidgetId, List<Long> accessibleDeviceIds) {
         try {
             DashboardDto.UserWidgetRes userWidget = dashboardMapper.getUserWidgetById(userDashboardWidgetId);
             if (userWidget == null) {
                 return null;
             }
-            loadWidgetData(userWidget, om);
+            loadWidgetData(userWidget, om, accessibleDeviceIds);
             return userWidget;
         } catch (Exception e) {
             log.warn("사용자 위젯 단건 조회 실패 - userDashboardWidgetId: {}, error: {}", userDashboardWidgetId, e.getMessage());
@@ -118,7 +118,7 @@ public class DashboardService {
         }
     }
 
-    private void loadDefaultWidgetData(DashboardDto.DefaultWidgetRes defaultWidget, ObjectMapper om) throws Exception {
+    private void loadDefaultWidgetData(DashboardDto.DefaultWidgetRes defaultWidget, ObjectMapper om, List<Long> accessibleDeviceIds) throws Exception {
         DashboardDto.UserWidgetConfig userWidgetConfig = om.readValue(defaultWidget.getConfig(), DashboardDto.UserWidgetConfig.class);
 
         // 그룹구분
@@ -130,6 +130,7 @@ public class DashboardService {
             param.put("metrics", metrics);
             param.put("topN", 5);
             param.put("intervalSec", 300);
+            param.put("accessibleDeviceIds", accessibleDeviceIds);
 
             if ("pie".equals(userWidgetConfig.getChartType())) {
                 defaultWidget.setChartData(dashboardMapper.getWidgetCpuMemPieChartData(param));
@@ -146,6 +147,7 @@ public class DashboardService {
             param.put("metrics", metrics);
             param.put("topN", 5);
             param.put("intervalSec", 300);
+            param.put("accessibleDeviceIds", accessibleDeviceIds);
 
             if ("pie".equals(userWidgetConfig.getChartType())) {
                 defaultWidget.setChartData(dashboardMapper.getWidgetTrafficPieChartData(param));
@@ -162,6 +164,7 @@ public class DashboardService {
             param.put("metrics", metrics);
             param.put("topN", 5);
             param.put("intervalSec", 300);
+            param.put("accessibleDeviceIds", accessibleDeviceIds);
 
             if ("pie".equals(userWidgetConfig.getChartType())) {
                 defaultWidget.setChartData(dashboardMapper.getWidgetIcmpPieChartData(param));
@@ -174,14 +177,14 @@ public class DashboardService {
 
         // 장애 현황
         if ("ALERT_SUMMARY".equals(defaultWidget.getWidgetCode())) {
-            defaultWidget.setCntData(dashboardMapper.getWidgetAlertSummary());
+            defaultWidget.setCntData(dashboardMapper.getWidgetAlertSummary(accessibleDeviceIds));
         } else if ("DEVICE_SUMMARY".equals(defaultWidget.getWidgetCode())) {
             List<DashboardDto.DevCodeData> devCodeList = dashboardMapper.getDevCode();
             DashboardDto.WidgetDeviceCntData deviceCnt = new DashboardDto.WidgetDeviceCntData();
 
             for (DashboardDto.DevCodeData devCode : devCodeList) {
                 List<Long> devCodeIdList = dashboardMapper.getDevCodeAllId(devCode.getDevCodeId());
-                Integer count = dashboardMapper.getDeviceCountBydevCodeId(devCodeIdList);
+                Integer count = dashboardMapper.getDeviceCountBydevCodeId(devCodeIdList, accessibleDeviceIds);
 
                 if ("네트워크".equals(devCode.getCodeNm())) {
                     deviceCnt.setNetworkCnt(count);
@@ -197,7 +200,7 @@ public class DashboardService {
         }
     }
 
-    private void loadWidgetData(DashboardDto.UserWidgetRes userWidget, ObjectMapper om) throws Exception {
+    private void loadWidgetData(DashboardDto.UserWidgetRes userWidget, ObjectMapper om, List<Long> accessibleDeviceIds) throws Exception {
         DashboardDto.UserWidgetConfig userWidgetConfig = om.readValue(userWidget.getConfig(), DashboardDto.UserWidgetConfig.class);
 
         // 그룹구분
@@ -209,6 +212,7 @@ public class DashboardService {
             param.put("metrics", metrics);
             param.put("topN", 5);
             param.put("intervalSec", 300);
+            param.put("accessibleDeviceIds", accessibleDeviceIds);
 
             if ("pie".equals(userWidgetConfig.getChartType())) {
                 userWidget.setChartData(dashboardMapper.getWidgetCpuMemPieChartData(param));
@@ -225,6 +229,7 @@ public class DashboardService {
             param.put("metrics", metrics);
             param.put("topN", 5);
             param.put("intervalSec", 300);
+            param.put("accessibleDeviceIds", accessibleDeviceIds);
 
             if ("pie".equals(userWidgetConfig.getChartType())) {
                 userWidget.setChartData(dashboardMapper.getWidgetTrafficPieChartData(param));
@@ -241,6 +246,7 @@ public class DashboardService {
             param.put("metrics", metrics);
             param.put("topN", 5);
             param.put("intervalSec", 300);
+            param.put("accessibleDeviceIds", accessibleDeviceIds);
 
             if ("pie".equals(userWidgetConfig.getChartType())) {
                 userWidget.setChartData(dashboardMapper.getWidgetIcmpPieChartData(param));
@@ -253,14 +259,14 @@ public class DashboardService {
 
         // 장애 현황
         if ("ALERT_SUMMARY".equals(userWidget.getWidgetCode())) {
-            userWidget.setCntData(dashboardMapper.getWidgetAlertSummary());
+            userWidget.setCntData(dashboardMapper.getWidgetAlertSummary(accessibleDeviceIds));
         } else if ("DEVICE_SUMMARY".equals(userWidget.getWidgetCode())) {
             List<DashboardDto.DevCodeData> devCodeList = dashboardMapper.getDevCode();
             DashboardDto.WidgetDeviceCntData deviceCnt = new DashboardDto.WidgetDeviceCntData();
 
             for (DashboardDto.DevCodeData devCode : devCodeList) {
                 List<Long> devCodeIdList = dashboardMapper.getDevCodeAllId(devCode.getDevCodeId());
-                Integer count = dashboardMapper.getDeviceCountBydevCodeId(devCodeIdList);
+                Integer count = dashboardMapper.getDeviceCountBydevCodeId(devCodeIdList, accessibleDeviceIds);
 
                 if ("네트워크".equals(devCode.getCodeNm())) {
                     deviceCnt.setNetworkCnt(count);
@@ -319,7 +325,7 @@ public class DashboardService {
         }
     }
     @Transactional
-    public List<DashboardDto.UserWidgetRes> resetUserWidget(Long userId) {
+    public List<DashboardDto.UserWidgetRes> resetUserWidget(Long userId, List<Long> accessibleDeviceIds) {
         try {
             List<DashboardDto.DefaultWidgetRes> defaultWidget = dashboardMapper.getDefaultWidget();
 
@@ -334,7 +340,7 @@ public class DashboardService {
                     int insertedRows = dashboardMapper.insertUserWidgetByDefault(userId, dto);
                     log.info("INSERT 결과 - 영향받은 행: {}", insertedRows);
                 }
-                return getUserWidget(userId);
+                return getUserWidget(userId, accessibleDeviceIds);
             }else {
                 log.info("대시보드 기본 값 X 업데이트 불가");
                 return null;

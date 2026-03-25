@@ -25,8 +25,9 @@ public class ErrorService {
      */
     public List<ErrorVO> getErrors(String errorLevel, Long deviceId, Long devCodeId,
                                     String deviceName, String deviceIp,
-                                    String errorMessage, String groupName) {
-        return errorMapper.selectErrors(errorLevel, deviceId, devCodeId, deviceName, deviceIp, errorMessage, groupName);
+                                    String errorMessage, String groupName,
+                                    List<Long> accessibleDeviceIds) {
+        return errorMapper.selectErrors(errorLevel, deviceId, devCodeId, deviceName, deviceIp, errorMessage, groupName, accessibleDeviceIds);
     }
 
     /**
@@ -34,8 +35,9 @@ public class ErrorService {
      */
     public int countErrors(String errorLevel, Long deviceId, Long devCodeId,
                            String deviceName, String deviceIp,
-                           String errorMessage, String groupName) {
-        return errorMapper.countErrors(errorLevel, deviceId, devCodeId, deviceName, deviceIp, errorMessage, groupName);
+                           String errorMessage, String groupName,
+                           List<Long> accessibleDeviceIds) {
+        return errorMapper.countErrors(errorLevel, deviceId, devCodeId, deviceName, deviceIp, errorMessage, groupName, accessibleDeviceIds);
     }
 
     /**
@@ -62,15 +64,16 @@ public class ErrorService {
                                                    String startDate, String endDate,
                                                    String deviceName, String deviceIp,
                                                    String errorMessage, String groupName,
-                                                   String sortKey, String sortDirection) {
+                                                   String sortKey, String sortDirection,
+                                                   List<Long> accessibleDeviceIds) {
         int offset = (page - 1) * size;
         List<ErrorHistoryVO> list = errorMapper.selectErrorHistory(
                 errorLevel, deviceId, devCodeId, startDate, endDate,
                 deviceName, deviceIp, errorMessage, groupName,
-                sortKey, sortDirection, offset, size);
+                sortKey, sortDirection, offset, size, accessibleDeviceIds);
         int total = errorMapper.countErrorHistory(
                 errorLevel, deviceId, devCodeId, startDate, endDate,
-                deviceName, deviceIp, errorMessage, groupName);
+                deviceName, deviceIp, errorMessage, groupName, accessibleDeviceIds);
 
         return PageVO.of(list, page, size, total);
     }

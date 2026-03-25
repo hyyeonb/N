@@ -57,11 +57,11 @@ public interface DashboardMapper {
 
     List<DashboardDto.WidgetLineChartData> getWidgetTrafficLineChartData(Map<String, Object> param);
 
-    DashboardDto.WidgetAlertCntData getWidgetAlertSummary();
+    DashboardDto.WidgetAlertCntData getWidgetAlertSummary(@Param("accessibleDeviceIds") List<Long> accessibleDeviceIds);
 
     List<DashboardDto.DevCodeData> getDevCode();
 
     List<Long> getDevCodeAllId(@Param("devCodeId") Long devCodeId);
 
-    Integer getDeviceCountBydevCodeId(List<Long> devCodeIdList);
+    Integer getDeviceCountBydevCodeId(@Param("list") List<Long> devCodeIdList, @Param("accessibleDeviceIds") List<Long> accessibleDeviceIds);
 }

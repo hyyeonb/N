@@ -4,8 +4,10 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev3.nms.mapper.DeviceMapper;
 import dev3.nms.mapper.GroupMapper;
+import dev3.nms.mapper.MiddlewareMapper;
 import dev3.nms.mapper.PortMapper;
 import dev3.nms.mapper.WatchMapper;
+import dev3.nms.vo.mgmt.MiddlewareVO;
 import dev3.nms.vo.mgmt.GroupVO;
 import dev3.nms.vo.mgmt.PortVO;
 import dev3.nms.vo.watch.*;
@@ -40,6 +42,7 @@ public class WatchService {
     private final GroupMapper groupMapper;
     private final DeviceMapper deviceMapper;
     private final PortMapper portMapper;
+    private final MiddlewareMapper middlewareMapper;
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
 
@@ -472,15 +475,39 @@ public class WatchService {
      */
     private void callMiddleware(String path, Object body) {
         try {
-            String url = middlewareUrl + path;
+            // DB에서 미들웨어 URL + API Key 조회 (fallback: application.properties)
+            String mwUrl = middlewareUrl;
+            String mwApiKey = "";
+            try {
+                java.util.List<MiddlewareVO> mwList = middlewareMapper.findAll();
+                if (mwList != null && !mwList.isEmpty()) {
+                    MiddlewareVO mw = mwList.stream()
+                            .filter(m -> "ACTIVE".equals(m.getSTATUS()))
+                            .findFirst().orElse(mwList.get(0));
+                    mwUrl = mw.getMIDDLEWARE_URL();
+                    mwApiKey = mw.getAPI_KEY();
+                }
+            } catch (Exception e) {
+                log.warn("미들웨어 DB 조회 실패, fallback URL 사용: {}", e.getMessage());
+            }
+
+            String url = mwUrl + path;
             String requestBody = objectMapper.writeValueAsString(body);
 
-            HttpRequest httpRequest = HttpRequest.newBuilder()
+            HttpRequest.Builder builder = HttpRequest.newBuilder()
                     .uri(URI.create(url))
                     .header("Content-Type", "application/json")
                     .timeout(Duration.ofSeconds(30))
-                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                    .build();
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody));
+
+            if (mwApiKey != null && !mwApiKey.isEmpty()) {
+                builder.header("X-API-Key", mwApiKey);
+            }
+
+            log.info("[Middleware] URL: {}, API-Key: {}..., Path: {}", mwUrl,
+                    mwApiKey != null && mwApiKey.length() > 8 ? mwApiKey.substring(0, 8) : mwApiKey, path);
+
+            HttpRequest httpRequest = builder.build();
 
             HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
 
