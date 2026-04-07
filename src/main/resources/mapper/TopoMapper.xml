@@ -99,6 +99,7 @@
             LEFT JOIN r_model_t m ON d.MODEL_ID   = m.MODEL_ID       -- 모델명 테이블 있으면
         WHERE
             n.VIEW_ID = #{id}
+            AND (UPPER(n.NODE_TYPE) != 'DEVICE' OR d.DEVICE_ID IS NOT NULL)
         ORDER BY
             n.NODE_KEY
     </select>
@@ -120,7 +121,13 @@
         FROM R_TPO_LINK_T l
             LEFT JOIN r_port_t sp ON l.SRC_NODE_KEY = sp.DEVICE_ID AND l.SRC_IF_KEY = sp.IF_INDEX AND sp.DELETE_AT IS NULL
             LEFT JOIN r_port_t dp ON l.DST_NODE_KEY = dp.DEVICE_ID AND l.DST_IF_KEY = dp.IF_INDEX AND dp.DELETE_AT IS NULL
+            LEFT JOIN R_TPO_NODE_T sn ON l.VIEW_ID = sn.VIEW_ID AND l.SRC_NODE_KEY = sn.NODE_KEY
+            LEFT JOIN r_device_t sd ON sn.DEVICE_ID = sd.DEVICE_ID
+            LEFT JOIN R_TPO_NODE_T dn ON l.VIEW_ID = dn.VIEW_ID AND l.DST_NODE_KEY = dn.NODE_KEY
+            LEFT JOIN r_device_t dd ON dn.DEVICE_ID = dd.DEVICE_ID
         WHERE l.VIEW_ID = #{id}
+            AND (UPPER(COALESCE(sn.NODE_TYPE,'')) != 'DEVICE' OR sd.DELETE_AT IS NULL)
+            AND (UPPER(COALESCE(dn.NODE_TYPE,'')) != 'DEVICE' OR dd.DELETE_AT IS NULL)
     </select>
 
     <select id="isTopoViewId"
@@ -164,6 +171,7 @@
         DESCRIPTION,
         CREATED_BY,
         CREATED_AT,
+
         UPDATED_AT
         )
         VALUES (

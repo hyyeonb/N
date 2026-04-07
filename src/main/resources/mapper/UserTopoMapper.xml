@@ -77,6 +77,7 @@
             LEFT JOIN r_group_t  gd ON d.GROUP_ID  = gd.GROUP_ID AND gd.DELETE_AT IS NULL
             LEFT JOIN r_model_t  m  ON d.MODEL_ID  = m.MODEL_ID
         WHERE n.VIEW_ID = #{viewId}
+            AND (UPPER(n.NODE_TYPE) != 'DEVICE' OR d.DEVICE_ID IS NOT NULL)
         ORDER BY n.NODE_KEY
     </select>
 
@@ -111,7 +112,13 @@
         FROM r_user_tpo_link_t l
             LEFT JOIN r_port_t sp ON l.SRC_NODE_KEY = sp.DEVICE_ID AND l.SRC_IF_KEY = sp.IF_INDEX AND sp.DELETE_AT IS NULL
             LEFT JOIN r_port_t dp ON l.DST_NODE_KEY = dp.DEVICE_ID AND l.DST_IF_KEY = dp.IF_INDEX AND dp.DELETE_AT IS NULL
+            LEFT JOIN r_user_tpo_node_t sn ON l.VIEW_ID = sn.VIEW_ID AND l.SRC_NODE_KEY = sn.NODE_KEY
+            LEFT JOIN r_device_t sd ON sn.DEVICE_ID = sd.DEVICE_ID
+            LEFT JOIN r_user_tpo_node_t dn ON l.VIEW_ID = dn.VIEW_ID AND l.DST_NODE_KEY = dn.NODE_KEY
+            LEFT JOIN r_device_t dd ON dn.DEVICE_ID = dd.DEVICE_ID
         WHERE l.VIEW_ID = #{viewId}
+            AND (UPPER(COALESCE(sn.NODE_TYPE,'')) != 'DEVICE' OR sd.DELETE_AT IS NULL)
+            AND (UPPER(COALESCE(dn.NODE_TYPE,'')) != 'DEVICE' OR dd.DELETE_AT IS NULL)
     </select>
 
     <insert id="insertLinks" parameterType="map">
