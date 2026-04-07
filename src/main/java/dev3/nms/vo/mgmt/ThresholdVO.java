@@ -10,6 +10,7 @@ import lombok.*;
 public class ThresholdVO {
     private String DEVICE_ID;
     private String TYPE;
+    private Integer MAX_VALUE;
     private Integer CRITICAL;
     private Integer MAJOR;
     private Integer MINOR;

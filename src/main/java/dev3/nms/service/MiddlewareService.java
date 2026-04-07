@@ -79,6 +79,7 @@ public class MiddlewareService {
             if (response.statusCode() == 200) {
                 middlewareMapper.updateHeartbeat(id);
                 mw.setSTATUS("ACTIVE");
+                mw.setLAST_HEARTBEAT(java.time.LocalDateTime.now());
                 log.info("미들웨어 헬스체크 성공 - id: {}, url: {}", id, mw.getMIDDLEWARE_URL());
             } else {
                 mw.setSTATUS("DOWN");

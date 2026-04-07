@@ -325,6 +325,13 @@ public class MiddlewareClient {
     public Map<String, String> getDeviceSystemInfo(String ipAddress, int snmpVersion, int snmpPort,
                                                     String community, String user, String authProtocol,
                                                     String authPassword, String privProtocol, String privPassword) {
+        return getDeviceSystemInfo(ipAddress, snmpVersion, snmpPort, community, user, authProtocol, authPassword, privProtocol, privPassword, null);
+    }
+
+    public Map<String, String> getDeviceSystemInfo(String ipAddress, int snmpVersion, int snmpPort,
+                                                    String community, String user, String authProtocol,
+                                                    String authPassword, String privProtocol, String privPassword,
+                                                    Integer deviceId) {
         SnmpRequest request = new SnmpRequest();
         request.setIpAddress(ipAddress);
         request.setSnmpVersion(snmpVersion);
@@ -336,7 +343,7 @@ public class MiddlewareClient {
         request.setPrivProtocol(privProtocol);
         request.setPrivPassword(privPassword);
 
-        SystemInfoResponse response = getSystemInfo(request);
+        SystemInfoResponse response = getSystemInfo(request, deviceId);
 
         if (!response.isSuccess()) {
             throw new RuntimeException(toSnmpUserMessage(response.getMessage()));

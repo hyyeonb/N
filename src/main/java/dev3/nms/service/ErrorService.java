@@ -66,14 +66,26 @@ public class ErrorService {
                                                    String errorMessage, String groupName,
                                                    String sortKey, String sortDirection,
                                                    List<Long> accessibleDeviceIds) {
+        return getErrorHistory(page, size, errorLevel, deviceId, devCodeId, startDate, endDate,
+                deviceName, deviceIp, errorMessage, groupName, sortKey, sortDirection, accessibleDeviceIds, null);
+    }
+
+    public PageVO<ErrorHistoryVO> getErrorHistory(int page, int size,
+                                                   String errorLevel, Long deviceId, Long devCodeId,
+                                                   String startDate, String endDate,
+                                                   String deviceName, String deviceIp,
+                                                   String errorMessage, String groupName,
+                                                   String sortKey, String sortDirection,
+                                                   List<Long> accessibleDeviceIds, List<String> errorLevels) {
         int offset = (page - 1) * size;
+        String effectiveLevel = (errorLevels != null && !errorLevels.isEmpty()) ? null : errorLevel;
         List<ErrorHistoryVO> list = errorMapper.selectErrorHistory(
-                errorLevel, deviceId, devCodeId, startDate, endDate,
+                effectiveLevel, deviceId, devCodeId, startDate, endDate,
                 deviceName, deviceIp, errorMessage, groupName,
-                sortKey, sortDirection, offset, size, accessibleDeviceIds);
+                sortKey, sortDirection, offset, size, accessibleDeviceIds, errorLevels);
         int total = errorMapper.countErrorHistory(
-                errorLevel, deviceId, devCodeId, startDate, endDate,
-                deviceName, deviceIp, errorMessage, groupName, accessibleDeviceIds);
+                effectiveLevel, deviceId, devCodeId, startDate, endDate,
+                deviceName, deviceIp, errorMessage, groupName, accessibleDeviceIds, errorLevels);
 
         return PageVO.of(list, page, size, total);
     }

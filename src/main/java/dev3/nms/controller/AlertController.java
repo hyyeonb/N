@@ -1,5 +1,6 @@
 package dev3.nms.controller;
 
+import dev3.nms.service.EmailAlertService;
 import dev3.nms.vo.common.ResVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +21,7 @@ import java.util.Map;
 public class AlertController {
 
     private final SimpMessagingTemplate messagingTemplate;
+    private final EmailAlertService emailAlertService;
 
     /**
      * 단건 알림 수신 및 WebSocket 브로드캐스트
@@ -27,6 +29,7 @@ public class AlertController {
     @PostMapping
     public ResVO<Void> receiveAlert(@RequestBody Map<String, Object> alert) {
         messagingTemplate.convertAndSend("/topic/alerts", (Object) alert);
+        emailAlertService.processAlert(alert);
 
         String category = (String) alert.getOrDefault("category", "");
         String alertType = (String) alert.getOrDefault("alertType", "");
@@ -42,6 +45,7 @@ public class AlertController {
     public ResVO<Void> receiveAlerts(@RequestBody List<Map<String, Object>> alerts) {
         for (Map<String, Object> alert : alerts) {
             messagingTemplate.convertAndSend("/topic/alerts", (Object) alert);
+            emailAlertService.processAlert(alert);
         }
         log.debug("Alert batch broadcast: {}건", alerts.size());
         return ResVO.<Void>builder().code(200).message("Alert batch broadcast 완료").build();

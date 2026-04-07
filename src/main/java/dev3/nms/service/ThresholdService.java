@@ -60,5 +60,28 @@ public class ThresholdService {
             throw new IllegalArgumentException(
                 t.getTYPE() + ": Critical > Major > Minor > Warning 순서여야 합니다.");
         }
+        // MAX_VALUE 검증 — 베이스 테이블에서 MAX_VALUE 조회
+        Integer maxValue = t.getMAX_VALUE();
+        if (maxValue == null) {
+            // 장비별 임계치인 경우 베이스에서 MAX_VALUE 조회
+            List<ThresholdVO> baseList = thresholdMapper.findAllBase();
+            for (ThresholdVO base : baseList) {
+                if (base.getTYPE().equals(t.getTYPE())) {
+                    maxValue = base.getMAX_VALUE();
+                    break;
+                }
+            }
+        }
+        if (maxValue != null && maxValue > 0) {
+            if (t.getCRITICAL() > maxValue || t.getMAJOR() > maxValue
+                || t.getMINOR() > maxValue || t.getWARNING() > maxValue) {
+                throw new IllegalArgumentException(
+                    t.getTYPE() + ": 임계치 값은 최대 " + maxValue + "을(를) 초과할 수 없습니다.");
+            }
+            if (t.getWARNING() < 0) {
+                throw new IllegalArgumentException(
+                    t.getTYPE() + ": 임계치 값은 0 미만일 수 없습니다.");
+            }
+        }
     }
 }

@@ -67,6 +67,8 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
     testAnnotationProcessor 'org.projectlombok:lombok'
 
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
+
     // Spring Boot Test (includes MockMvc, MockBean, etc.)
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     // Spring Boot WebMvc Test (for @WebMvcTest in Spring Boot 4.0+)

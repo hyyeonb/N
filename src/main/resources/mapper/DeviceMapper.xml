@@ -268,10 +268,10 @@
     <insert id="insertDevice" parameterType="dev3.nms.vo.mgmt.DeviceVO" useGeneratedKeys="true" keyProperty="DEVICE_ID">
         INSERT INTO r_device_t (
             GROUP_ID, DEVICE_NAME, DEVICE_SYSTEM_NAME, DEVICE_IP, DEVICE_DESC, MODEL_ID, PORT_COUNT,
-            CREATE_USER_ID, CREATE_AT
+            MIDDLEWARE_ID, CREATE_USER_ID, CREATE_AT
         ) VALUES (
             #{GROUP_ID}, #{DEVICE_NAME}, #{DEVICE_SYSTEM_NAME}, #{DEVICE_IP}, #{DEVICE_DESC}, #{MODEL_ID}, #{PORT_COUNT},
-            #{CREATE_USER_ID}, NOW()
+            #{MIDDLEWARE_ID}, #{CREATE_USER_ID}, NOW()
         )
     </insert>
 

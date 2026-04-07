@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="dev3.nms.mapper.EmailPrefMapper">
+
+    <select id="findByUserId" resultType="dev3.nms.vo.notification.EmailPrefVO">
+        SELECT * FROM R_USER_EMAIL_PREF_T WHERE USER_ID = #{userId}
+    </select>
+
+    <insert id="upsertPref" parameterType="dev3.nms.vo.notification.EmailPrefVO">
+        INSERT INTO R_USER_EMAIL_PREF_T (USER_ID, EMAIL_ENABLED, DIGEST_MINUTES, MODIFY_AT)
+        VALUES (#{USER_ID}, #{EMAIL_ENABLED}, #{DIGEST_MINUTES}, NOW())
+        ON DUPLICATE KEY UPDATE
+            EMAIL_ENABLED = #{EMAIL_ENABLED},
+            DIGEST_MINUTES = #{DIGEST_MINUTES},
+            MODIFY_AT = NOW()
+    </insert>
+
+    <select id="findTypePrefs" resultType="dev3.nms.vo.notification.EmailTypePrefVO">
+        SELECT * FROM R_USER_EMAIL_TYPE_PREF_T WHERE USER_ID = #{userId}
+        ORDER BY ALERT_TYPE, FIELD(SEVERITY, 'CRITICAL', 'MAJOR', 'MINOR', 'WARNING')
+    </select>
+
+    <delete id="deleteTypePrefs">
+        DELETE FROM R_USER_EMAIL_TYPE_PREF_T WHERE USER_ID = #{userId}
+    </delete>
+
+    <insert id="insertTypePrefs">
+        INSERT INTO R_USER_EMAIL_TYPE_PREF_T (USER_ID, ALERT_TYPE, SEVERITY, DELIVERY_MODE)
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{userId}, #{item.ALERT_TYPE}, #{item.SEVERITY}, #{item.DELIVERY_MODE})
+        </foreach>
+    </insert>
+
+    <select id="findTypeMode" resultType="dev3.nms.vo.notification.EmailTypePrefVO">
+        SELECT * FROM R_USER_EMAIL_TYPE_PREF_T
+        WHERE USER_ID = #{userId} AND ALERT_TYPE = #{alertType} AND SEVERITY = #{severity}
+    </select>
+
+    <select id="findDevicePrefs" resultType="dev3.nms.vo.notification.EmailDevicePrefVO">
+        SELECT * FROM R_USER_EMAIL_DEVICE_T WHERE USER_ID = #{userId}
+        ORDER BY DEVICE_ID, ALERT_TYPE, FIELD(SEVERITY, 'CRITICAL', 'MAJOR', 'MINOR', 'WARNING')
+    </select>
+
+    <select id="findDevicePrefsByDevice" resultType="dev3.nms.vo.notification.EmailDevicePrefVO">
+        SELECT * FROM R_USER_EMAIL_DEVICE_T
+        WHERE USER_ID = #{userId} AND DEVICE_ID = #{deviceId}
+    </select>
+
+    <delete id="deleteDevicePrefs">
+        DELETE FROM R_USER_EMAIL_DEVICE_T WHERE USER_ID = #{userId} AND DEVICE_ID = #{deviceId}
+    </delete>
+
+    <insert id="insertDevicePrefs">
+        INSERT INTO R_USER_EMAIL_DEVICE_T (USER_ID, DEVICE_ID, ALERT_TYPE, SEVERITY, DELIVERY_MODE)
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.USER_ID}, #{item.DEVICE_ID}, #{item.ALERT_TYPE}, #{item.SEVERITY}, #{item.DELIVERY_MODE})
+        </foreach>
+    </insert>
+
+    <delete id="deleteAllDevicePrefs">
+        DELETE FROM R_USER_EMAIL_DEVICE_T WHERE USER_ID = #{userId}
+    </delete>
+
+    <select id="findDeviceMode" resultType="dev3.nms.vo.notification.EmailDevicePrefVO">
+        SELECT * FROM R_USER_EMAIL_DEVICE_T
+        WHERE USER_ID = #{userId} AND DEVICE_ID = #{deviceId}
+          AND ALERT_TYPE = #{alertType} AND SEVERITY = #{severity}
+    </select>
+
+    <!-- System emails -->
+    <select id="findAllSystemEmails" resultType="dev3.nms.vo.notification.SystemEmailVO">
+        SELECT * FROM B_SYSTEM_EMAIL_T ORDER BY EMAIL_ID
+    </select>
+
+    <insert id="insertSystemEmail" parameterType="dev3.nms.vo.notification.SystemEmailVO">
+        INSERT INTO B_SYSTEM_EMAIL_T (EMAIL_ADDRESS, ENABLED, CREATE_AT)
+        VALUES (#{EMAIL_ADDRESS}, #{ENABLED}, NOW())
+    </insert>
+
+    <update id="updateSystemEmail" parameterType="dev3.nms.vo.notification.SystemEmailVO">
+        UPDATE B_SYSTEM_EMAIL_T SET EMAIL_ADDRESS = #{EMAIL_ADDRESS}, ENABLED = #{ENABLED}
+        WHERE EMAIL_ID = #{EMAIL_ID}
+    </update>
+
+    <delete id="deleteSystemEmail">
+        DELETE FROM B_SYSTEM_EMAIL_T WHERE EMAIL_ID = #{emailId}
+    </delete>
+
+    <select id="findAllEnabled" resultType="dev3.nms.vo.notification.EmailPrefVO">
+        SELECT * FROM R_USER_EMAIL_PREF_T WHERE EMAIL_ENABLED = TRUE
+    </select>
+
+</mapper>

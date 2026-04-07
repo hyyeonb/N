@@ -6,9 +6,9 @@
 
     <!-- 시스템 기본 임계치 -->
     <select id="findAllBase" resultType="dev3.nms.vo.mgmt.ThresholdVO">
-        SELECT TYPE, CRITICAL, MAJOR, MINOR, WARNING
+        SELECT TYPE, MAX_VALUE, CRITICAL, MAJOR, MINOR, WARNING
         FROM b_threshold_t
-        ORDER BY FIELD(TYPE, 'CPU', 'MEM', 'TRAFFIC')
+        ORDER BY FIELD(TYPE, 'CPU', 'MEM', 'TRAFFIC', 'TEMPERATURE', 'HUMIDITY')
     </select>
 
     <update id="updateBase" parameterType="dev3.nms.vo.mgmt.ThresholdVO">

@@ -40,17 +40,20 @@ public class ErrorController {
             @RequestParam(required = false) String deviceIp,
             @RequestParam(required = false) String errorMessage,
             @RequestParam(required = false) String groupName,
+            @RequestParam(required = false) List<Long> deviceIds,
             HttpSession session) {
 
+        // 권한 기반 + 프론트 필터 교집합
         List<Long> accessibleDeviceIds = getAccessibleDeviceIds(session);
+        List<Long> effectiveDeviceIds = intersectDeviceIds(deviceIds, accessibleDeviceIds);
 
-        List<ErrorVO> errors = errorService.getErrors(errorLevel, deviceId, devCodeId, deviceName, deviceIp, errorMessage, groupName, accessibleDeviceIds);
-        int totalCount = errorService.countErrors(errorLevel, deviceId, devCodeId, deviceName, deviceIp, errorMessage, groupName, accessibleDeviceIds);
+        List<ErrorVO> errors = errorService.getErrors(errorLevel, deviceId, devCodeId, deviceName, deviceIp, errorMessage, groupName, effectiveDeviceIds);
+        int totalCount = errorService.countErrors(errorLevel, deviceId, devCodeId, deviceName, deviceIp, errorMessage, groupName, effectiveDeviceIds);
 
-        int criticalCount = errorService.countErrors("C", deviceId, devCodeId, deviceName, deviceIp, errorMessage, groupName, accessibleDeviceIds);
-        int majorCount = errorService.countErrors("M", deviceId, devCodeId, deviceName, deviceIp, errorMessage, groupName, accessibleDeviceIds);
-        int minorCount = errorService.countErrors("N", deviceId, devCodeId, deviceName, deviceIp, errorMessage, groupName, accessibleDeviceIds);
-        int warningCount = errorService.countErrors("W", deviceId, devCodeId, deviceName, deviceIp, errorMessage, groupName, accessibleDeviceIds);
+        int criticalCount = errorService.countErrors("C", deviceId, devCodeId, deviceName, deviceIp, errorMessage, groupName, effectiveDeviceIds);
+        int majorCount = errorService.countErrors("M", deviceId, devCodeId, deviceName, deviceIp, errorMessage, groupName, effectiveDeviceIds);
+        int minorCount = errorService.countErrors("N", deviceId, devCodeId, deviceName, deviceIp, errorMessage, groupName, effectiveDeviceIds);
+        int warningCount = errorService.countErrors("W", deviceId, devCodeId, deviceName, deviceIp, errorMessage, groupName, effectiveDeviceIds);
 
         Map<String, Object> result = new HashMap<>();
         result.put("list", errors);
@@ -103,6 +106,7 @@ public class ErrorController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String errorLevel,
+            @RequestParam(required = false) List<String> errorLevels,
             @RequestParam(required = false) Long deviceId,
             @RequestParam(required = false) Long devCodeId,
             @RequestParam(required = false) String startDate,
@@ -113,14 +117,20 @@ public class ErrorController {
             @RequestParam(required = false) String groupName,
             @RequestParam(defaultValue = "CLEAR_AT") String sortKey,
             @RequestParam(defaultValue = "desc") String sortDirection,
+            @RequestParam(required = false) List<Long> deviceIds,
             HttpSession session) {
 
         List<Long> accessibleDeviceIds = getAccessibleDeviceIds(session);
+        List<Long> effectiveDeviceIds = intersectDeviceIds(deviceIds, accessibleDeviceIds);
+
+        // errorLevels (다중) 우선, 없으면 errorLevel (단일) 사용
+        String effectiveLevel = errorLevel;
+        List<String> effectiveLevels = errorLevels;
 
         PageVO<ErrorHistoryVO> pageVO = errorService.getErrorHistory(
-                page, size, errorLevel, deviceId, devCodeId, startDate, endDate,
+                page, size, effectiveLevel, deviceId, devCodeId, startDate, endDate,
                 deviceName, deviceIp, errorMessage, groupName,
-                sortKey, sortDirection, accessibleDeviceIds);
+                sortKey, sortDirection, effectiveDeviceIds, effectiveLevels);
 
         return new ResVO<>(200, "조회 성공", pageVO);
     }

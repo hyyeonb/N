@@ -163,6 +163,12 @@
         <if test="errorLevel != null and errorLevel != ''">
             AND h.ERROR_LEVEL = #{errorLevel}
         </if>
+        <if test="errorLevels != null and errorLevels.size() > 0">
+            AND h.ERROR_LEVEL IN
+            <foreach collection="errorLevels" item="lvl" open="(" separator="," close=")">
+                #{lvl}
+            </foreach>
+        </if>
         <if test="deviceId != null">
             AND h.DEVICE_ID = #{deviceId}
         </if>
@@ -229,6 +235,12 @@
         WHERE 1=1
         <if test="errorLevel != null and errorLevel != ''">
             AND h.ERROR_LEVEL = #{errorLevel}
+        </if>
+        <if test="errorLevels != null and errorLevels.size() > 0">
+            AND h.ERROR_LEVEL IN
+            <foreach collection="errorLevels" item="lvl" open="(" separator="," close=")">
+                #{lvl}
+            </foreach>
         </if>
         <if test="deviceId != null">
             AND h.DEVICE_ID = #{deviceId}
@@ -636,5 +648,19 @@
     <delete id="deleteIcmpByDeviceId">
         DELETE FROM p_icmp_t WHERE DEVICE_ID = #{deviceId}
     </delete>
+
+    <!-- 장비 삭제 시 장애 이력 전체 삭제 -->
+    <delete id="deleteErrorHistoryByDeviceId">
+        DELETE FROM f_error_history_t WHERE DEVICE_ID = #{deviceId}
+    </delete>
+
+    <!-- 장애 유형별 등급 정보 (고정/임계치 구분용) -->
+    <select id="findErrorCodeTypes" resultType="map">
+        SELECT ERROR_CODE_NM AS errorCodeNm,
+               GROUP_CONCAT(DISTINCT ERROR_LEVEL ORDER BY FIELD(ERROR_LEVEL, 'C', 'M', 'N', 'W')) AS levels,
+               COUNT(DISTINCT ERROR_LEVEL) AS levelCount
+        FROM b_error_code_t
+        GROUP BY ERROR_CODE_NM
+    </select>
 
 </mapper>

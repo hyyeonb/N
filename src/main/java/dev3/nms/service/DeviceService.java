@@ -4,12 +4,14 @@ import dev3.nms.mapper.CpuMemMapper;
 import dev3.nms.mapper.DeviceMapper;
 import dev3.nms.mapper.DeviceSshMapper;
 import dev3.nms.mapper.ErrorMapper;
+import dev3.nms.mapper.MiddlewareMapper;
 import dev3.nms.mapper.TrafficMapper;
 import dev3.nms.mapper.ModelMapper;
 import dev3.nms.mapper.PortMapper;
 import dev3.nms.mapper.TempDeviceMapper;
 import dev3.nms.mapper.VendorMapper;
 import dev3.nms.mapper.WatchMapper;
+import dev3.nms.mapper.ThresholdMapper;
 import dev3.nms.vo.common.PageVO;
 import dev3.nms.vo.mgmt.*;
 import lombok.RequiredArgsConstructor;
@@ -18,15 +20,28 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.net.InetAddress;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class DeviceService {
+
+    // 미들웨어 헬스 프로브 전용 스레드 풀 (공통 ForkJoinPool 블로킹 방지)
+    private static final ExecutorService PROBE_EXECUTOR = Executors.newFixedThreadPool(4);
 
     private final DeviceMapper deviceMapper;
     private final DeviceSshMapper deviceSshMapper;
@@ -36,10 +51,12 @@ public class DeviceService {
     private final CpuMemMapper cpuMemMapper;
     private final TrafficMapper trafficMapper;
     private final MiddlewareClient middlewareClient;
+    private final MiddlewareMapper middlewareMapper;
     private final PortService portService;
     private final ErrorMapper errorMapper;
     private final PortMapper portMapper;
     private final WatchMapper watchMapper;
+    private final ThresholdMapper thresholdMapper;
 
     /**
      * 모든 장비 조회
@@ -237,6 +254,10 @@ public class DeviceService {
                     .CREATE_USER_ID(userId)
                     .build();
 
+            // 자동 미들웨어 할당
+            Integer assignedMiddlewareId = assignMiddleware();
+            device.setMIDDLEWARE_ID(assignedMiddlewareId);
+
             // r_device_t에 저장
             deviceMapper.insertDevice(device);
 
@@ -377,6 +398,10 @@ public class DeviceService {
                     .DEVICE_IP(deviceInput.getDEVICE_IP())
                     .CREATE_USER_ID(userId)
                     .build();
+
+            // 자동 미들웨어 할당
+            Integer assignedMiddlewareId = assignMiddleware();
+            device.setMIDDLEWARE_ID(assignedMiddlewareId);
 
             // r_device_t에 저장
             deviceMapper.insertDevice(device);
@@ -743,17 +768,18 @@ public class DeviceService {
      * 단일 장비에 대한 캐스케이드 삭제 처리 (내부용)
      */
     private void cascadeDeleteDevice(int deviceId) {
-        // 1. 활성 장애 → 이력 이관 후 삭제
-        int movedErrors = errorMapper.moveDeviceErrorsToHistory(deviceId);
+        // 1. 활성 장애 + 장애 이력 삭제 (장비 삭제 시 이력 보존 불필요)
         int deletedErrors = errorMapper.deleteDeviceErrors(deviceId);
-        if (movedErrors > 0) {
-            log.info("  장비 {} 장애 이관: {}건 → 이력, {}건 삭제", deviceId, movedErrors, deletedErrors);
+        int deletedHistory = errorMapper.deleteErrorHistoryByDeviceId(deviceId);
+        if (deletedErrors > 0 || deletedHistory > 0) {
+            log.info("  장비 {} 장애 정리: 활성={}건, 이력={}건 삭제", deviceId, deletedErrors, deletedHistory);
         }
 
-        // 2. 성능 데이터 삭제 (트래픽, CPU/MEM, ICMP)
+        // 2. 성능 데이터 삭제 (트래픽, CPU/MEM, ICMP) + 임계치 오버라이드 삭제
         int delTraffic = trafficMapper.deleteByDeviceId(deviceId);
         int delCpuMem = cpuMemMapper.deleteByDeviceId(deviceId);
         int delIcmp = errorMapper.deleteIcmpByDeviceId(deviceId);
+        thresholdMapper.deleteByDeviceId(String.valueOf(deviceId));
         if (delTraffic + delCpuMem + delIcmp > 0) {
             log.info("  장비 {} 성능 데이터 삭제: 트래픽={}건, CPU/MEM={}건, ICMP={}건",
                     deviceId, delTraffic, delCpuMem, delIcmp);
@@ -1016,7 +1042,7 @@ public class DeviceService {
         ConnectivityCheckVO result = new ConnectivityCheckVO();
 
         // 1. PING 체크 — Middleware /api/check/ping
-        MiddlewareClient.PingResponse pingResp = middlewareClient.pingCheck(device.getDEVICE_IP());
+        MiddlewareClient.PingResponse pingResp = middlewareClient.pingCheck(device.getDEVICE_IP(), deviceId);
         result.setPingSuccess(pingResp.isSuccess());
         result.setPingResponseTimeMs(Math.round(pingResp.getResponseTimeMs()));
         result.setPingMessage(pingResp.getMessage());
@@ -1034,7 +1060,8 @@ public class DeviceService {
                         device.getSNMP_AUTH_PROTOCOL(),
                         device.getSNMP_AUTH_PASSWORD(),
                         device.getSNMP_PRIV_PROTOCOL(),
-                        device.getSNMP_PRIV_PASSWORD()
+                        device.getSNMP_PRIV_PASSWORD(),
+                        deviceId
                 );
                 result.setSnmpSuccess(true);
                 result.setSysName(sysInfo.get("sysName"));
@@ -1056,7 +1083,7 @@ public class DeviceService {
             result.setSshConfigured(true);
             int sshPort = ssh.getSSH_PORT() != null ? ssh.getSSH_PORT() : 22;
             result.setSshPort(sshPort);
-            MiddlewareClient.SshCheckResponse sshResp = middlewareClient.sshCheck(device.getDEVICE_IP(), sshPort);
+            MiddlewareClient.SshCheckResponse sshResp = middlewareClient.sshCheck(device.getDEVICE_IP(), sshPort, deviceId);
             result.setSshSuccess(sshResp.isSuccess());
             result.setSshMessage(sshResp.getMessage());
         } else {
@@ -1065,5 +1092,109 @@ public class DeviceService {
         }
 
         return result;
+    }
+
+    // ==================== 미들웨어 자동 할당 ====================
+
+    /**
+     * 활성 미들웨어 중 최적 미들웨어를 자동 선택하여 ID를 반환한다.
+     * 선택 기준:
+     *   1. ACTIVE 상태 미들웨어만 대상
+     *   2. /health 엔드포인트 응답 성공 여부 (5초 타임아웃, 병렬 프로브)
+     *   3. 응답 성공 중 최소 응답시간 기준 200ms 이내 = "비슷"
+     *   4. 비슷한 후보 중 할당 장비 수 가장 적은 것
+     *   5. 장비 수 동일 시 MIDDLEWARE_ID 낮은 것
+     * @return 선택된 MIDDLEWARE_ID, 없으면 null
+     */
+    private Integer assignMiddleware() {
+        List<MiddlewareVO> actives;
+        try {
+            actives = middlewareMapper.findAll().stream()
+                    .filter(mw -> "ACTIVE".equals(mw.getSTATUS()))
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.warn("미들웨어 목록 조회 실패: {}", e.getMessage());
+            return null;
+        }
+
+        if (actives.isEmpty()) {
+            log.warn("등록된 ACTIVE 미들웨어가 없습니다. MIDDLEWARE_ID=null 로 장비 등록.");
+            return null;
+        }
+        if (actives.size() == 1) {
+            return actives.get(0).getMIDDLEWARE_ID();
+        }
+
+        // N개: 병렬 헬스 프로브 후 최적 선택
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(5))
+                .build();
+
+        record ProbeResult(MiddlewareVO mw, long responseMs) {}
+
+        List<CompletableFuture<Optional<ProbeResult>>> futures = actives.stream()
+                .map(mw -> CompletableFuture.supplyAsync(() -> {
+                    String url = mw.getMIDDLEWARE_URL().replaceAll("/+$", "") + "/health";
+                    try {
+                        HttpRequest req = HttpRequest.newBuilder()
+                                .uri(URI.create(url))
+                                .timeout(Duration.ofSeconds(5))
+                                .GET()
+                                .build();
+                        long start = System.currentTimeMillis();
+                        HttpResponse<Void> resp = httpClient.send(req, HttpResponse.BodyHandlers.discarding());
+                        long elapsed = System.currentTimeMillis() - start;
+                        if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
+                            return Optional.of(new ProbeResult(mw, elapsed));
+                        }
+                        log.warn("미들웨어 헬스체크 비정상 응답 - id:{}, status:{}", mw.getMIDDLEWARE_ID(), resp.statusCode());
+                        return Optional.<ProbeResult>empty();
+                    } catch (Exception e) {
+                        log.warn("미들웨어 헬스체크 실패 - id:{}, url:{}, error:{}", mw.getMIDDLEWARE_ID(), url, e.getMessage());
+                        return Optional.<ProbeResult>empty();
+                    }
+                }, PROBE_EXECUTOR))
+                .collect(Collectors.toList());
+
+        List<ProbeResult> successful = futures.stream()
+                .map(CompletableFuture::join)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toList());
+
+        if (successful.isEmpty()) {
+            // 모든 헬스체크 실패 - 장비 수 가장 적은 미들웨어에 로드 밸런싱 할당
+            log.warn("모든 미들웨어 헬스체크 실패. 장비 수 기준 최소 부하 미들웨어에 할당.");
+            return actives.stream()
+                    .min(Comparator.comparingInt((MiddlewareVO m) -> m.getDEVICE_COUNT() != null ? m.getDEVICE_COUNT() : 0)
+                            .thenComparingInt(MiddlewareVO::getMIDDLEWARE_ID))
+                    .map(MiddlewareVO::getMIDDLEWARE_ID)
+                    .orElse(null);
+        }
+        if (successful.size() == 1) {
+            return successful.get(0).mw().getMIDDLEWARE_ID();
+        }
+
+        long minMs = successful.stream().mapToLong(ProbeResult::responseMs).min().orElse(0);
+
+        // 최소 응답시간 기준 200ms 이내 후보 필터
+        List<ProbeResult> candidates = successful.stream()
+                .filter(p -> p.responseMs() - minMs <= 200)
+                .collect(Collectors.toList());
+
+        // 할당 장비 수 조회 후 정렬: 장비 수 오름차순 → MIDDLEWARE_ID 오름차순
+        return candidates.stream()
+                .min(Comparator
+                        .comparingInt((ProbeResult p) -> {
+                            try {
+                                return middlewareMapper.countDevicesByMiddlewareId(p.mw().getMIDDLEWARE_ID());
+                            } catch (Exception e) {
+                                log.warn("장비 수 조회 실패 - middlewareId:{}", p.mw().getMIDDLEWARE_ID());
+                                return Integer.MAX_VALUE;
+                            }
+                        })
+                        .thenComparingInt(p -> p.mw().getMIDDLEWARE_ID()))
+                .map(p -> p.mw().getMIDDLEWARE_ID())
+                .orElse(null);
     }
 }

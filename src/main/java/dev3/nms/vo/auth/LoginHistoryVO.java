@@ -23,4 +23,10 @@ public class LoginHistoryVO {
     // JOIN/서브쿼리 필드
     private String USER_NAME;
     private LocalDateTime LAST_ACTIVITY_AT;
+
+    // 세션별 활동 CRUD 횟수
+    private Integer ACTIVITY_CREATE;
+    private Integer ACTIVITY_UPDATE;
+    private Integer ACTIVITY_DELETE;
+    private Integer ACTIVITY_VIEW;
 }

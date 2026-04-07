@@ -63,7 +63,8 @@ public interface ErrorMapper {
                                              @Param("sortDirection") String sortDirection,
                                              @Param("offset") int offset,
                                              @Param("size") int size,
-                                             @Param("accessibleDeviceIds") List<Long> accessibleDeviceIds);
+                                             @Param("accessibleDeviceIds") List<Long> accessibleDeviceIds,
+                                             @Param("errorLevels") List<String> errorLevels);
 
     /**
      * 장애 이력 수 조회
@@ -77,7 +78,8 @@ public interface ErrorMapper {
                           @Param("deviceIp") String deviceIp,
                           @Param("errorMessage") String errorMessage,
                           @Param("groupName") String groupName,
-                          @Param("accessibleDeviceIds") List<Long> accessibleDeviceIds);
+                          @Param("accessibleDeviceIds") List<Long> accessibleDeviceIds,
+                          @Param("errorLevels") List<String> errorLevels);
 
     /**
      * 장애 이력 상세 조회
@@ -117,6 +119,17 @@ public interface ErrorMapper {
     int deleteDeletedPortErrors(@Param("deviceId") Integer deviceId);
 
     int deleteIcmpByDeviceId(@Param("deviceId") Integer deviceId);
+
+    /**
+     * 장비의 모든 장애 이력 삭제
+     */
+    int deleteErrorHistoryByDeviceId(@Param("deviceId") Integer deviceId);
+
+    /**
+     * 장애 유형별 고정 등급 조회 (b_error_code_t)
+     * 유형당 1개 등급만 있으면 고정, 여러 등급이면 임계치 기반
+     */
+    List<Map<String, Object>> findErrorCodeTypes();
 
     // ========== 장애 통계 ==========
 
