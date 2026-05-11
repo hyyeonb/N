@@ -31,4 +31,5 @@ public class ErrorVO {
     private String DEVICE_NAME;
     private String ERROR_CODE_NAME;
     private String GROUP_NAME;
+    private String DEV_CODE_NM;
 }
