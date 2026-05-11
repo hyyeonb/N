@@ -16,6 +16,14 @@
         <result property="LAST_ACTIVITY_AT" column="LAST_ACTIVITY_AT"/>
     </resultMap>
 
+    <!-- HISTORY_ID로 단건 조회 (USER_NAME JOIN) -->
+    <select id="findById" resultMap="LoginHistoryResultMap">
+        SELECT h.*, u.NAME AS USER_NAME
+        FROM R_LOGIN_HISTORY_T h
+        LEFT JOIN R_USER_T u ON h.USER_ID = u.USER_ID
+        WHERE h.HISTORY_ID = #{historyId}
+    </select>
+
     <!-- 로그인 히스토리 저장 -->
     <insert id="insert" parameterType="dev3.nms.vo.auth.LoginHistoryVO"
             useGeneratedKeys="true" keyProperty="HISTORY_ID" keyColumn="HISTORY_ID">
@@ -53,7 +61,8 @@
             (SELECT COUNT(*) FROM R_ACTIVITY_LOG_T a WHERE a.HISTORY_ID = h.HISTORY_ID AND a.ACTION_TYPE = 'CREATE') AS ACTIVITY_CREATE,
             (SELECT COUNT(*) FROM R_ACTIVITY_LOG_T a WHERE a.HISTORY_ID = h.HISTORY_ID AND a.ACTION_TYPE = 'UPDATE') AS ACTIVITY_UPDATE,
             (SELECT COUNT(*) FROM R_ACTIVITY_LOG_T a WHERE a.HISTORY_ID = h.HISTORY_ID AND a.ACTION_TYPE = 'DELETE') AS ACTIVITY_DELETE,
-            (SELECT COUNT(*) FROM R_ACTIVITY_LOG_T a WHERE a.HISTORY_ID = h.HISTORY_ID AND a.ACTION_TYPE = 'VIEW') AS ACTIVITY_VIEW
+            (SELECT COUNT(*) FROM R_ACTIVITY_LOG_T a WHERE a.HISTORY_ID = h.HISTORY_ID AND a.ACTION_TYPE = 'VIEW') AS ACTIVITY_VIEW,
+            (SELECT COUNT(*) FROM R_ACTIVITY_LOG_T a WHERE a.HISTORY_ID = h.HISTORY_ID AND a.ACTION_TYPE = 'CONTROL') AS ACTIVITY_CONTROL
         FROM R_LOGIN_HISTORY_T h
         LEFT JOIN R_USER_T u ON h.USER_ID = u.USER_ID
         <where>

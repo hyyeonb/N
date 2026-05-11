@@ -31,6 +31,10 @@ public class DeviceConfigService {
         return deviceConfigMapper.getDeviceConfig(deviceId, dateStr);
     }
 
+    public List<String> getConfigDates(Long deviceId) {
+        return deviceConfigMapper.getConfigDates(deviceId);
+    }
+
     /**
      * 특정 그룹의 장비 목록 페이지네이션 + 정렬 조회 (LIMIT OFFSET)
      */

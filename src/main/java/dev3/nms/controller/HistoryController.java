@@ -1,5 +1,6 @@
 package dev3.nms.controller;
 
+import dev3.nms.config.ViewLog;
 import dev3.nms.mapper.LoginHistoryMapper;
 import dev3.nms.service.ActivityLogService;
 import dev3.nms.service.LoginHistoryService;
@@ -59,6 +60,7 @@ public class HistoryController {
     /**
      * 특정 로그인 세션의 활동 로그 조회
      */
+    @ViewLog(targetType = "LOGIN_HISTORY", pageCode = "login_history")
     @GetMapping("/login/{historyId}/activities")
     public ResponseEntity<ResVO<PageVO<ActivityLogVO>>> getLoginActivities(
             @PathVariable Long historyId,

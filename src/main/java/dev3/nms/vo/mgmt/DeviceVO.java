@@ -20,11 +20,13 @@ public class DeviceVO {
     private Integer MODEL_ID;  // VENDOR_ID → MODEL_ID (r_model_t 참조)
     private Integer PORT_COUNT; // 포트 수
     private Integer MIDDLEWARE_ID; // 수집 서버 ID (r_middleware_t FK)
+    private Integer MIDDLEWARE_FIXED; // 1=고정 할당(재분배 제외), 0=자동 할당(재분배 대상)
 
     // JOIN으로 가져오는 정보
     private String VENDOR_NAME;  // model → vendor 조인으로 가져옴
     private String MODEL_NAME;   // model 테이블에서 가져옴
     private String MODEL_OID;    // model 테이블에서 가져옴
+    private String DEV_CODE_NM;  // model → dev_code 조인 (장비 유형명, 예: "L2 시스코")
 
     // SNMP 정보 (r_device_snmp_t 조인으로 가져옴)
     private Integer SNMP_PORT;

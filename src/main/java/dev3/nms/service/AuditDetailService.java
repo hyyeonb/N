@@ -2,9 +2,13 @@ package dev3.nms.service;
 
 import dev3.nms.mapper.DeviceMapper;
 import dev3.nms.mapper.GroupMapper;
+import dev3.nms.mapper.LoginHistoryMapper;
 import dev3.nms.mapper.ModelMapper;
 import dev3.nms.mapper.PortMapper;
+import dev3.nms.mapper.UserMapper;
 import dev3.nms.mapper.WatchMapper;
+import dev3.nms.vo.auth.LoginHistoryVO;
+import dev3.nms.vo.auth.UserVO;
 import dev3.nms.vo.mgmt.*;
 import dev3.nms.vo.watch.WatchGroupDeviceVO;
 import dev3.nms.vo.watch.WatchGroupIfVO;
@@ -39,6 +43,8 @@ public class AuditDetailService {
     private final PortMapper portMapper;
     private final ModelMapper modelMapper;
     private final WatchMapper watchMapper;
+    private final UserMapper userMapper;
+    private final LoginHistoryMapper loginHistoryMapper;
 
     // ==================== 스냅샷 조회 ====================
 
@@ -804,7 +810,51 @@ public class AuditDetailService {
 
     // ==================== TARGET_TYPE → 한국어 라벨 ====================
 
-    private String getTargetLabel(String targetType) {
+    /**
+     * targetType + targetId로 DB에서 실제 표시명을 조회한다.
+     * ViewLogAspect에서 VIEW 액션 기록 시 사용.
+     *
+     * NEW 엔티티 추가 시 이 메서드에 케이스를 반드시 추가해야 한다.
+     * (docs/RULES.md 참고)
+     */
+    public String getDisplayName(String targetType, String targetId) {
+        if (targetType == null || targetId == null) return null;
+        try {
+            long id = Long.parseLong(targetId);
+            return switch (targetType) {
+                case "DEVICE", "TEMP_DEVICE", "DEVICE_SCOPE", "DEVICE_SNMP", "DEVICE_SSH", "DEVICE_THRESHOLD" -> {
+                    DeviceVO d = deviceMapper.findDeviceById((int) id);
+                    yield d != null ? safe(d.getDEVICE_NAME()) + optIp(d.getDEVICE_IP()) : null;
+                }
+                case "GROUP" -> {
+                    GroupVO g = groupMapper.findGroupById((int) id).orElse(null);
+                    yield g != null ? g.getGROUP_NAME() : null;
+                }
+                case "MODEL", "MODEL_OID" -> {
+                    ModelVO m = modelMapper.findById((int) id).orElse(null);
+                    yield m != null ? m.getMODEL_NAME() : null;
+                }
+                case "WATCH_GROUP", "WATCH_CONTROL" -> {
+                    WatchGroupVO w = watchMapper.findGroupById((int) id);
+                    yield w != null ? w.getGROUP_NAME() : null;
+                }
+                case "USER_PERMISSION", "USER_STATUS", "USER_SETTING", "USER_REVIEW", "ACCOUNT", "PASSWORD" -> {
+                    UserVO u = userMapper.findById(id).orElse(null);
+                    yield u != null ? u.getNAME() + "(" + safe(u.getLOGIN_ID()) + ")" : null;
+                }
+                case "LOGIN_HISTORY" -> {
+                    LoginHistoryVO h = loginHistoryMapper.findById(id);
+                    yield h != null ? h.getUSER_NAME() + " 세션(" + h.getHISTORY_ID() + ")" : null;
+                }
+                default -> null;
+            };
+        } catch (Exception e) {
+            log.debug("[AuditDetail] 표시명 조회 실패: type={}, id={}", targetType, targetId);
+            return null;
+        }
+    }
+
+    public String getTargetLabel(String targetType) {
         return switch (targetType) {
             case "DEVICE" -> "장비";
             case "GROUP" -> "그룹";
@@ -832,6 +882,7 @@ public class AuditDetailService {
             case "TOPOLOGY" -> "토폴로지";
             case "USER_TOPOLOGY" -> "사용자 토폴로지";
             case "MODEL_OID" -> "모델 OID";
+            case "MIDDLEWARE" -> "미들웨어";
             default -> targetType;
         };
     }

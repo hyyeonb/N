@@ -13,11 +13,12 @@
             d.DEVICE_IP,
             d.DEVICE_DESC,
             d.MODEL_ID,
-            COALESCE(d.PORT_COUNT, 0) AS PORT_COUNT,
+            (SELECT COUNT(*) FROM r_port_t p WHERE p.DEVICE_ID = d.DEVICE_ID AND p.IF_TYPE = 6 AND p.DELETE_AT IS NULL) AS PORT_COUNT,
             d.MIDDLEWARE_ID,
             m.MODEL_NAME,
             m.MODEL_OID,
             v.VENDOR_NAME,
+            dc.CODE_NM AS DEV_CODE_NM,
             s.SNMP_VERSION,
             s.SNMP_PORT,
             s.SNMP_COMMUNITY,
@@ -36,6 +37,7 @@
         LEFT JOIN r_device_snmp_t s ON d.DEVICE_ID = s.DEVICE_ID
         LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
         LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
+        LEFT JOIN b_dev_code_t dc ON m.DEV_CODE_ID = dc.DEV_CODE_ID
         LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
         WHERE d.DELETE_AT IS NULL
     </select>
@@ -51,11 +53,12 @@
             d.DEVICE_IP,
             d.DEVICE_DESC,
             d.MODEL_ID,
-            COALESCE(d.PORT_COUNT, 0) AS PORT_COUNT,
+            (SELECT COUNT(*) FROM r_port_t p WHERE p.DEVICE_ID = d.DEVICE_ID AND p.IF_TYPE = 6 AND p.DELETE_AT IS NULL) AS PORT_COUNT,
             d.MIDDLEWARE_ID,
             m.MODEL_NAME,
             m.MODEL_OID,
             v.VENDOR_NAME,
+            dc.CODE_NM AS DEV_CODE_NM,
             s.SNMP_VERSION,
             s.SNMP_PORT,
             s.SNMP_COMMUNITY,
@@ -74,6 +77,7 @@
         LEFT JOIN r_device_snmp_t s ON d.DEVICE_ID = s.DEVICE_ID
         LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
         LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
+        LEFT JOIN b_dev_code_t dc ON m.DEV_CODE_ID = dc.DEV_CODE_ID
         LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
         WHERE d.DEVICE_ID = #{deviceId}
           AND d.DELETE_AT IS NULL
@@ -90,11 +94,12 @@
             d.DEVICE_IP,
             d.DEVICE_DESC,
             d.MODEL_ID,
-            COALESCE(d.PORT_COUNT, 0) AS PORT_COUNT,
+            (SELECT COUNT(*) FROM r_port_t p WHERE p.DEVICE_ID = d.DEVICE_ID AND p.IF_TYPE = 6 AND p.DELETE_AT IS NULL) AS PORT_COUNT,
             d.MIDDLEWARE_ID,
             m.MODEL_NAME,
             m.MODEL_OID,
             v.VENDOR_NAME,
+            dc.CODE_NM AS DEV_CODE_NM,
             s.SNMP_VERSION,
             s.SNMP_PORT,
             s.SNMP_COMMUNITY,
@@ -113,6 +118,7 @@
         LEFT JOIN r_device_snmp_t s ON d.DEVICE_ID = s.DEVICE_ID
         LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
         LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
+        LEFT JOIN b_dev_code_t dc ON m.DEV_CODE_ID = dc.DEV_CODE_ID
         LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
         WHERE d.DELETE_AT IS NULL
         <if test="list != null and list.size() > 0">
@@ -137,11 +143,12 @@
             d.DEVICE_IP,
             d.DEVICE_DESC,
             d.MODEL_ID,
-            COALESCE(d.PORT_COUNT, 0) AS PORT_COUNT,
+            (SELECT COUNT(*) FROM r_port_t p WHERE p.DEVICE_ID = d.DEVICE_ID AND p.IF_TYPE = 6 AND p.DELETE_AT IS NULL) AS PORT_COUNT,
             d.MIDDLEWARE_ID,
             m.MODEL_NAME,
             m.MODEL_OID,
             v.VENDOR_NAME,
+            dc.CODE_NM AS DEV_CODE_NM,
             s.SNMP_VERSION,
             s.SNMP_PORT,
             s.SNMP_COMMUNITY,
@@ -160,6 +167,7 @@
         LEFT JOIN r_device_snmp_t s ON d.DEVICE_ID = s.DEVICE_ID
         LEFT JOIN r_model_t m ON d.MODEL_ID = m.MODEL_ID
         LEFT JOIN r_vendor_t v ON m.VENDOR_ID = v.VENDOR_ID
+        LEFT JOIN b_dev_code_t dc ON m.DEV_CODE_ID = dc.DEV_CODE_ID
         LEFT JOIN r_group_t g ON d.GROUP_ID = g.GROUP_ID
         WHERE d.GROUP_ID IN
         <foreach collection="groupIds" item="item" open="(" separator="," close=")">
@@ -206,7 +214,7 @@
                 ORDER BY v.VENDOR_NAME
             </when>
             <when test="sort == 'PORT_COUNT'">
-                ORDER BY d.PORT_COUNT
+                ORDER BY (SELECT COUNT(*) FROM r_port_t p WHERE p.DEVICE_ID = d.DEVICE_ID AND p.IF_TYPE = 6 AND p.DELETE_AT IS NULL)
             </when>
             <when test="sort == 'CREATE_AT'">
                 ORDER BY d.CREATE_AT
@@ -268,10 +276,10 @@
     <insert id="insertDevice" parameterType="dev3.nms.vo.mgmt.DeviceVO" useGeneratedKeys="true" keyProperty="DEVICE_ID">
         INSERT INTO r_device_t (
             GROUP_ID, DEVICE_NAME, DEVICE_SYSTEM_NAME, DEVICE_IP, DEVICE_DESC, MODEL_ID, PORT_COUNT,
-            MIDDLEWARE_ID, CREATE_USER_ID, CREATE_AT
+            MIDDLEWARE_ID, MIDDLEWARE_FIXED, CREATE_USER_ID, CREATE_AT
         ) VALUES (
             #{GROUP_ID}, #{DEVICE_NAME}, #{DEVICE_SYSTEM_NAME}, #{DEVICE_IP}, #{DEVICE_DESC}, #{MODEL_ID}, #{PORT_COUNT},
-            #{MIDDLEWARE_ID}, #{CREATE_USER_ID}, NOW()
+            #{MIDDLEWARE_ID}, <choose><when test="MIDDLEWARE_FIXED != null">#{MIDDLEWARE_FIXED}</when><otherwise>0</otherwise></choose>, #{CREATE_USER_ID}, NOW()
         )
     </insert>
 
@@ -298,11 +306,81 @@
             <if test="MODEL_ID != null">MODEL_ID = #{MODEL_ID},</if>
             <if test="PORT_COUNT != null">PORT_COUNT = #{PORT_COUNT},</if>
             MIDDLEWARE_ID = #{MIDDLEWARE_ID},
+            <if test="MIDDLEWARE_FIXED != null">MIDDLEWARE_FIXED = #{MIDDLEWARE_FIXED},</if>
             <if test="MODIFY_USER_ID != null">MODIFY_USER_ID = #{MODIFY_USER_ID},</if>
             MODIFY_AT = NOW()
         </set>
         WHERE DEVICE_ID = #{DEVICE_ID}
     </update>
+
+    <!-- ==================== 미들웨어 재분배용 벌크 SQL ==================== -->
+
+    <!-- 미들웨어 간 장비 이관 (고정 할당 장비는 제외) -->
+    <update id="bulkUpdateMiddlewareId">
+        UPDATE r_device_t
+        SET MIDDLEWARE_ID = #{newMiddlewareId}, MODIFY_AT = NOW()
+        WHERE MIDDLEWARE_ID = #{oldMiddlewareId}
+          AND MIDDLEWARE_FIXED = 0
+          AND DELETE_AT IS NULL
+    </update>
+
+    <!-- NULL 장비를 특정 미들웨어에 할당 -->
+    <update id="assignUnassignedDevices">
+        UPDATE r_device_t
+        SET MIDDLEWARE_ID = #{middlewareId}, MODIFY_AT = NOW()
+        WHERE MIDDLEWARE_ID IS NULL
+          AND MIDDLEWARE_FIXED = 0
+          AND DELETE_AT IS NULL
+    </update>
+
+    <!-- 고아 장비(MIDDLEWARE_ID IS NULL, FIXED=0) 카운트 -->
+    <select id="countOrphanDevices" resultType="int">
+        SELECT COUNT(*)
+        FROM r_device_t
+        WHERE MIDDLEWARE_ID IS NULL
+          AND MIDDLEWARE_FIXED = 0
+          AND DELETE_AT IS NULL
+    </select>
+
+    <!-- 전체 미들웨어 할당 해제 (고정 할당 장비는 제외) -->
+    <update id="clearAllMiddlewareAssignments">
+        UPDATE r_device_t
+        SET MIDDLEWARE_ID = NULL, MODIFY_AT = NOW()
+        WHERE MIDDLEWARE_ID IS NOT NULL
+          AND MIDDLEWARE_FIXED = 0
+          AND DELETE_AT IS NULL
+    </update>
+
+    <!-- 장비 목록 지정 재할당 (고정 할당 장비는 제외) -->
+    <update id="bulkReassignDevices">
+        UPDATE r_device_t
+        SET MIDDLEWARE_ID = #{middlewareId}, MODIFY_AT = NOW()
+        WHERE DEVICE_ID IN
+        <foreach collection="deviceIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        AND MIDDLEWARE_FIXED = 0
+        AND DELETE_AT IS NULL
+    </update>
+
+    <!-- 전체 활성 장비 ID + IP 조회 (재분배 ping probe용) -->
+    <select id="findAllActiveDeviceIdsWithIp" resultType="map">
+        SELECT
+            d.DEVICE_ID,
+            d.DEVICE_IP,
+            s.SNMP_VERSION,
+            s.SNMP_PORT,
+            s.SNMP_COMMUNITY,
+            s.SNMP_USER,
+            s.SNMP_AUTH_PROTOCOL,
+            s.SNMP_AUTH_PASSWORD,
+            s.SNMP_PRIV_PROTOCOL,
+            s.SNMP_PRIV_PASSWORD
+        FROM r_device_t d
+        LEFT JOIN r_device_snmp_t s ON d.DEVICE_ID = s.DEVICE_ID
+        WHERE d.DELETE_AT IS NULL
+        ORDER BY d.DEVICE_ID
+    </select>
 
     <!-- 장비 SNMP 정보 수정 -->
     <update id="updateDeviceSnmp" parameterType="dev3.nms.vo.mgmt.DeviceSnmpVO">

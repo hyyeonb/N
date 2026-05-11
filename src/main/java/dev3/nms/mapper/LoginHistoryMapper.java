@@ -40,4 +40,9 @@ public interface LoginHistoryMapper {
      * @return 정리된 건수
      */
     int closeStaleSession(@Param("timeoutMinutes") int timeoutMinutes);
+
+    /**
+     * HISTORY_ID로 단건 조회 (USER_NAME JOIN)
+     */
+    LoginHistoryVO findById(@Param("historyId") Long historyId);
 }

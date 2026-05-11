@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="dev3.nms.mapper.IcmpMapper">
+
+    <!-- 시간 범위 내 ICMP raw 데이터 -->
+    <select id="findHistoryRaw" resultType="dev3.nms.vo.mgmt.IcmpVO">
+        SELECT ICMP_ID, DEVICE_ID, RESPONSE_TIME, RESPONSE_MIN_TIME,
+               RESPONSE_MAX_TIME, PACKET_LOSS, COLLECT_TIME
+        FROM p_icmp_t
+        WHERE DEVICE_ID = #{deviceId}
+          AND COLLECT_TIME &gt;= #{startDate}
+          AND COLLECT_TIME &lt;= #{endDate}
+        ORDER BY COLLECT_TIME
+    </select>
+
+    <!-- 시간 범위 내 ICMP 집계 (intervalSec 단위) -->
+    <select id="findHistoryAggregated" resultType="dev3.nms.vo.mgmt.IcmpVO">
+        SELECT
+            DEVICE_ID,
+            FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(COLLECT_TIME)/#{intervalSec})*#{intervalSec}) AS COLLECT_TIME,
+            ROUND(AVG(RESPONSE_TIME), 2) AS RESPONSE_TIME,
+            ROUND(MIN(RESPONSE_MIN_TIME), 2) AS RESPONSE_MIN_TIME,
+            ROUND(MAX(RESPONSE_MAX_TIME), 2) AS RESPONSE_MAX_TIME,
+            ROUND(AVG(PACKET_LOSS), 2) AS PACKET_LOSS
+        FROM p_icmp_t
+        WHERE DEVICE_ID = #{deviceId}
+          AND COLLECT_TIME &gt;= #{startDate}
+          AND COLLECT_TIME &lt;= #{endDate}
+        GROUP BY FLOOR(UNIX_TIMESTAMP(COLLECT_TIME)/#{intervalSec})
+        ORDER BY COLLECT_TIME
+    </select>
+
+    <!-- 다중 장비의 ICMP raw 데이터 (batch) -->
+    <select id="findHistoryRawBatch" resultType="dev3.nms.vo.mgmt.IcmpVO">
+        SELECT ICMP_ID, DEVICE_ID, RESPONSE_TIME, RESPONSE_MIN_TIME,
+               RESPONSE_MAX_TIME, PACKET_LOSS, COLLECT_TIME
+        FROM p_icmp_t
+        WHERE DEVICE_ID IN
+        <foreach collection="deviceIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          AND COLLECT_TIME &gt;= #{startDate}
+          AND COLLECT_TIME &lt;= #{endDate}
+        ORDER BY DEVICE_ID, COLLECT_TIME
+    </select>
+
+    <!-- 다중 장비의 ICMP 집계 (batch, intervalSec 단위) -->
+    <select id="findHistoryAggregatedBatch" resultType="dev3.nms.vo.mgmt.IcmpVO">
+        SELECT
+            DEVICE_ID,
+            FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(COLLECT_TIME)/#{intervalSec})*#{intervalSec}) AS COLLECT_TIME,
+            ROUND(AVG(RESPONSE_TIME), 2) AS RESPONSE_TIME,
+            ROUND(MIN(RESPONSE_MIN_TIME), 2) AS RESPONSE_MIN_TIME,
+            ROUND(MAX(RESPONSE_MAX_TIME), 2) AS RESPONSE_MAX_TIME,
+            ROUND(AVG(PACKET_LOSS), 2) AS PACKET_LOSS
+        FROM p_icmp_t
+        WHERE DEVICE_ID IN
+        <foreach collection="deviceIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          AND COLLECT_TIME &gt;= #{startDate}
+          AND COLLECT_TIME &lt;= #{endDate}
+        GROUP BY DEVICE_ID, FLOOR(UNIX_TIMESTAMP(COLLECT_TIME)/#{intervalSec})
+        ORDER BY DEVICE_ID, COLLECT_TIME
+    </select>
+
+</mapper>

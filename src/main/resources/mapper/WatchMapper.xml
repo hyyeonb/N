@@ -175,7 +175,7 @@
             p.IF_DESCRIPTION AS IF_NAME,
             p.IF_SPEED
         FROM R_WATCH_GROUP_IF_T gi
-        LEFT JOIN R_PORT_T p ON gi.DEVICE_ID = p.DEVICE_ID AND gi.IF_INDEX = p.IF_INDEX AND p.DELETE_AT IS NULL
+        INNER JOIN R_PORT_T p ON gi.DEVICE_ID = p.DEVICE_ID AND gi.IF_INDEX = p.IF_INDEX AND p.DELETE_AT IS NULL AND p.IF_TYPE = 6
         WHERE gi.WATCH_GROUP_ID = #{watchGroupId}
           AND gi.DEVICE_ID = #{deviceId}
         ORDER BY gi.IF_INDEX
@@ -191,7 +191,7 @@
             p.IF_DESCRIPTION AS IF_NAME,
             p.IF_SPEED
         FROM R_WATCH_GROUP_IF_T gi
-        LEFT JOIN R_PORT_T p ON gi.DEVICE_ID = p.DEVICE_ID AND gi.IF_INDEX = p.IF_INDEX AND p.DELETE_AT IS NULL
+        INNER JOIN R_PORT_T p ON gi.DEVICE_ID = p.DEVICE_ID AND gi.IF_INDEX = p.IF_INDEX AND p.DELETE_AT IS NULL AND p.IF_TYPE = 6
         WHERE gi.WATCH_GROUP_ID = #{watchGroupId}
         ORDER BY gi.DEVICE_ID, gi.IF_INDEX
     </select>

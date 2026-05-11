@@ -23,4 +23,6 @@ public interface ActivityLogMapper {
     List<ActivityLogVO> findByDeviceId(Map<String, Object> params);
 
     long countByDeviceId(Map<String, Object> params);
+
+    Map<String, Object> countDailyDeviceChanges(String date);
 }

@@ -240,6 +240,7 @@ public class WatchController {
     /**
      * 하위 그룹 개수 조회
      */
+    @RequireGroupAccess(groupType = "WATCH", action = "VIEW")
     @GetMapping("/groups/{watchGroupId}/descendants/count")
     public ResponseEntity<ResVO<Integer>> getDescendantsCount(@PathVariable Integer watchGroupId) {
         try {
@@ -278,8 +279,9 @@ public class WatchController {
     }
 
     /**
-     * 이미 연동된 GROUP_ID 목록 조회
+     * 이미 연동된 GROUP_ID 목록 조회 — 관제 설정 화면에서만 사용
      */
+    @RequireEditPermission("watch_realtime")
     @GetMapping("/groups/linked-ids")
     public ResponseEntity<ResVO<List<Integer>>> getLinkedGroupIds() {
         try {
@@ -314,6 +316,7 @@ public class WatchController {
     /**
      * 연동된 관제 그룹 조회 (read-only, 동기화 없이 조회만)
      */
+    @RequireGroupAccess(groupType = "ASSET", action = "VIEW")
     @GetMapping("/groups/by-linked/{groupId}")
     public ResponseEntity<ResVO<WatchGroupVO>> getByLinkedGroup(@PathVariable Integer groupId) {
         try {
@@ -356,7 +359,7 @@ public class WatchController {
     /**
      * 관제 수집 시작
      */
-    @AuditLog(actionType = "UPDATE", targetType = "WATCH_CONTROL", pageCode = "watch_realtime")
+    @AuditLog(actionType = "CONTROL", targetType = "WATCH_CONTROL", pageCode = "watch_realtime")
     @RequireEditPermission("watch_realtime")
     @PostMapping("/start/{watchGroupId}")
     public ResponseEntity<ResVO<Void>> startWatch(@PathVariable Integer watchGroupId) {
@@ -376,7 +379,7 @@ public class WatchController {
     /**
      * 관제 수집 중지
      */
-    @AuditLog(actionType = "UPDATE", targetType = "WATCH_CONTROL", pageCode = "watch_realtime")
+    @AuditLog(actionType = "CONTROL", targetType = "WATCH_CONTROL", pageCode = "watch_realtime")
     @RequireEditPermission("watch_realtime")
     @PostMapping("/stop/{watchGroupId}")
     public ResponseEntity<ResVO<Void>> stopWatch(@PathVariable Integer watchGroupId) {

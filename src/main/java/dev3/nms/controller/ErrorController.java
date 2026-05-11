@@ -154,12 +154,14 @@ public class ErrorController {
      */
     @GetMapping("/stats/summary")
     public ResVO<Map<String, Object>> getStatsSummary(
+            @RequestParam String startDate,
+            @RequestParam String endDate,
             @RequestParam(required = false) List<Long> groupIds,
             @RequestParam(required = false) List<Long> deviceIds,
             HttpSession session) {
         List<Long> accessibleDeviceIds = getAccessibleDeviceIds(session);
         List<Long> filteredDeviceIds = intersectDeviceIds(deviceIds, accessibleDeviceIds);
-        return new ResVO<>(200, "조회 성공", errorService.getErrorStatsSummary(groupIds, filteredDeviceIds));
+        return new ResVO<>(200, "조회 성공", errorService.getErrorStatsSummary(startDate, endDate, groupIds, filteredDeviceIds));
     }
 
     /**

@@ -73,9 +73,82 @@
         ORDER BY COLLECTED_AT ASC
     </select>
 
+    <!-- 일별 시간대별 CPU/MEM 평균 집계 -->
+    <select id="getDailyPerfHourly" parameterType="string" resultType="map">
+        SELECT HOUR(COLLECTED_AT) AS STAT_HOUR,
+               ROUND(AVG(CPU_USAGE), 1) AS AVG_CPU,
+               ROUND(AVG(MEM_USAGE), 1) AS AVG_MEM,
+               ROUND(MAX(CPU_USAGE), 1) AS MAX_CPU,
+               ROUND(MAX(MEM_USAGE), 1) AS MAX_MEM
+        FROM p_cpu_mem_t p
+        JOIN r_device_t d ON p.DEVICE_ID = d.DEVICE_ID
+        WHERE DATE(p.COLLECTED_AT) = #{date}
+          AND p.CORE_INDEX IS NULL
+          AND d.DELETE_AT IS NULL
+        GROUP BY HOUR(COLLECTED_AT)
+        ORDER BY STAT_HOUR
+    </select>
+
+    <!-- 일별 CPU/MEM 피크 TOP N 장비 -->
+    <select id="getDailyCpuMemTop" parameterType="map" resultType="map">
+        SELECT d.DEVICE_NAME, d.DEVICE_IP,
+               MAX(p.CPU_USAGE) AS MAX_CPU,
+               MAX(p.MEM_USAGE) AS MAX_MEM,
+               ROUND(AVG(p.CPU_USAGE),1) AS AVG_CPU,
+               ROUND(AVG(p.MEM_USAGE),1) AS AVG_MEM
+        FROM p_cpu_mem_t p
+        JOIN r_device_t d ON p.DEVICE_ID = d.DEVICE_ID
+        WHERE DATE(p.COLLECTED_AT) = #{date}
+          AND p.CORE_INDEX IS NULL
+          AND d.DELETE_AT IS NULL
+        GROUP BY p.DEVICE_ID, d.DEVICE_NAME, d.DEVICE_IP
+        ORDER BY MAX_CPU DESC
+        LIMIT #{limit}
+    </select>
+
     <!-- 장비 삭제 시 해당 장비의 CPU/MEM 데이터 전체 삭제 -->
     <delete id="deleteByDeviceId">
         DELETE FROM p_cpu_mem_t WHERE DEVICE_ID = #{deviceId}
     </delete>
+
+    <!-- 다중 장비의 CPU/MEM raw 데이터 (batch, 집계값만) -->
+    <select id="findRecentBatchRaw" resultMap="CpuMemResultMap">
+        SELECT *
+        FROM P_CPU_MEM_T
+        WHERE DEVICE_ID IN
+        <foreach collection="deviceIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          AND CORE_INDEX IS NULL
+          AND COLLECTED_AT BETWEEN #{startDate} AND #{endDate}
+        ORDER BY DEVICE_ID, COLLECTED_AT ASC
+    </select>
+
+    <!-- 다중 장비의 CPU/MEM 집계 데이터 (batch, intervalSec 단위) -->
+    <select id="findRecentBatchAggregated" resultMap="CpuMemResultMap">
+        SELECT
+            DEVICE_ID,
+            FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(COLLECTED_AT)/#{intervalSec})*#{intervalSec}) AS COLLECTED_AT,
+            ROUND(AVG(CPU_USAGE), 2) AS CPU_USAGE,
+            ROUND(AVG(CPU_IDLE), 0) AS CPU_IDLE,
+            ROUND(AVG(CPU_USER), 0) AS CPU_USER,
+            ROUND(AVG(CPU_SYSTEM), 0) AS CPU_SYSTEM,
+            MAX(MEM_TOTAL) AS MEM_TOTAL,
+            ROUND(AVG(MEM_FREE), 0) AS MEM_FREE,
+            ROUND(AVG(MEM_AVAIL), 0) AS MEM_AVAIL,
+            ROUND(AVG(MEM_BUFFER), 0) AS MEM_BUFFER,
+            ROUND(AVG(MEM_CACHE), 0) AS MEM_CACHE,
+            ROUND(AVG(MEM_USED), 0) AS MEM_USED,
+            ROUND(AVG(MEM_USAGE), 2) AS MEM_USAGE
+        FROM P_CPU_MEM_T
+        WHERE DEVICE_ID IN
+        <foreach collection="deviceIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          AND CORE_INDEX IS NULL
+          AND COLLECTED_AT BETWEEN #{startDate} AND #{endDate}
+        GROUP BY DEVICE_ID, FLOOR(UNIX_TIMESTAMP(COLLECTED_AT)/#{intervalSec})
+        ORDER BY DEVICE_ID, COLLECTED_AT ASC
+    </select>
 
 </mapper>

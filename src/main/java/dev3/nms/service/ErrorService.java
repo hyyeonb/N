@@ -126,13 +126,13 @@ public class ErrorService {
     // ========== 장애 통계 ==========
 
     /**
-     * 장애 통계 요약 (등급별 + 유형별 현재 장애 수 + Aging)
+     * 장애 통계 요약 (기간 내 발생 기준: 등급별 + 유형별 + Aging)
      */
-    public Map<String, Object> getErrorStatsSummary(List<Long> groupIds, List<Long> deviceIds) {
+    public Map<String, Object> getErrorStatsSummary(String startDate, String endDate, List<Long> groupIds, List<Long> deviceIds) {
         Map<String, Object> result = new HashMap<>();
-        result.put("byLevel", errorMapper.selectErrorCountByLevel(groupIds, deviceIds));
-        result.put("byType", errorMapper.selectErrorCountByType(groupIds, deviceIds));
-        result.put("aging", errorMapper.selectErrorAging(groupIds, deviceIds));
+        result.put("byLevel", errorMapper.selectErrorCountByLevel(startDate, endDate, groupIds, deviceIds));
+        result.put("byType", errorMapper.selectErrorCountByType(startDate, endDate, groupIds, deviceIds));
+        result.put("aging", errorMapper.selectErrorAging(startDate, endDate, groupIds, deviceIds));
         return result;
     }
 

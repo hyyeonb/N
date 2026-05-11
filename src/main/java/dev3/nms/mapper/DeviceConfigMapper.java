@@ -11,6 +11,8 @@ import java.util.List;
 public interface DeviceConfigMapper {
     DeviceConfigDto.DeviceConfigRes getDeviceConfig(@Param("deviceId") Long deviceId, @Param("dateStr") String dateStr);
 
+    List<String> getConfigDates(@Param("deviceId") Long deviceId);
+
     // 페이지네이션 + 정렬 + 검색 지원 조회
     List<DeviceConfigDto.DeviceConfigTableRes> findDevicesByGroupIdsPagedWithSearch(@Param("groupIds") List<Integer> groupIds,
                                                         @Param("limit") int limit,

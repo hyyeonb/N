@@ -68,4 +68,21 @@ public interface DeviceMapper {
 
     int deleteDeviceScope(int deviceId);
 
+    // ==================== 미들웨어 재분배용 ====================
+
+    int bulkUpdateMiddlewareId(@Param("oldMiddlewareId") Integer oldMiddlewareId,
+                               @Param("newMiddlewareId") Integer newMiddlewareId);
+
+    int assignUnassignedDevices(@Param("middlewareId") Integer middlewareId);
+
+    int clearAllMiddlewareAssignments();
+
+    /** 고아 장비(MIDDLEWARE_ID=null, FIXED=0) 개수 */
+    int countOrphanDevices();
+
+    int bulkReassignDevices(@Param("middlewareId") Integer middlewareId,
+                            @Param("deviceIds") List<Integer> deviceIds);
+
+    List<java.util.Map<String, Object>> findAllActiveDeviceIdsWithIp();
+
 }

@@ -63,6 +63,66 @@ public class TrafficService {
     }
 
     /**
+     * 다중 장비의 트래픽 시계열 조회 (batch)
+     * granularity에 따라 raw/집계 자동 선택, 가상 인터페이스 제외
+     * 응답: {deviceId(String) → List<TrafficVO>}
+     */
+    public Map<String, List<TrafficVO>> getRecentTrafficBatch(List<Integer> deviceIds, Integer minutes,
+                                                               String startDate, String endDate, String granularity) {
+        Map<String, List<TrafficVO>> result = new LinkedHashMap<>();
+        if (deviceIds == null || deviceIds.isEmpty()) return result;
+        for (Integer id : deviceIds) {
+            result.put(String.valueOf(id), new ArrayList<>());
+        }
+
+        IcmpService.TimeRange range = IcmpService.resolveTimeRange(minutes, startDate, endDate);
+        Integer intervalSec = IcmpService.resolveIntervalSec(granularity, range.start, range.end);
+
+        List<TrafficVO> rows;
+        if (intervalSec == null || intervalSec <= 0) {
+            rows = trafficMapper.findRecentBatchRaw(deviceIds, range.startStr, range.endStr);
+        } else {
+            rows = trafficMapper.findRecentBatchAggregated(deviceIds, range.startStr, range.endStr, intervalSec);
+        }
+
+        for (TrafficVO vo : rows) {
+            if (isVirtualInterface(vo)) continue;
+            String key = String.valueOf(vo.getDEVICE_ID());
+            result.computeIfAbsent(key, k -> new ArrayList<>()).add(vo);
+        }
+        return result;
+    }
+
+    /**
+     * 다중 (장비, 포트) 쌍의 트래픽 시계열 조회 (batch)
+     * @param ports List<Map<String,Integer>> with keys "deviceId" and "ifIndex"
+     * @param minutes 최근 N분
+     * 응답: {"deviceId_ifIndex" → List<TrafficVO>}
+     */
+    public Map<String, List<TrafficVO>> getPortTrafficBatch(List<Map<String, Integer>> ports, Integer minutes) {
+        Map<String, List<TrafficVO>> result = new LinkedHashMap<>();
+        if (ports == null || ports.isEmpty()) return result;
+        if (minutes == null || minutes <= 0) {
+            minutes = 60;
+        }
+
+        // 빈 배열로 초기화
+        for (Map<String, Integer> p : ports) {
+            Integer did = p.get("deviceId");
+            Integer ifx = p.get("ifIndex");
+            if (did == null || ifx == null) continue;
+            result.put(did + "_" + ifx, new ArrayList<>());
+        }
+
+        List<TrafficVO> rows = trafficMapper.findRecentByPortsBatch(ports, minutes);
+        for (TrafficVO vo : rows) {
+            String key = vo.getDEVICE_ID() + "_" + vo.getIF_INDEX();
+            result.computeIfAbsent(key, k -> new ArrayList<>()).add(vo);
+        }
+        return result;
+    }
+
+    /**
      * 특정 장비의 트래픽 데이터 조회 (시간 범위)
      * @param deviceId 장비 ID
      * @param startTime 시작 시간

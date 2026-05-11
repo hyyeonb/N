@@ -1,6 +1,7 @@
 package dev3.nms.controller;
 
 import dev3.nms.config.AuditLog;
+import dev3.nms.config.ViewLog;
 import dev3.nms.service.AdminService;
 import dev3.nms.service.PermissionService;
 import dev3.nms.service.ThresholdService;
@@ -44,6 +45,7 @@ public class AdminController {
     /**
      * 사용자 상세 + 권한 조회
      */
+    @ViewLog(targetType = "USER_PERMISSION", pageCode = "system_admin")
     @GetMapping("/users/{userId}")
     public ResponseEntity<ResVO<Map<String, Object>>> getUserDetail(
             @PathVariable Long userId, HttpSession session) {

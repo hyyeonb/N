@@ -24,4 +24,8 @@ public interface MiddlewareMapper {
     void updateHeartbeat(@Param("middlewareId") Integer middlewareId);
 
     int countDevicesByMiddlewareId(@Param("middlewareId") Integer middlewareId);
+
+    int countFixedDevicesByMiddlewareId(@Param("middlewareId") Integer middlewareId);
+
+    List<MiddlewareVO> findActiveMiddlewares();
 }

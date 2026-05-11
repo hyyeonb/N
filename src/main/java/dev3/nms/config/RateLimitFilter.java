@@ -20,16 +20,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * IP 기반 API Rate Limiting
- * - 일반 API: 분당 120회
- * - 인증 API: 분당 20회
+ * - 일반 API: 분당 1200회 (NMS는 페이지당 다수 병렬 호출 발생)
+ * - 인증 API: 분당 30회
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class RateLimitFilter extends OncePerRequestFilter {
 
-    private static final int GENERAL_LIMIT = 120;  // 분당
-    private static final int AUTH_LIMIT = 20;       // 분당
+    private static final int GENERAL_LIMIT = 1200;  // 분당
+    private static final int AUTH_LIMIT = 30;        // 분당
 
     private final ObjectMapper objectMapper;
 

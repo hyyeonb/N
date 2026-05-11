@@ -16,6 +16,14 @@
         LIMIT 1
     </select>
 
+    <!-- 장비의 Config 이력이 있는 날짜 목록 조회 -->
+    <select id="getConfigDates" resultType="string">
+        SELECT DISTINCT DATE_FORMAT(REG_DT, '%Y-%m-%d') AS dateStr
+        FROM r_device_config_t
+        WHERE DEVICE_ID = #{deviceId}
+        ORDER BY dateStr DESC
+    </select>
+
     <!-- 그룹 ID 목록으로 장비 조회 (페이지네이션 + 정렬 + 검색) -->
     <select id="findDevicesByGroupIdsPagedWithSearch" resultType="dev3.nms.vo.deviceConfig.DeviceConfigDto$DeviceConfigTableRes">
         SELECT

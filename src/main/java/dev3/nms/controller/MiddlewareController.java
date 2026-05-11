@@ -1,5 +1,6 @@
 package dev3.nms.controller;
 
+import dev3.nms.config.AuditLog;
 import dev3.nms.service.MiddlewareService;
 import dev3.nms.service.PermissionService;
 import dev3.nms.vo.common.ResVO;
@@ -47,6 +48,7 @@ public class MiddlewareController {
     /**
      * 미들웨어 등록 (관리자 전용)
      */
+    @AuditLog(actionType = "CREATE", targetType = "MIDDLEWARE", pageCode = "system_admin")
     @PostMapping
     public ResponseEntity<ResVO<Void>> create(@RequestBody MiddlewareVO mw, HttpSession session) {
         Long currentUserId = getCurrentUserId(session);
@@ -61,6 +63,7 @@ public class MiddlewareController {
     /**
      * 미들웨어 수정 (관리자 전용)
      */
+    @AuditLog(actionType = "UPDATE", targetType = "MIDDLEWARE", pageCode = "system_admin")
     @PutMapping("/{id}")
     public ResponseEntity<ResVO<Void>> update(@PathVariable Integer id,
                                                @RequestBody MiddlewareVO mw,
@@ -77,6 +80,7 @@ public class MiddlewareController {
     /**
      * 미들웨어 삭제 (관리자 전용)
      */
+    @AuditLog(actionType = "DELETE", targetType = "MIDDLEWARE", pageCode = "system_admin")
     @DeleteMapping("/{id}")
     public ResponseEntity<ResVO<Void>> delete(@PathVariable Integer id, HttpSession session) {
         Long currentUserId = getCurrentUserId(session);
@@ -84,13 +88,8 @@ public class MiddlewareController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(new ResVO<>(403, "관리자 권한이 필요합니다", null));
         }
-        try {
-            middlewareService.delete(id);
-            return ResponseEntity.ok(new ResVO<>(200, "삭제 성공", null));
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(new ResVO<>(409, e.getMessage(), null));
-        }
+        middlewareService.delete(id);
+        return ResponseEntity.ok(new ResVO<>(200, "삭제 성공 (할당 장비 자동 재분배)", null));
     }
 
     /**
@@ -104,6 +103,29 @@ public class MiddlewareController {
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(new ResVO<>(404, e.getMessage(), null));
+        }
+    }
+
+    /**
+     * 미들웨어 API Key 자동 등록 (Go 시작 시 호출, 인증 불필요)
+     */
+    @PostMapping("/register-key")
+    public ResponseEntity<ResVO<Integer>> registerKey(@RequestBody java.util.Map<String, Object> body) {
+        try {
+            int middlewareId = body.get("middlewareId") != null ? ((Number) body.get("middlewareId")).intValue() : 0;
+            String apiKey = (String) body.get("apiKey");
+            String url = (String) body.get("url");
+
+            if (apiKey == null || apiKey.isBlank()) {
+                return ResponseEntity.badRequest().body(new ResVO<>(400, "apiKey 필수", null));
+            }
+
+            Integer assignedId = middlewareService.registerKey(middlewareId, apiKey, url);
+            return ResponseEntity.ok(new ResVO<>(200, "API Key 등록 완료", assignedId));
+        } catch (Exception e) {
+            log.error("API Key 등록 실패: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ResVO<>(500, e.getMessage(), null));
         }
     }
 

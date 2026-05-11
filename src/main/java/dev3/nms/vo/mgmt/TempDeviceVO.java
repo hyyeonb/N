@@ -8,9 +8,9 @@ import java.sql.Timestamp;
 @Getter
 @Setter
 public class TempDeviceVO {
-    private int TEMP_DEVICE_ID;
+    private Integer TEMP_DEVICE_ID;
     private String DEVICE_NAME;
-    private int GROUP_ID;  // DEVICE_GROUP_ID → GROUP_ID
+    private Integer GROUP_ID = 0;  // DEVICE_GROUP_ID → GROUP_ID
     private String DEVICE_IP;
     private Integer SNMP_VERSION;
     private Integer SNMP_PORT;

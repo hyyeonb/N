@@ -48,6 +48,18 @@ public interface ErrorMapper {
                         @Param("userMessage") String userMessage);
 
     /**
+     * 장비 IP 변경 시 활성 장애(f_error_t)의 DEVICE_IP 동기화
+     */
+    int updateErrorDeviceIp(@Param("deviceId") int deviceId,
+                            @Param("deviceIp") String deviceIp);
+
+    /**
+     * 장비 IP 변경 시 장애 이력(f_error_history_t)의 DEVICE_IP 동기화
+     */
+    int updateErrorHistoryDeviceIp(@Param("deviceId") int deviceId,
+                                   @Param("deviceIp") String deviceIp);
+
+    /**
      * 장애 이력 목록 조회 (페이징)
      */
     List<ErrorHistoryVO> selectErrorHistory(@Param("errorLevel") String errorLevel,
@@ -133,10 +145,14 @@ public interface ErrorMapper {
 
     // ========== 장애 통계 ==========
 
-    List<Map<String, Object>> selectErrorCountByLevel(@Param("groupIds") List<Long> groupIds,
+    List<Map<String, Object>> selectErrorCountByLevel(@Param("startDate") String startDate,
+                                                       @Param("endDate") String endDate,
+                                                       @Param("groupIds") List<Long> groupIds,
                                                        @Param("deviceIds") List<Long> deviceIds);
 
-    List<Map<String, Object>> selectErrorCountByType(@Param("groupIds") List<Long> groupIds,
+    List<Map<String, Object>> selectErrorCountByType(@Param("startDate") String startDate,
+                                                      @Param("endDate") String endDate,
+                                                      @Param("groupIds") List<Long> groupIds,
                                                       @Param("deviceIds") List<Long> deviceIds);
 
     List<Map<String, Object>> selectErrorTrendDaily(@Param("startDate") String startDate,
@@ -180,7 +196,9 @@ public interface ErrorMapper {
                                                        @Param("groupIds") List<Long> groupIds,
                                                        @Param("deviceIds") List<Long> deviceIds);
 
-    List<Map<String, Object>> selectErrorAging(@Param("groupIds") List<Long> groupIds,
+    List<Map<String, Object>> selectErrorAging(@Param("startDate") String startDate,
+                                                @Param("endDate") String endDate,
+                                                @Param("groupIds") List<Long> groupIds,
                                                 @Param("deviceIds") List<Long> deviceIds);
 
     /**
@@ -188,4 +206,15 @@ public interface ErrorMapper {
      */
     int countHistoryBefore(@Param("errorHistoryId") Long errorHistoryId,
                            @Param("deviceId") Long deviceId);
+
+    List<Map<String, Object>> selectFaultHourlyByLevel(@Param("startDate") String startDate,
+                                                        @Param("endDate") String endDate);
+
+    List<Map<String, Object>> selectTopDevicesByLevel(@Param("startDate") String startDate,
+                                                       @Param("endDate") String endDate,
+                                                       @Param("limit") int limit);
+
+    List<Map<String, Object>> selectTopDevicesByType(@Param("startDate") String startDate,
+                                                      @Param("endDate") String endDate,
+                                                      @Param("limit") int limit);
 }

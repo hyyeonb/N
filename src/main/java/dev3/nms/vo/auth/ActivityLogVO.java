@@ -17,7 +17,7 @@ public class ActivityLogVO {
     private Long LOG_ID;
     private Long HISTORY_ID;
     private Long USER_ID;
-    private String ACTION_TYPE;       // PAGE_VIEW, CREATE, UPDATE, DELETE
+    private String ACTION_TYPE;       // PAGE_VIEW, VIEW, CREATE, UPDATE, DELETE, CONTROL
     private String TARGET_TYPE;       // DEVICE, GROUP, MODEL, NOTICE 등
     private String TARGET_ID;         // 대상 ID (다형성)
     private String TARGET_NAME;       // 대상 이름 (비정규화)

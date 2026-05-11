@@ -52,6 +52,7 @@ public class DeviceService {
     private final TrafficMapper trafficMapper;
     private final MiddlewareClient middlewareClient;
     private final MiddlewareMapper middlewareMapper;
+    private final MiddlewareService middlewareService;
     private final PortService portService;
     private final ErrorMapper errorMapper;
     private final PortMapper portMapper;
@@ -220,22 +221,52 @@ public class DeviceService {
         boolean pingSuccess = pingTest(deviceInput.getDEVICE_IP(), 1000);
 
         try {
-            // SNMP로 장비 시스템 정보 조회 (Middleware API 호출)
-            Map<String, String> sysInfo = middlewareClient.getDeviceSystemInfo(
-                    deviceInput.getDEVICE_IP(),
-                    deviceInput.getSNMP_VERSION(),
-                    deviceInput.getSNMP_PORT(),
-                    deviceInput.getSNMP_COMMUNITY(),
-                    deviceInput.getSNMP_USER(),
-                    deviceInput.getSNMP_AUTH_PROTOCOL(),
-                    deviceInput.getSNMP_AUTH_PASSWORD(),
-                    deviceInput.getSNMP_PRIV_PROTOCOL(),
-                    deviceInput.getSNMP_PRIV_PASSWORD()
-            );
+            // 모든 ACTIVE 미들웨어에 병렬 probe → 성공한 미들웨어 목록 + 시스템 정보
+            MiddlewareClient.SnmpRequest snmpReq = new MiddlewareClient.SnmpRequest();
+            snmpReq.setIpAddress(deviceInput.getDEVICE_IP());
+            snmpReq.setSnmpVersion(deviceInput.getSNMP_VERSION());
+            snmpReq.setSnmpPort(deviceInput.getSNMP_PORT());
+            snmpReq.setCommunity(deviceInput.getSNMP_COMMUNITY());
+            snmpReq.setUser(deviceInput.getSNMP_USER());
+            snmpReq.setAuthProtocol(deviceInput.getSNMP_AUTH_PROTOCOL());
+            snmpReq.setAuthPassword(deviceInput.getSNMP_AUTH_PASSWORD());
+            snmpReq.setPrivProtocol(deviceInput.getSNMP_PRIV_PROTOCOL());
+            snmpReq.setPrivPassword(deviceInput.getSNMP_PRIV_PASSWORD());
 
-            String sysDescr = sysInfo.get("sysDescr");
-            String sysObjectId = sysInfo.get("sysObjectId");
-            String sysName = sysInfo.get("sysName");
+            MiddlewareClient.RegistrationProbe probe = middlewareClient.probeForRegistration(snmpReq);
+            if (!probe.systemInfo.isSuccess()) {
+                throw new RuntimeException(probe.systemInfo.getMessage() != null
+                        ? probe.systemInfo.getMessage() : "SNMP 실패");
+            }
+
+            String sysDescr = probe.systemInfo.getSysDescr();
+            String sysObjectId = dev3.nms.util.CommonUtil.normalizeOid(probe.systemInfo.getSysObjectId());
+            String sysName = probe.systemInfo.getSysName();
+
+            // 도달 가능 미들웨어 기반 할당 결정
+            Integer assignedMiddlewareId;
+            Integer middlewareFixed;
+            if (probe.reachableMiddlewares.size() == 1) {
+                assignedMiddlewareId = probe.reachableMiddlewares.get(0).getMIDDLEWARE_ID();
+                middlewareFixed = 1;
+                log.info("[등록 할당] {} → middlewareId={} (FIXED: 단일 도달)",
+                        deviceInput.getDEVICE_IP(), assignedMiddlewareId);
+            } else if (probe.reachableMiddlewares.size() >= 2) {
+                Integer pick = null;
+                long minLoad = Long.MAX_VALUE;
+                for (dev3.nms.vo.mgmt.MiddlewareVO mw : probe.reachableMiddlewares) {
+                    long load = middlewareMapper.countDevicesByMiddlewareId(mw.getMIDDLEWARE_ID());
+                    if (load < minLoad) { minLoad = load; pick = mw.getMIDDLEWARE_ID(); }
+                }
+                assignedMiddlewareId = pick;
+                middlewareFixed = 0;
+                log.info("[등록 할당] {} → middlewareId={} (AUTO: {}개 중 최소 부하)",
+                        deviceInput.getDEVICE_IP(), assignedMiddlewareId, probe.reachableMiddlewares.size());
+            } else {
+                assignedMiddlewareId = null;
+                middlewareFixed = 0;
+                log.warn("[등록 할당] {} 도달 가능 미들웨어 없음", deviceInput.getDEVICE_IP());
+            }
 
             // 벤더 매칭
             VendorVO vendor = vendorMapper.findVendorByOid(sysObjectId);
@@ -251,12 +282,10 @@ public class DeviceService {
                     .DEVICE_IP(deviceInput.getDEVICE_IP())
                     .DEVICE_DESC(sysDescr)
                     .MODEL_ID(modelId)
+                    .MIDDLEWARE_ID(assignedMiddlewareId)
+                    .MIDDLEWARE_FIXED(middlewareFixed)
                     .CREATE_USER_ID(userId)
                     .build();
-
-            // 자동 미들웨어 할당
-            Integer assignedMiddlewareId = assignMiddleware();
-            device.setMIDDLEWARE_ID(assignedMiddlewareId);
 
             // r_device_t에 저장
             deviceMapper.insertDevice(device);
@@ -296,7 +325,7 @@ public class DeviceService {
                     .build();
             deviceMapper.insertDeviceScope(scope);
 
-            // 포트 정보 수집 및 저장 (Middleware API 호출)
+            // 포트 정보 수집 - 방금 할당된 미들웨어에서 조회 (deviceId 전달)
             try {
                 List<PortVO> ports = middlewareClient.getDevicePortInfo(
                         deviceInput.getDEVICE_IP(),
@@ -307,19 +336,19 @@ public class DeviceService {
                         deviceInput.getSNMP_AUTH_PROTOCOL(),
                         deviceInput.getSNMP_AUTH_PASSWORD(),
                         deviceInput.getSNMP_PRIV_PROTOCOL(),
-                        deviceInput.getSNMP_PRIV_PASSWORD()
+                        deviceInput.getSNMP_PRIV_PASSWORD(),
+                        device.getDEVICE_ID()
                 );
 
                 if (!ports.isEmpty()) {
-                    ports.forEach(port -> {
-                        port.setDEVICE_ID(device.getDEVICE_ID());
-                    });
+                    ports.forEach(port -> port.setDEVICE_ID(device.getDEVICE_ID()));
                     portService.createPorts(ports);
 
                     // PORT_COUNT 업데이트
                     device.setPORT_COUNT(ports.size());
                     deviceMapper.updateDevice(device);
-                    log.info("포트 정보 수집 완료 - DeviceId: {}, 포트 수: {}", device.getDEVICE_ID(), ports.size());
+                    log.info("포트 정보 수집 완료 - DeviceId: {}, middlewareId: {}, 포트 수: {}",
+                            device.getDEVICE_ID(), assignedMiddlewareId, ports.size());
                 }
             } catch (Exception e) {
                 log.warn("포트 정보 수집 실패 (장비 등록은 성공) - DeviceId: {}, Error: {}",
@@ -479,6 +508,12 @@ public class DeviceService {
             result.getFailureList().addAll(singleResult.getFailureList());
         }
 
+        // 등록 결과에 따라 재분배 트리거 (FIXED 장비 추가로 인한 AUTO 장비 재분배 기회)
+        if (!result.getSuccessList().isEmpty()) {
+            log.info("[등록 후] 재분배 트리거 - 성공 장비 {}대", result.getSuccessList().size());
+            middlewareService.rebalanceAllDevices();
+        }
+
         return result;
     }
 
@@ -493,30 +528,64 @@ public class DeviceService {
             throw new IllegalArgumentException("임시 장비를 찾을 수 없습니다: " + tempDeviceId);
         }
 
-        // 2. SNMP로 장비 시스템 정보 조회 (Middleware API 호출)
-        Map<String, String> sysInfo;
+        // 2. SNMP probe - 모든 ACTIVE 미들웨어에 병렬 시도 → 성공한 미들웨어 목록 + sysInfo 반환
+        MiddlewareClient.SnmpRequest snmpReq = new MiddlewareClient.SnmpRequest();
+        snmpReq.setIpAddress(tempDevice.getDEVICE_IP());
+        snmpReq.setSnmpVersion(tempDevice.getSNMP_VERSION());
+        snmpReq.setSnmpPort(tempDevice.getSNMP_PORT());
+        snmpReq.setCommunity(tempDevice.getSNMP_COMMUNITY());
+        snmpReq.setUser(tempDevice.getSNMP_USER());
+        snmpReq.setAuthProtocol(tempDevice.getSNMP_AUTH_PROTOCOL());
+        snmpReq.setAuthPassword(tempDevice.getSNMP_AUTH_PASSWORD());
+        snmpReq.setPrivProtocol(tempDevice.getSNMP_PRIV_PROTOCOL());
+        snmpReq.setPrivPassword(tempDevice.getSNMP_PRIV_PASSWORD());
+
+        MiddlewareClient.RegistrationProbe probe;
         try {
-            sysInfo = middlewareClient.getDeviceSystemInfo(
-                    tempDevice.getDEVICE_IP(),
-                    tempDevice.getSNMP_VERSION(),
-                    tempDevice.getSNMP_PORT(),
-                    tempDevice.getSNMP_COMMUNITY(),
-                    tempDevice.getSNMP_USER(),
-                    tempDevice.getSNMP_AUTH_PROTOCOL(),
-                    tempDevice.getSNMP_AUTH_PASSWORD(),
-                    tempDevice.getSNMP_PRIV_PROTOCOL(),
-                    tempDevice.getSNMP_PRIV_PASSWORD()
-            );
+            probe = middlewareClient.probeForRegistration(snmpReq);
         } catch (Exception e) {
-            log.error("SNMP 요청 실패: {}", e.getMessage());
+            log.error("SNMP probe 실패: {}", e.getMessage());
             throw new RuntimeException(e.getMessage());
         }
 
-        String sysDescr = sysInfo.get("sysDescr");
-        String sysObjectId = sysInfo.get("sysObjectId");
-        String sysName = sysInfo.get("sysName");
+        if (!probe.systemInfo.isSuccess()) {
+            throw new RuntimeException(probe.systemInfo.getMessage() != null
+                    ? probe.systemInfo.getMessage() : "SNMP 실패");
+        }
+
+        String sysDescr = probe.systemInfo.getSysDescr();
+        String sysObjectId = dev3.nms.util.CommonUtil.normalizeOid(probe.systemInfo.getSysObjectId());
+        String sysName = probe.systemInfo.getSysName();
 
         log.info("장비 시스템 정보 - sysDescr: {}, sysObjectId: {}, sysName: {}", sysDescr, sysObjectId, sysName);
+
+        // 2-1. 도달 가능 미들웨어 기반 할당 결정
+        Integer assignedMiddlewareId;
+        Integer middlewareFixed;
+        if (probe.reachableMiddlewares.size() == 1) {
+            // 한 미들웨어만 도달 가능 → 고정 할당
+            assignedMiddlewareId = probe.reachableMiddlewares.get(0).getMIDDLEWARE_ID();
+            middlewareFixed = 1;
+            log.info("[등록 할당] deviceIp={} → middlewareId={} (FIXED: 단일 도달)",
+                    tempDevice.getDEVICE_IP(), assignedMiddlewareId);
+        } else if (probe.reachableMiddlewares.size() >= 2) {
+            // 여러 미들웨어 도달 가능 → 최소 부하 선택 + 자동 분배
+            Integer pick = null;
+            long minLoad = Long.MAX_VALUE;
+            for (dev3.nms.vo.mgmt.MiddlewareVO mw : probe.reachableMiddlewares) {
+                long load = middlewareMapper.countDevicesByMiddlewareId(mw.getMIDDLEWARE_ID());
+                if (load < minLoad) { minLoad = load; pick = mw.getMIDDLEWARE_ID(); }
+            }
+            assignedMiddlewareId = pick;
+            middlewareFixed = 0;
+            log.info("[등록 할당] deviceIp={} → middlewareId={} (AUTO: {}개 중 최소 부하)",
+                    tempDevice.getDEVICE_IP(), assignedMiddlewareId, probe.reachableMiddlewares.size());
+        } else {
+            // 도달 가능 미들웨어 없음 (probe 성공해도 reachable이 비어있는 fallback 케이스)
+            assignedMiddlewareId = null;
+            middlewareFixed = 0;
+            log.warn("[등록 할당] deviceIp={} 도달 가능 미들웨어 없음 (fallback)", tempDevice.getDEVICE_IP());
+        }
 
         // 3. sysObjectId로 벤더 매칭
         log.info(sysObjectId);
@@ -533,6 +602,8 @@ public class DeviceService {
                 .DEVICE_IP(tempDevice.getDEVICE_IP())
                 .DEVICE_DESC(sysDescr)
                 .MODEL_ID(modelId)
+                .MIDDLEWARE_ID(assignedMiddlewareId)
+                .MIDDLEWARE_FIXED(middlewareFixed)
                 .CREATE_USER_ID(userId)
                 .build();
 
@@ -574,7 +645,7 @@ public class DeviceService {
                 .build();
         deviceMapper.insertDeviceScope(scope);
 
-        // 8. 포트 정보 수집 및 저장 (Middleware API 호출)
+        // 8. 포트 정보 수집 - 방금 할당된 미들웨어에서 조회 (deviceId 전달)
         try {
             List<PortVO> ports = middlewareClient.getDevicePortInfo(
                     tempDevice.getDEVICE_IP(),
@@ -585,19 +656,18 @@ public class DeviceService {
                     tempDevice.getSNMP_AUTH_PROTOCOL(),
                     tempDevice.getSNMP_AUTH_PASSWORD(),
                     tempDevice.getSNMP_PRIV_PROTOCOL(),
-                    tempDevice.getSNMP_PRIV_PASSWORD()
+                    tempDevice.getSNMP_PRIV_PASSWORD(),
+                    device.getDEVICE_ID()
             );
 
             if (!ports.isEmpty()) {
-                ports.forEach(port -> {
-                    port.setDEVICE_ID(device.getDEVICE_ID());
-                });
+                ports.forEach(port -> port.setDEVICE_ID(device.getDEVICE_ID()));
                 portService.createPorts(ports);
 
-                // PORT_COUNT 업데이트
                 device.setPORT_COUNT(ports.size());
                 deviceMapper.updateDevice(device);
-                log.info("포트 정보 수집 완료 - DeviceId: {}, 포트 수: {}", device.getDEVICE_ID(), ports.size());
+                log.info("포트 정보 수집 완료 - DeviceId: {}, middlewareId: {}, 포트 수: {}",
+                        device.getDEVICE_ID(), assignedMiddlewareId, ports.size());
             }
         } catch (Exception e) {
             log.warn("포트 정보 수집 실패 (장비 등록은 성공) - DeviceId: {}, Error: {}",
@@ -672,6 +742,11 @@ public class DeviceService {
             }
         }
 
+        if (!result.getSuccessList().isEmpty()) {
+            log.info("[등록 후] 재분배 트리거 - 성공 장비 {}대", result.getSuccessList().size());
+            middlewareService.rebalanceAllDevices();
+        }
+
         return result;
     }
 
@@ -686,7 +761,29 @@ public class DeviceService {
         }
 
         deviceUpdates.setDEVICE_ID(deviceId);
+
+        // 유저가 MIDDLEWARE_ID를 직접 변경하면 FIXED=1로 잠금 (재분배 제외)
+        Integer newMwId = deviceUpdates.getMIDDLEWARE_ID();
+        Integer oldMwId = existingDevice.getMIDDLEWARE_ID();
+        boolean mwChanged = !java.util.Objects.equals(newMwId, oldMwId);
+        if (mwChanged && newMwId != null && deviceUpdates.getMIDDLEWARE_FIXED() == null) {
+            deviceUpdates.setMIDDLEWARE_FIXED(1);
+            log.info("[미들웨어 변경] deviceId={} middlewareId {} → {} (FIXED=1 자동 설정)",
+                    deviceId, oldMwId, newMwId);
+        }
+
         deviceMapper.updateDevice(deviceUpdates);
+
+        // IP 변경 시 활성 장애(f_error_t)만 현재 IP로 동기화
+        // 이력(f_error_history_t)은 발생 당시 스냅샷 보존 (감사/포렌식 목적)
+        String newIp = deviceUpdates.getDEVICE_IP();
+        String oldIp = existingDevice.getDEVICE_IP();
+        boolean ipChanged = newIp != null && !newIp.equals(oldIp);
+        if (ipChanged) {
+            int activeUpdated = errorMapper.updateErrorDeviceIp(deviceId, newIp);
+            log.info("[장비 IP 변경] deviceId={} {} → {} (활성 장애 {}건 동기화, 이력은 보존)",
+                    deviceId, oldIp, newIp, activeUpdated);
+        }
 
         // SNMP 정보 업데이트 (존재하는 경우, 버전에 따라 불필요한 필드 null 처리)
         if (deviceUpdates.getSNMP_PORT() != null || deviceUpdates.getSNMP_COMMUNITY() != null ||
@@ -722,6 +819,11 @@ public class DeviceService {
             } else {
                 deviceMapper.insertDeviceSnmp(snmpUpdate);
             }
+        }
+
+        // IP 변경 시 수집 미들웨어 reachability 재검증 (@Async이므로 응답 지연 없음)
+        if (ipChanged) {
+            middlewareService.rebalanceAllDevices();
         }
 
         return deviceMapper.findDeviceById(deviceId);
@@ -989,6 +1091,36 @@ public class DeviceService {
      */
     public List<CpuMemVO> getRecentCpuMem(int deviceId, int minutes, String startDate, String endDate) {
         return cpuMemMapper.findRecentByDeviceId(deviceId, minutes, startDate, endDate);
+    }
+
+    /**
+     * 다중 장비의 CPU/MEM 시계열 조회 (batch)
+     * granularity에 따라 raw/집계 자동 선택
+     * 응답: {deviceId(String) → List<CpuMemVO>}
+     */
+    public java.util.Map<String, List<CpuMemVO>> getRecentCpuMemBatch(List<Integer> deviceIds, Integer minutes,
+                                                                       String startDate, String endDate, String granularity) {
+        java.util.Map<String, List<CpuMemVO>> result = new java.util.LinkedHashMap<>();
+        if (deviceIds == null || deviceIds.isEmpty()) return result;
+        for (Integer id : deviceIds) {
+            result.put(String.valueOf(id), new ArrayList<>());
+        }
+
+        IcmpService.TimeRange range = IcmpService.resolveTimeRange(minutes, startDate, endDate);
+        Integer intervalSec = IcmpService.resolveIntervalSec(granularity, range.start, range.end);
+
+        List<CpuMemVO> rows;
+        if (intervalSec == null || intervalSec <= 0) {
+            rows = cpuMemMapper.findRecentBatchRaw(deviceIds, range.startStr, range.endStr);
+        } else {
+            rows = cpuMemMapper.findRecentBatchAggregated(deviceIds, range.startStr, range.endStr, intervalSec);
+        }
+
+        for (CpuMemVO vo : rows) {
+            String key = String.valueOf(vo.getDEVICE_ID());
+            result.computeIfAbsent(key, k -> new ArrayList<>()).add(vo);
+        }
+        return result;
     }
 
     /**

@@ -1,5 +1,6 @@
 package dev3.nms.controller;
 
+import dev3.nms.config.AuditLog;
 import dev3.nms.mapper.EmailPrefMapper;
 import dev3.nms.mapper.ErrorMapper;
 import dev3.nms.util.SessionUtil;
@@ -44,6 +45,7 @@ public class EmailController {
         return ResponseEntity.ok(new ResVO<>(200, "조회 성공", result));
     }
 
+    @AuditLog(actionType = "UPDATE", targetType = "USER_SETTING", pageCode = "notification_settings")
     @PutMapping("/preferences")
     public ResponseEntity<ResVO<Void>> savePreferences(@RequestBody Map<String, Object> body, HttpSession session) {
         Long userId = SessionUtil.getUserId(session);
@@ -78,6 +80,7 @@ public class EmailController {
 
     // === Device Override ===
 
+    @AuditLog(actionType = "UPDATE", targetType = "USER_SETTING", pageCode = "notification_settings")
     @PutMapping("/preferences/devices/{deviceId}")
     public ResponseEntity<ResVO<Void>> saveDevicePrefs(@PathVariable Integer deviceId,
                                                         @RequestBody List<EmailDevicePrefVO> prefs,
@@ -97,6 +100,7 @@ public class EmailController {
         return ResponseEntity.ok(new ResVO<>(200, "저장 성공", null));
     }
 
+    @AuditLog(actionType = "DELETE", targetType = "USER_SETTING", pageCode = "notification_settings")
     @DeleteMapping("/preferences/devices/{deviceId}")
     public ResponseEntity<ResVO<Void>> deleteDevicePrefs(@PathVariable Integer deviceId, HttpSession session) {
         Long userId = SessionUtil.getUserId(session);
@@ -113,12 +117,14 @@ public class EmailController {
         return ResponseEntity.ok(new ResVO<>(200, "조회 성공", emailPrefMapper.findAllSystemEmails()));
     }
 
+    @AuditLog(actionType = "CREATE", targetType = "USER_SETTING", pageCode = "system_admin")
     @PostMapping("/system")
     public ResponseEntity<ResVO<Void>> addSystemEmail(@RequestBody SystemEmailVO vo) {
         emailPrefMapper.insertSystemEmail(vo);
         return ResponseEntity.ok(new ResVO<>(200, "등록 성공", null));
     }
 
+    @AuditLog(actionType = "UPDATE", targetType = "USER_SETTING", pageCode = "system_admin")
     @PutMapping("/system/{emailId}")
     public ResponseEntity<ResVO<Void>> updateSystemEmail(@PathVariable Integer emailId, @RequestBody SystemEmailVO vo) {
         vo.setEMAIL_ID(emailId);
@@ -126,6 +132,7 @@ public class EmailController {
         return ResponseEntity.ok(new ResVO<>(200, "수정 성공", null));
     }
 
+    @AuditLog(actionType = "DELETE", targetType = "USER_SETTING", pageCode = "system_admin")
     @DeleteMapping("/system/{emailId}")
     public ResponseEntity<ResVO<Void>> deleteSystemEmail(@PathVariable Integer emailId) {
         emailPrefMapper.deleteSystemEmail(emailId);

@@ -1,6 +1,9 @@
 package dev3.nms.controller;
 
 import dev3.nms.config.AuditLog;
+import dev3.nms.mapper.ActivityLogMapper;
+import dev3.nms.mapper.CpuMemMapper;
+import dev3.nms.mapper.ErrorMapper;
 import dev3.nms.service.DashboardService;
 import dev3.nms.service.PermissionService;
 import dev3.nms.service.TopoService;
@@ -16,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -25,6 +29,9 @@ public class DashboardController {
 
     private final DashboardService dashboardService;
     private final PermissionService permissionService;
+    private final ActivityLogMapper activityLogMapper;
+    private final CpuMemMapper cpuMemMapper;
+    private final ErrorMapper errorMapper;
 
     /**
      * 대시보드 위젯 목록 조회
@@ -145,6 +152,28 @@ public class DashboardController {
         Long userId = SessionUtil.getUserId(session);
         if (userId == null) return List.of();
         return permissionService.getAccessibleDeviceIds(userId);
+    }
+
+    /**
+     * 전일 종합 현황 요약 (장비 변경 집계)
+     * date 파라미터 없으면 어제 날짜 사용
+     */
+    @GetMapping("/daily-summary")
+    public ResponseEntity<ResVO<Map<String, Object>>> getDailySummary(
+            @RequestParam(required = false) String date
+    ) {
+        if (date == null || date.isEmpty()) {
+            date = java.time.LocalDate.now().minusDays(1).toString();
+        }
+        Map<String, Object> result = activityLogMapper.countDailyDeviceChanges(date);
+        if (result == null) result = new java.util.HashMap<>();
+        result.put("date", date);
+        result.put("cpuMemTop", cpuMemMapper.getDailyCpuMemTop(date, 7));
+        result.put("cpuMemHourly", cpuMemMapper.getDailyPerfHourly(date));
+        result.put("faultHourlyByLevel", errorMapper.selectFaultHourlyByLevel(date, date));
+        result.put("topDevicesByLevel", errorMapper.selectTopDevicesByLevel(date, date, 7));
+        result.put("topDevicesByType", errorMapper.selectTopDevicesByType(date, date, 7));
+        return ResponseEntity.ok(new ResVO<>(200, "조회 성공", result));
     }
 
 }

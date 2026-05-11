@@ -1,5 +1,6 @@
 package dev3.nms.controller;
 
+import dev3.nms.config.AuditLog;
 import dev3.nms.service.NotificationPrefService;
 import dev3.nms.util.SessionUtil;
 import dev3.nms.vo.auth.NotificationPrefVO;
@@ -37,6 +38,7 @@ public class NotificationPrefController {
     /**
      * 알림 환경설정 저장
      */
+    @AuditLog(actionType = "UPDATE", targetType = "USER_SETTING", pageCode = "notification_settings")
     @PutMapping("/preferences")
     public ResponseEntity<ResVO<Void>> updatePreferences(
             @RequestBody NotificationPrefVO pref,

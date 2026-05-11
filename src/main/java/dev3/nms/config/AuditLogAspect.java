@@ -41,7 +41,7 @@ public class AuditLogAspect {
 
         // 1. Before: UPDATE/DELETE 시 변경 전 스냅샷
         Map<String, String> beforeSnapshot = null;
-        if (("UPDATE".equals(actionType) || "DELETE".equals(actionType)) && targetId != null) {
+        if (("UPDATE".equals(actionType) || "DELETE".equals(actionType) || "CONTROL".equals(actionType)) && targetId != null) {
             try {
                 beforeSnapshot = auditDetailService.getSnapshot(targetType, targetId, joinPoint.getArgs());
             } catch (Exception e) {
@@ -84,6 +84,8 @@ public class AuditLogAspect {
                             detail = auditDetailService.buildUpdateDetail(targetType, beforeSnapshot, afterValues);
                         }
                     }
+                }
+                case "CONTROL" -> {
                     // WATCH_CONTROL: 관제 시작/중지 - URI에서 액션 추출
                     if ("WATCH_CONTROL".equals(targetType) && beforeSnapshot != null) {
                         String uri = request.getRequestURI();

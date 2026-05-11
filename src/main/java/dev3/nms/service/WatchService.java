@@ -23,9 +23,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * 관제 서비스
@@ -444,9 +443,33 @@ public class WatchService {
         }
         request.setDevices(deviceRequests);
 
-        // Go Middleware 호출
-        callMiddleware("/api/watch/start", request);
-        log.info("[WATCH] 수집 시작 - GroupID: {}", watchGroupId);
+        // 장비별 미들웨어 그룹핑
+        Map<Integer, MiddlewareVO> mwCache = new HashMap<>();
+        Map<Integer, List<WatchRequestVO.DeviceRequest>> mwDeviceMap = new LinkedHashMap<>();
+
+        for (WatchRequestVO.DeviceRequest dr : deviceRequests) {
+            MiddlewareVO mw = middlewareMapper.findByDeviceId(dr.getDeviceId());
+            int mwId = mw != null ? mw.getMIDDLEWARE_ID() : -1;
+            mwCache.putIfAbsent(mwId, mw);
+            mwDeviceMap.computeIfAbsent(mwId, k -> new ArrayList<>()).add(dr);
+        }
+
+        // 각 미들웨어에 해당 장비만 포함한 요청 전송
+        for (Map.Entry<Integer, List<WatchRequestVO.DeviceRequest>> entry : mwDeviceMap.entrySet()) {
+            MiddlewareVO mw = mwCache.get(entry.getKey());
+            WatchRequestVO.StartRequest mwRequest = new WatchRequestVO.StartRequest();
+            mwRequest.setGroupId(watchGroupId);
+            mwRequest.setIntervalSec(group.getINTERVAL_SEC());
+            mwRequest.setDevices(entry.getValue());
+
+            if (mw != null && mw.getMIDDLEWARE_URL() != null) {
+                callMiddleware(mw.getMIDDLEWARE_URL(), mw.getAPI_KEY(), "/api/watch/start", mwRequest);
+            } else {
+                callMiddleware("/api/watch/start", mwRequest);
+            }
+        }
+
+        log.info("[WATCH] 수집 시작 - GroupID: {}, 미들웨어 {}개", watchGroupId, mwDeviceMap.size());
     }
 
     /**
@@ -456,42 +479,45 @@ public class WatchService {
         WatchRequestVO.GroupRequest request = new WatchRequestVO.GroupRequest();
         request.setGroupId(watchGroupId);
 
-        callMiddleware("/api/watch/stop", request);
+        callAllMiddlewares("/api/watch/stop", request);
         log.info("[WATCH] 수집 중지 - GroupID: {}", watchGroupId);
     }
 
     /**
-     * Heartbeat 전송 (Go Middleware 호출)
+     * Heartbeat 전송 (모든 활성 미들웨어에 전송)
      */
     public void sendHeartbeat(Integer watchGroupId) {
         WatchRequestVO.GroupRequest request = new WatchRequestVO.GroupRequest();
         request.setGroupId(watchGroupId);
 
-        callMiddleware("/api/watch/heartbeat", request);
+        callAllMiddlewares("/api/watch/heartbeat", request);
     }
 
     /**
-     * Go Middleware HTTP 호출
+     * 모든 활성 미들웨어에 동일 요청 전송 (stop/heartbeat용)
      */
-    private void callMiddleware(String path, Object body) {
-        try {
-            // DB에서 미들웨어 URL + API Key 조회 (fallback: application.properties)
-            String mwUrl = middlewareUrl;
-            String mwApiKey = "";
+    private void callAllMiddlewares(String path, Object body) {
+        List<MiddlewareVO> actives = middlewareMapper.findActiveMiddlewares();
+        if (actives.isEmpty()) {
+            // fallback: properties URL로 전송
+            callMiddleware(path, body);
+            return;
+        }
+        for (MiddlewareVO mw : actives) {
             try {
-                java.util.List<MiddlewareVO> mwList = middlewareMapper.findAll();
-                if (mwList != null && !mwList.isEmpty()) {
-                    MiddlewareVO mw = mwList.stream()
-                            .filter(m -> "ACTIVE".equals(m.getSTATUS()))
-                            .findFirst().orElse(mwList.get(0));
-                    mwUrl = mw.getMIDDLEWARE_URL();
-                    mwApiKey = mw.getAPI_KEY();
-                }
+                callMiddleware(mw.getMIDDLEWARE_URL(), mw.getAPI_KEY(), path, body);
             } catch (Exception e) {
-                log.warn("미들웨어 DB 조회 실패, fallback URL 사용: {}", e.getMessage());
+                log.warn("[WATCH] 미들웨어 {} 호출 실패 (계속 진행): {}", mw.getMIDDLEWARE_ID(), e.getMessage());
             }
+        }
+    }
 
-            String url = mwUrl + path;
+    /**
+     * 특정 미들웨어에 HTTP 호출 (URL/API Key 직접 지정)
+     */
+    private void callMiddleware(String mwUrl, String mwApiKey, String path, Object body) {
+        try {
+            String url = mwUrl.replaceAll("/+$", "") + path;
             String requestBody = objectMapper.writeValueAsString(body);
 
             HttpRequest.Builder builder = HttpRequest.newBuilder()
@@ -507,25 +533,40 @@ public class WatchService {
             log.info("[Middleware] URL: {}, API-Key: {}..., Path: {}", mwUrl,
                     mwApiKey != null && mwApiKey.length() > 8 ? mwApiKey.substring(0, 8) : mwApiKey, path);
 
-            HttpRequest httpRequest = builder.build();
-
-            HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() != 200) {
                 log.error("Middleware API 오류 - status: {}, body: {}", response.statusCode(), response.body());
                 throw new RuntimeException("Middleware API 오류: " + response.statusCode());
             }
 
-            // 응답 확인
             Map<String, Object> result = objectMapper.readValue(response.body(), new TypeReference<>() {});
             if (result.get("success") != null && !(Boolean) result.get("success")) {
                 throw new RuntimeException("Middleware 처리 실패: " + result.get("message"));
             }
-
         } catch (Exception e) {
             log.error("Middleware API 호출 실패: {}", e.getMessage());
             throw new RuntimeException("Middleware API 호출 실패: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Go Middleware HTTP 호출 (기본: DB에서 첫 번째 활성 미들웨어 자동 조회)
+     */
+    private void callMiddleware(String path, Object body) {
+        String mwUrl = middlewareUrl;
+        String mwApiKey = "";
+        try {
+            List<MiddlewareVO> mwList = middlewareMapper.findActiveMiddlewares();
+            if (mwList != null && !mwList.isEmpty()) {
+                MiddlewareVO mw = mwList.get(0);
+                mwUrl = mw.getMIDDLEWARE_URL();
+                mwApiKey = mw.getAPI_KEY();
+            }
+        } catch (Exception e) {
+            log.warn("미들웨어 DB 조회 실패, fallback URL 사용: {}", e.getMessage());
+        }
+        callMiddleware(mwUrl, mwApiKey, path, body);
     }
 
     // ==================== Redis 메트릭 조회 ====================

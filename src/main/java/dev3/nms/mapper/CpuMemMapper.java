@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Mapper
 public interface CpuMemMapper {
@@ -47,4 +48,23 @@ public interface CpuMemMapper {
                                                @Param("endTime") LocalDateTime endTime);
 
     int deleteByDeviceId(@Param("deviceId") Integer deviceId);
+
+    List<Map<String, Object>> getDailyCpuMemTop(@Param("date") String date, @Param("limit") int limit);
+
+    List<Map<String, Object>> getDailyPerfHourly(@Param("date") String date);
+
+    /**
+     * 다중 장비의 CPU/MEM raw 데이터 조회 (batch)
+     */
+    List<CpuMemVO> findRecentBatchRaw(@Param("deviceIds") List<Integer> deviceIds,
+                                       @Param("startDate") String startDate,
+                                       @Param("endDate") String endDate);
+
+    /**
+     * 다중 장비의 CPU/MEM 집계 데이터 조회 (batch, intervalSec 단위로 그룹화)
+     */
+    List<CpuMemVO> findRecentBatchAggregated(@Param("deviceIds") List<Integer> deviceIds,
+                                              @Param("startDate") String startDate,
+                                              @Param("endDate") String endDate,
+                                              @Param("intervalSec") Integer intervalSec);
 }

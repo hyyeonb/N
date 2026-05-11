@@ -107,4 +107,67 @@
         DELETE FROM p_traffic_t WHERE DEVICE_ID = #{deviceId}
     </delete>
 
+    <!-- 다중 장비의 트래픽 raw 데이터 (batch, UP 포트만) -->
+    <select id="findRecentBatchRaw" resultMap="TrafficResultMap">
+        SELECT
+            t.*,
+            p.IF_NAME,
+            p.IF_DESCR
+        FROM P_TRAFFIC_T t
+        INNER JOIN r_port_t p ON t.DEVICE_ID = p.DEVICE_ID AND t.IF_INDEX = p.IF_INDEX
+        WHERE t.DEVICE_ID IN
+        <foreach collection="deviceIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          AND t.COLLECTED_AT BETWEEN #{startDate} AND #{endDate}
+          AND p.IF_OPER_STATUS = 1
+          AND p.DELETE_AT IS NULL
+        ORDER BY t.DEVICE_ID, t.IF_INDEX, t.COLLECTED_AT ASC
+    </select>
+
+    <!-- 다중 장비의 트래픽 집계 데이터 (batch, intervalSec 단위, 포트별) -->
+    <select id="findRecentBatchAggregated" resultMap="TrafficResultMap">
+        SELECT
+            t.DEVICE_ID,
+            t.IF_INDEX,
+            FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(t.COLLECTED_AT)/#{intervalSec})*#{intervalSec}) AS COLLECTED_AT,
+            ROUND(AVG(t.IN_BPS), 2) AS IN_BPS,
+            ROUND(AVG(t.IN_HIGH_BPS), 2) AS IN_HIGH_BPS,
+            ROUND(AVG(t.OUT_BPS), 2) AS OUT_BPS,
+            ROUND(AVG(t.OUT_HIGH_BPS), 2) AS OUT_HIGH_BPS,
+            ROUND(AVG(t.IN_USED_PERCENT), 2) AS IN_USED_PERCENT,
+            ROUND(AVG(t.IN_HIGH_USED_PERCENT), 2) AS IN_HIGH_USED_PERCENT,
+            ROUND(AVG(t.OUT_USED_PERCENT), 2) AS OUT_USED_PERCENT,
+            ROUND(AVG(t.OUT_HIGH_USED_PERCENT), 2) AS OUT_HIGH_USED_PERCENT,
+            MAX(p.IF_NAME) AS IF_NAME,
+            MAX(p.IF_DESCR) AS IF_DESCR
+        FROM P_TRAFFIC_T t
+        INNER JOIN r_port_t p ON t.DEVICE_ID = p.DEVICE_ID AND t.IF_INDEX = p.IF_INDEX
+        WHERE t.DEVICE_ID IN
+        <foreach collection="deviceIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          AND t.COLLECTED_AT BETWEEN #{startDate} AND #{endDate}
+          AND p.IF_OPER_STATUS = 1
+          AND p.DELETE_AT IS NULL
+        GROUP BY t.DEVICE_ID, t.IF_INDEX, FLOOR(UNIX_TIMESTAMP(t.COLLECTED_AT)/#{intervalSec})
+        ORDER BY t.DEVICE_ID, t.IF_INDEX, COLLECTED_AT ASC
+    </select>
+
+    <!-- 다중 (장비, 포트) 쌍의 트래픽 raw 데이터 (batch) -->
+    <select id="findRecentByPortsBatch" resultMap="TrafficResultMap">
+        SELECT
+            t.*,
+            p.IF_NAME,
+            p.IF_DESCR
+        FROM P_TRAFFIC_T t
+        LEFT JOIN r_port_t p ON t.DEVICE_ID = p.DEVICE_ID AND t.IF_INDEX = p.IF_INDEX AND p.DELETE_AT IS NULL
+        WHERE (t.DEVICE_ID, t.IF_INDEX) IN
+        <foreach collection="ports" item="port" open="(" separator="," close=")">
+            (#{port.deviceId}, #{port.ifIndex})
+        </foreach>
+          AND t.COLLECTED_AT &gt;= DATE_SUB(NOW(), INTERVAL #{minutes} MINUTE)
+        ORDER BY t.DEVICE_ID, t.IF_INDEX, t.COLLECTED_AT ASC
+    </select>
+
 </mapper>

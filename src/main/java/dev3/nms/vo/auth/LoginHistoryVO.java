@@ -29,4 +29,5 @@ public class LoginHistoryVO {
     private Integer ACTIVITY_UPDATE;
     private Integer ACTIVITY_DELETE;
     private Integer ACTIVITY_VIEW;
+    private Integer ACTIVITY_CONTROL;
 }

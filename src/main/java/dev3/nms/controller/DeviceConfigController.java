@@ -31,6 +31,20 @@ public class DeviceConfigController {
     private final GroupMapper groupMapper;
     private final PermissionService permissionService;
 
+    @GetMapping("/{deviceId}/dates")
+    public ResponseEntity<ResVO<List<String>>> getConfigDates(
+            @PathVariable Long deviceId,
+            HttpSession session
+    ) {
+        Long userId = SessionUtil.getUserId(session);
+        List<Long> accessibleDeviceIds = permissionService.getAccessibleDeviceIds(userId);
+        if (accessibleDeviceIds != null && !accessibleDeviceIds.contains(deviceId)) {
+            return new ResponseEntity<>(new ResVO<>(403, "해당 장비에 접근할 수 없습니다", null), HttpStatus.FORBIDDEN);
+        }
+        List<String> dates = deviceConfigService.getConfigDates(deviceId);
+        return new ResponseEntity<>(new ResVO<>(200, "Config 날짜 목록 조회 성공", dates), HttpStatus.OK);
+    }
+
     @GetMapping("/{deviceId}")
     public ResponseEntity<ResVO<DeviceConfigDto.DeviceConfigRes>> getWidgetsView(
             @PathVariable Long deviceId,

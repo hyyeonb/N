@@ -85,6 +85,7 @@ public class AccountController {
     /**
      * 프로필 이미지 업로드 (Base64로 DB 저장)
      */
+    @AuditLog(actionType = "UPDATE", targetType = "ACCOUNT", pageCode = "account_settings")
     @PostMapping("/profile-image")
     public ResponseEntity<ResVO<String>> uploadProfileImage(
             @RequestParam("file") MultipartFile file,

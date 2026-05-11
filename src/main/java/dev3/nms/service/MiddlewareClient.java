@@ -172,10 +172,129 @@ public class MiddlewareClient {
     // ========== API Methods ==========
 
     /**
-     * SNMP 시스템 정보 조회
+     * 등록 시 probe 결과: 시스템 정보 + 성공한 미들웨어 목록
+     * - reachable이 1개면 해당 미들웨어에 고정 할당
+     * - reachable이 2개 이상이면 재분배 가능(자동 할당)
+     */
+    public static class RegistrationProbe {
+        public final SystemInfoResponse systemInfo;
+        public final List<MiddlewareVO> reachableMiddlewares;
+
+        public RegistrationProbe(SystemInfoResponse systemInfo, List<MiddlewareVO> reachableMiddlewares) {
+            this.systemInfo = systemInfo;
+            this.reachableMiddlewares = reachableMiddlewares;
+        }
+    }
+
+    /**
+     * 등록 시 모든 ACTIVE 미들웨어에 병렬 SNMP probe
+     * 어느 미들웨어가 해당 장비에 도달 가능한지 확인 + 시스템 정보 반환
+     */
+    public RegistrationProbe probeForRegistration(SnmpRequest request) {
+        List<MiddlewareVO> actives = (middlewareMapper != null)
+                ? middlewareMapper.findAll().stream().filter(m -> "ACTIVE".equals(m.getSTATUS())).toList()
+                : java.util.Collections.emptyList();
+
+        if (actives.isEmpty()) {
+            SystemInfoResponse fallback = getSystemInfo(request, middlewareUrl, defaultApiKey);
+            return new RegistrationProbe(fallback, java.util.Collections.emptyList());
+        }
+
+        List<java.util.concurrent.CompletableFuture<java.util.Map.Entry<MiddlewareVO, SystemInfoResponse>>> futures =
+                actives.stream()
+                        .map(mw -> java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+                            try {
+                                SystemInfoResponse r = getSystemInfo(request, resolveUrl(mw), resolveApiKey(mw));
+                                log.info("[등록 probe] middlewareId={} {} SNMP {}: {}",
+                                        mw.getMIDDLEWARE_ID(), request.getIpAddress(),
+                                        r.isSuccess() ? "성공" : "실패",
+                                        r.isSuccess() ? r.getSysName() : r.getMessage());
+                                return java.util.Map.entry(mw, r);
+                            } catch (Exception e) {
+                                log.info("[등록 probe] middlewareId={} {} 예외: {}",
+                                        mw.getMIDDLEWARE_ID(), request.getIpAddress(), e.getMessage());
+                                SystemInfoResponse f = new SystemInfoResponse();
+                                f.setSuccess(false);
+                                f.setMessage(e.getMessage());
+                                return java.util.Map.entry(mw, f);
+                            }
+                        }))
+                        .toList();
+
+        List<java.util.Map.Entry<MiddlewareVO, SystemInfoResponse>> results = futures.stream()
+                .map(java.util.concurrent.CompletableFuture::join)
+                .toList();
+
+        List<MiddlewareVO> reachable = results.stream()
+                .filter(e -> e.getValue().isSuccess())
+                .map(java.util.Map.Entry::getKey)
+                .toList();
+
+        SystemInfoResponse combined;
+        if (!reachable.isEmpty()) {
+            combined = results.stream()
+                    .filter(e -> e.getValue().isSuccess())
+                    .findFirst()
+                    .map(java.util.Map.Entry::getValue)
+                    .orElseThrow();
+        } else {
+            combined = new SystemInfoResponse();
+            combined.setSuccess(false);
+            combined.setMessage(results.get(results.size() - 1).getValue().getMessage());
+        }
+        return new RegistrationProbe(combined, reachable);
+    }
+
+
+    /**
+     * SNMP 시스템 정보 조회 - 장비 ID가 없을 때 (등록 직전)
+     * 모든 ACTIVE 미들웨어에 병렬 시도 → 도달 가능한 미들웨어를 전부 파악한 뒤 성공 결과 반환
      */
     public SystemInfoResponse getSystemInfo(SnmpRequest request) {
-        return getSystemInfo(request, null);
+        if (middlewareMapper != null) {
+            List<MiddlewareVO> actives = middlewareMapper.findAll().stream()
+                    .filter(m -> "ACTIVE".equals(m.getSTATUS()))
+                    .toList();
+            if (!actives.isEmpty()) {
+                List<java.util.concurrent.CompletableFuture<SystemInfoResponse>> futures = actives.stream()
+                        .map(mw -> java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+                            try {
+                                SystemInfoResponse r = getSystemInfo(request, resolveUrl(mw), resolveApiKey(mw));
+                                log.info("[등록 probe] middlewareId={} {} SNMP {}: {}",
+                                        mw.getMIDDLEWARE_ID(), request.getIpAddress(),
+                                        r.isSuccess() ? "성공" : "실패",
+                                        r.isSuccess() ? r.getSysName() : r.getMessage());
+                                return r;
+                            } catch (Exception e) {
+                                log.info("[등록 probe] middlewareId={} {} 예외: {}",
+                                        mw.getMIDDLEWARE_ID(), request.getIpAddress(), e.getMessage());
+                                SystemInfoResponse f = new SystemInfoResponse();
+                                f.setSuccess(false);
+                                f.setMessage(e.getMessage());
+                                return f;
+                            }
+                        }))
+                        .toList();
+
+                List<SystemInfoResponse> results = futures.stream()
+                        .map(java.util.concurrent.CompletableFuture::join)
+                        .toList();
+
+                SystemInfoResponse success = results.stream()
+                        .filter(SystemInfoResponse::isSuccess)
+                        .findFirst()
+                        .orElse(null);
+                if (success != null) return success;
+
+                SystemInfoResponse fail = new SystemInfoResponse();
+                fail.setSuccess(false);
+                fail.setMessage(results.isEmpty() ? "미들웨어 없음"
+                        : results.get(results.size() - 1).getMessage());
+                return fail;
+            }
+        }
+        // 미들웨어 레코드 없음 → properties fallback URL로 직접 호출
+        return getSystemInfo(request, middlewareUrl, defaultApiKey);
     }
 
     /**
@@ -214,17 +333,64 @@ public class MiddlewareClient {
 
     /**
      * SNMP 시스템 정보 조회 (장비 ID 기반 미들웨어 자동 조회)
+     * deviceId가 null이면 등록 직전 상태로 간주 → 모든 ACTIVE 미들웨어 병렬 probe
      */
     public SystemInfoResponse getSystemInfo(SnmpRequest request, Integer deviceId) {
+        if (deviceId == null) {
+            return getSystemInfo(request);
+        }
         MiddlewareVO mw = resolveMiddleware(deviceId);
         return getSystemInfo(request, resolveUrl(mw), resolveApiKey(mw));
     }
 
     /**
-     * SNMP 포트 정보 조회
+     * SNMP 포트 정보 조회 - 장비 ID가 없을 때 (등록 직전)
+     * 모든 ACTIVE 미들웨어에 병렬 시도 → 성공 결과 반환
      */
     public PortsResponse getPorts(SnmpRequest request) {
-        return getPorts(request, (Integer) null);
+        if (middlewareMapper != null) {
+            List<MiddlewareVO> actives = middlewareMapper.findAll().stream()
+                    .filter(m -> "ACTIVE".equals(m.getSTATUS()))
+                    .toList();
+            if (!actives.isEmpty()) {
+                List<java.util.concurrent.CompletableFuture<PortsResponse>> futures = actives.stream()
+                        .map(mw -> java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+                            try {
+                                PortsResponse r = getPorts(request, resolveUrl(mw), resolveApiKey(mw));
+                                log.info("[등록 probe] middlewareId={} {} 포트 {}: {}",
+                                        mw.getMIDDLEWARE_ID(), request.getIpAddress(),
+                                        r.isSuccess() ? "성공" : "실패",
+                                        r.isSuccess() ? (r.getPorts() == null ? 0 : r.getPorts().size()) + "개" : r.getMessage());
+                                return r;
+                            } catch (Exception e) {
+                                log.info("[등록 probe] middlewareId={} {} 포트 예외: {}",
+                                        mw.getMIDDLEWARE_ID(), request.getIpAddress(), e.getMessage());
+                                PortsResponse f = new PortsResponse();
+                                f.setSuccess(false);
+                                f.setMessage(e.getMessage());
+                                return f;
+                            }
+                        }))
+                        .toList();
+
+                List<PortsResponse> results = futures.stream()
+                        .map(java.util.concurrent.CompletableFuture::join)
+                        .toList();
+
+                PortsResponse success = results.stream()
+                        .filter(PortsResponse::isSuccess)
+                        .findFirst()
+                        .orElse(null);
+                if (success != null) return success;
+
+                PortsResponse fail = new PortsResponse();
+                fail.setSuccess(false);
+                fail.setMessage(results.isEmpty() ? "미들웨어 없음"
+                        : results.get(results.size() - 1).getMessage());
+                return fail;
+            }
+        }
+        return getPorts(request, middlewareUrl, defaultApiKey);
     }
 
     /**
@@ -263,10 +429,39 @@ public class MiddlewareClient {
 
     /**
      * SNMP 포트 정보 조회 (장비 ID 기반 미들웨어 자동 조회)
+     * deviceId가 null이면 등록 직전 상태로 간주 → 모든 ACTIVE 미들웨어 병렬 probe
      */
     public PortsResponse getPorts(SnmpRequest request, Integer deviceId) {
+        if (deviceId == null) {
+            return getPorts(request);
+        }
         MiddlewareVO mw = resolveMiddleware(deviceId);
         return getPorts(request, resolveUrl(mw), resolveApiKey(mw));
+    }
+
+    /**
+     * 편의 메서드 - PortVO 리스트 (deviceId 지정 시 해당 장비 할당 미들웨어 경유)
+     */
+    public List<dev3.nms.vo.mgmt.PortVO> getDevicePortInfo(String ipAddress, int snmpVersion, int snmpPort,
+                                                            String community, String user, String authProtocol,
+                                                            String authPassword, String privProtocol, String privPassword,
+                                                            Integer deviceId) {
+        SnmpRequest request = new SnmpRequest();
+        request.setIpAddress(ipAddress);
+        request.setSnmpVersion(snmpVersion);
+        request.setSnmpPort(snmpPort);
+        request.setCommunity(community);
+        request.setUser(user);
+        request.setAuthProtocol(authProtocol);
+        request.setAuthPassword(authPassword);
+        request.setPrivProtocol(privProtocol);
+        request.setPrivPassword(privPassword);
+
+        PortsResponse response = getPorts(request, deviceId);
+        if (!response.isSuccess()) {
+            throw new RuntimeException(toSnmpUserMessage(response.getMessage()));
+        }
+        return response.getPorts().stream().map(this::toPortVO).toList();
     }
 
     /**
@@ -396,7 +591,7 @@ public class MiddlewareClient {
             log.error("PING 체크 실패 - IP: {}, error: {}", ipAddress, e.getMessage());
             PingResponse fail = new PingResponse();
             fail.setSuccess(false);
-            fail.setMessage("Middleware 호출 실패: " + e.getMessage());
+            fail.setMessage(toMiddlewareErrorMessage(e));
             return fail;
         }
     }
@@ -442,7 +637,7 @@ public class MiddlewareClient {
             SshCheckResponse fail = new SshCheckResponse();
             fail.setSuccess(false);
             fail.setPort(port);
-            fail.setMessage("Middleware 호출 실패: " + e.getMessage());
+            fail.setMessage(toMiddlewareErrorMessage(e));
             return fail;
         }
     }
@@ -499,9 +694,41 @@ public class MiddlewareClient {
             PortStatusResponse fail = new PortStatusResponse();
             fail.setSuccess(false);
             fail.setIfIndex(ifIndex);
-            fail.setMessage("Middleware 호출 실패: " + e.getMessage());
+            fail.setMessage(toMiddlewareErrorMessage(e));
             return fail;
         }
+    }
+
+    /**
+     * Middleware HTTP 호출 예외를 사용자 친화적 메시지로 변환
+     * - 타임아웃 → 장비 미응답 (Middleware 문제가 아님)
+     * - 연결 거부 → Middleware 서버 미실행
+     * - Circuit OPEN → 연속 실패로 차단 중
+     * - 그 외 → Middleware 통신 오류
+     */
+    private String toMiddlewareErrorMessage(Exception e) {
+        String msg = e.getMessage();
+        if (msg == null) msg = e.getClass().getSimpleName();
+
+        // RuntimeException으로 래핑된 경우 원본 추출
+        Throwable cause = e.getCause();
+        if (cause != null) msg = cause.getMessage() != null ? cause.getMessage() : msg;
+
+        String low = msg.toLowerCase();
+
+        if (low.contains("timed out") || low.contains("timeout") || low.contains("httptimeoutexception")) {
+            return "장비 응답 없음 (타임아웃): 장비가 꺼져 있거나 네트워크에서 도달할 수 없습니다";
+        }
+        if (low.contains("connection refused") || low.contains("connectexception")) {
+            return "Middleware 연결 실패: Middleware 서버가 실행 중인지 확인하세요";
+        }
+        if (low.contains("circuit open") || low.contains("연결 차단")) {
+            return "Middleware 일시 차단 중: 연속 실패로 30초간 요청이 차단됩니다. 잠시 후 다시 시도하세요";
+        }
+        if (low.contains("unreachable") || low.contains("no route")) {
+            return "Middleware 네트워크 도달 불가: 서버 간 네트워크 연결을 확인하세요";
+        }
+        return "Middleware 통신 오류: " + msg;
     }
 
     /**
@@ -667,7 +894,7 @@ public class MiddlewareClient {
             log.error("Traceroute 실패 - target: {}, error: {}", targetIp, e.getMessage());
             TracerouteResponse fail = new TracerouteResponse();
             fail.setSuccess(false);
-            fail.setMessage("Middleware 호출 실패: " + e.getMessage());
+            fail.setMessage(toMiddlewareErrorMessage(e));
             return fail;
         }
     }
@@ -724,7 +951,7 @@ public class MiddlewareClient {
             log.error("Traceroute (SSH) 실패 - source: {}, target: {}, error: {}", sourceIp, targetIp, e.getMessage());
             TracerouteResponse fail = new TracerouteResponse();
             fail.setSuccess(false);
-            fail.setMessage("Middleware 호출 실패: " + e.getMessage());
+            fail.setMessage(toMiddlewareErrorMessage(e));
             return fail;
         }
     }

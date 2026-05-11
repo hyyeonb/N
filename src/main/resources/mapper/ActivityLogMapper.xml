@@ -132,4 +132,16 @@
         WHERE HISTORY_ID = #{historyId}
     </select>
 
+    <!-- 특정 일자 장비 변경 집계 -->
+    <select id="countDailyDeviceChanges" parameterType="string" resultType="map">
+        SELECT
+            SUM(CASE WHEN ACTION_TYPE = 'CREATE' THEN 1 ELSE 0 END) AS CREATED_COUNT,
+            SUM(CASE WHEN ACTION_TYPE = 'UPDATE' THEN 1 ELSE 0 END) AS UPDATED_COUNT,
+            SUM(CASE WHEN ACTION_TYPE = 'DELETE' THEN 1 ELSE 0 END) AS DELETED_COUNT,
+            SUM(CASE WHEN ACTION_TYPE IN ('CREATE','UPDATE','DELETE') THEN 1 ELSE 0 END) AS TOTAL_COUNT
+        FROM R_ACTIVITY_LOG_T
+        WHERE TARGET_TYPE = 'DEVICE'
+          AND DATE(CREATED_AT) = #{date}
+    </select>
+
 </mapper>

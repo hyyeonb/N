@@ -89,4 +89,29 @@
           AND DELETE_AT IS NULL
     </select>
 
+    <!-- 미들웨어에 고정 할당된 장비 수 (재분배 초기 부하 계산용) -->
+    <select id="countFixedDevicesByMiddlewareId" resultType="int">
+        SELECT COUNT(*)
+        FROM R_DEVICE_T
+        WHERE MIDDLEWARE_ID = #{middlewareId}
+          AND MIDDLEWARE_FIXED = 1
+          AND DELETE_AT IS NULL
+    </select>
+
+    <!-- 활성 미들웨어 목록 (재분배용) -->
+    <select id="findActiveMiddlewares" resultType="dev3.nms.vo.mgmt.MiddlewareVO">
+        SELECT
+            m.MIDDLEWARE_ID,
+            m.MIDDLEWARE_NAME,
+            m.MIDDLEWARE_URL,
+            m.API_KEY,
+            m.STATUS,
+            m.LAST_HEARTBEAT,
+            m.PRIORITY,
+            (SELECT COUNT(*) FROM R_DEVICE_T d WHERE d.MIDDLEWARE_ID = m.MIDDLEWARE_ID AND d.DELETE_AT IS NULL) AS DEVICE_COUNT
+        FROM R_MIDDLEWARE_T m
+        WHERE m.STATUS = 'ACTIVE'
+        ORDER BY m.PRIORITY, m.MIDDLEWARE_ID
+    </select>
+
 </mapper>

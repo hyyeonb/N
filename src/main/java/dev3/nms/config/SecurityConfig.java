@@ -34,7 +34,9 @@ public class SecurityConfig {
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
         "http://192.168.3.114",
-        "http://192.168.3.114.nip.io"
+        "http://192.168.3.114.nip.io",
+        "https://192.168.3.114",
+        "https://nms.stninfo.local"
     );
 
     @Bean
@@ -51,6 +53,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/oauth/**").permitAll()
                 .requestMatchers("/api/alerts/**").permitAll()
+                .requestMatchers("/api/middleware/register-key").permitAll()
                 .requestMatchers("/ws/**").permitAll()
                 .requestMatchers("/error").permitAll()
                 .requestMatchers("/api/mgmt/vendors/test-oid").permitAll()
